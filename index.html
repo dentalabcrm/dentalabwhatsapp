@@ -20221,14 +20221,23 @@ function authOpenAdminPanel(openTab) {
         await db.ref('dentalab/auth_active_sessions/' + encodeURIComponent(uname)).remove();
         showToast(`🗑 Usuario ${uname.split(' ')[0]} eliminado`, 'warn');
         renderAdminUsers();
+  // Wire design shortcut inside admin panel
+  setTimeout(() => {
+    document.getElementById('admin-open-design-panel')?.addEventListener('click', () => {
+      backdrop.remove();
+      openDesignPanel();
+    });
+  }, 50);
+      })
+    );
 
     // Renombrar usuario — mostrar editor inline
     list.querySelectorAll('.admin-rename-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const uname    = btn.dataset.uname;
-        const key      = uname.replace(/\s+/g, '_');
-        const dispEl   = document.getElementById(`admin-uname-display-${key}`);
-        const editEl   = document.getElementById(`admin-uname-edit-${key}`);
+        const uname  = btn.dataset.uname;
+        const key    = uname.replace(/\s+/g, '_');
+        const dispEl = document.getElementById(`admin-uname-display-${key}`);
+        const editEl = document.getElementById(`admin-uname-edit-${key}`);
         if (!dispEl || !editEl) return;
         dispEl.style.display = 'none';
         editEl.style.display = 'block';
@@ -20247,10 +20256,10 @@ function authOpenAdminPanel(openTab) {
 
     list.querySelectorAll('.admin-rename-save').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const oldName  = btn.dataset.uname;
-        const editEl   = document.getElementById(`admin-uname-edit-${oldName.replace(/\s+/g,'_')}`);
-        const input    = editEl?.querySelector('.admin-rename-input');
-        const newName  = input ? input.value.trim() : '';
+        const oldName = btn.dataset.uname;
+        const editEl  = document.getElementById(`admin-uname-edit-${oldName.replace(/\s+/g,'_')}`);
+        const input   = editEl?.querySelector('.admin-rename-input');
+        const newName = input ? input.value.trim() : '';
 
         if (!newName || newName.length < 3) {
           showToast('⚠ El nombre debe tener al menos 3 caracteres', 'warn'); return;
@@ -20286,25 +20295,13 @@ function authOpenAdminPanel(openTab) {
       });
     });
 
-    // Confirmar con Enter en el input de renombre
+    // Confirmar con Enter / cancelar con Escape en el input de renombre
     list.querySelectorAll('.admin-rename-input').forEach(inp => {
       inp.addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
-          inp.closest('div')?.querySelector('.admin-rename-save')?.click();
-        } else if (e.key === 'Escape') {
-          inp.closest('div')?.querySelector('.admin-rename-cancel')?.click();
-        }
+        if (e.key === 'Enter')  inp.closest('div')?.querySelector('.admin-rename-save')?.click();
+        if (e.key === 'Escape') inp.closest('div')?.querySelector('.admin-rename-cancel')?.click();
       });
     });
-  // Wire design shortcut inside admin panel
-  setTimeout(() => {
-    document.getElementById('admin-open-design-panel')?.addEventListener('click', () => {
-      backdrop.remove();
-      openDesignPanel();
-    });
-  }, 50);
-      })
-    );
   }
   renderAdminUsers();
 
