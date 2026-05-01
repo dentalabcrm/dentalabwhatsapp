@@ -5621,6 +5621,7 @@
               <option value="mejora">⬆ Mejora</option>
               <option value="error">🐛 Error</option>
               <option value="comunicado">📢 Comunicado</option>
+              <option value="consejo">🌟 Consejo</option>
             </select>
           </div>
           <div style="margin-bottom:12px;">
@@ -6297,6 +6298,7 @@
 .idea-type-mejora { background:rgba(16,185,129,.15); border:1px solid rgba(16,185,129,.3); color:#10b981; }
 .idea-type-error  { background:rgba(239,68,68,.15);  border:1px solid rgba(239,68,68,.3);  color:#f87171; }
 .idea-type-comunicado { background:rgba(245,158,11,.15); border:1px solid rgba(245,158,11,.3); color:#fbbf24; }
+.idea-type-consejo    { background:rgba(139,92,246,.15);  border:1px solid rgba(139,92,246,.3);  color:#a78bfa; }
 
 .idea-title { font-size:15px; font-weight:800; color:var(--text); margin:0 0 6px; line-height:1.3; }
 .idea-desc  { font-size:13px; color:var(--text2); line-height:1.55; margin:0 0 13px; white-space:pre-wrap; }
@@ -30350,7 +30352,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
     const likeCount  = idea.likeCount || 0;
     const commentArr = idea.comments ? Object.values(idea.comments) : [];
     const isHot      = likeCount >= HOT_LIKES;
-    const typeLabels = { idea:'💡 Idea', mejora:'⬆ Mejora', error:'🐛 Error', comunicado:'📢 Comunicado' };
+    const typeLabels = { idea:'💡 Idea', mejora:'⬆ Mejora', error:'🐛 Error', comunicado:'📢 Comunicado', consejo:'🌟 Consejo' };
     const typeLabel  = typeLabels[idea.type] || '💡 Idea';
     const typeClass  = 'idea-type-' + (idea.type || 'idea');
     const canEdit    = _canEdit(idea.authorId);
@@ -30411,6 +30413,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
             <option value="mejora" ${idea.type==='mejora' ?'selected':''}>⬆ Mejora</option>
             <option value="error"  ${idea.type==='error'  ?'selected':''}>🐛 Error</option>
             <option value="comunicado" ${idea.type==='comunicado' ?'selected':''}>📢 Comunicado</option>
+            <option value="consejo"    ${idea.type==='consejo'    ?'selected':''}>🌟 Consejo</option>
           </select>
         </div>
         <div style="position:relative;margin-bottom:10px;">
