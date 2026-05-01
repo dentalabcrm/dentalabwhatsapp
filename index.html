@@ -14884,9 +14884,9 @@ function generarTextoAvisoDeposito(c) {
     const lineasB = c.productosB.map(p =>
       `   ◦ ${p.qty || 1}x SKU ${p.sku || '—'} – ${p.nombre || '—'}`
     ).join('\n');
-    seccionB = `\nGestión a realizar:\n• Cambio de producto\n   ◦ Retirar:\n${lineasA}\n   ◦ Entregar:\n${lineasB}`;
+    seccionB = `\n*Gestión a realizar:*\n• Cambio de producto\n   ◦ Retirar:\n${lineasA}\n   ◦ Entregar:\n${lineasB}`;
   } else {
-    seccionB = `\nGestión a realizar:\n• ${tipoLabel}\n   ◦ Retirar / Devolver:\n${lineasA}`;
+    seccionB = `\n*Gestión a realizar:*\n• ${tipoLabel}\n   ◦ Retirar / Devolver:\n${lineasA}`;
   }
 
   // Dirección del cliente
@@ -14901,24 +14901,25 @@ function generarTextoAvisoDeposito(c) {
 
   // Administrativo
   const adminLine = c.nroPedido
-    ? `\nAdministrativo:\n• Se emitirá ${resolLabel} sobre la factura Nº ${c.nroPedido}${c.proveedor ? ' (Proveedor: ' + c.proveedor + ')' : ''}`
+    ? `\n*Administrativo:*\n• Se emitirá ${resolLabel} sobre la factura Nº ${c.nroPedido}${c.proveedor ? ' (Proveedor: ' + c.proveedor + ')' : ''}`
     : '';
 
   // Servicio técnico
   let servTecLine = '';
   if (c.servTec === 'si') {
-    servTecLine = `\n\nServicio Técnico:\n• Requiere pasar por servicio técnico (Ivana)`;
+    servTecLine = `\n\n*Servicio Técnico:*\n• Requiere pasar por servicio técnico (Ivana)`;
     if (c.servTecProblema) servTecLine += `\nProblema: ${c.servTecProblema}`;
   } else {
-    servTecLine = `\n\nServicio Técnico:\n• No quiere`;
+    servTecLine = `\n\n*Servicio Técnico:*\n• No quiere`;
   }
 
   // Notas internas
-  const notasLine = c.notas ? `\n\nNotas: ${c.notas}` : '';
+  const notasLine = c.notas ? `\n\n*Notas:*\n${c.notas}` : '';
 
-  return `${tipoLabel} – PEDIDO ${c.nroPedido || 'S/N'} (${(c.clienteNombre || '').toUpperCase()}) – ${fechaStr}
+  const encabezado = `*${tipoLabel} – PEDIDO ${c.nroPedido || 'S/N'} (${(c.clienteNombre || '').toUpperCase()}) – ${fechaStr}*`;
+  return `${encabezado}
 
-Modalidad: ${modalidadLabel}${dirLine}${transpLine}${depMerc}${depNC}
+*Modalidad:* ${modalidadLabel}${dirLine}${transpLine}${depMerc}${depNC}
 ${seccionB}
 ${adminLine}${servTecLine}${notasLine}`.trim();
 }
