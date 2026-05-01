@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v17.09</title>
+<title>Dentalab Whatsapp CRM · v17.12</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -2203,26 +2203,55 @@
   .cdv-pill-lbl { font-size: 11px; color: var(--text3); font-weight: 600; letter-spacing: .3px; }
 
   /* ── Form card (ahora colapsable) ── */
-  .cdv-form-card {
-    background: var(--surface); border: 1px solid var(--border2);
-    border-radius: 16px; margin-bottom: 28px; overflow: hidden;
-    transition: box-shadow .2s;
+  /* ── CDV Drawer Modal (estilo YIQI) ── */
+  .cdv-drawer-backdrop {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.55); backdrop-filter: blur(3px);
+    z-index: 1200; align-items: flex-start; justify-content: flex-end;
   }
-  .cdv-form-card:focus-within { box-shadow: 0 0 0 2px rgba(59,130,246,.2); }
-  .cdv-form-card-header {
+  .cdv-drawer-backdrop.open { display: flex; }
+  .cdv-drawer {
+    width: 520px; max-width: 100vw; height: 100vh;
+    background: var(--surface); border-left: 1px solid var(--border2);
+    display: flex; flex-direction: column;
+    transform: translateX(100%); transition: transform .28s cubic-bezier(.4,0,.2,1);
+    overflow: hidden;
+  }
+  .cdv-drawer-backdrop.open .cdv-drawer { transform: translateX(0); }
+  .cdv-drawer-header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 24px; border-bottom: 1px solid var(--border2);
-    background: var(--surface2); cursor: pointer; user-select: none;
-    transition: background .15s;
+    padding: 16px 20px; border-bottom: 1px solid var(--border2);
+    background: var(--surface2); flex-shrink: 0;
   }
-  .cdv-form-card-header:hover { background: #1d3451; }
-  .cdv-form-card-title {
-    font-size: 14px; font-weight: 800; color: var(--text);
+  .cdv-drawer-title {
+    font-size: 15px; font-weight: 800; color: var(--text);
     display: flex; align-items: center; gap: 8px;
   }
-  .cdv-form-card-toggle { font-size: 11px; color: var(--text3); font-weight: 700;
-    display: flex; align-items: center; gap: 5px; }
-  .cdv-form-card-body { padding: 24px; }
+  .cdv-drawer-header-actions { display: flex; align-items: center; gap: 8px; }
+  .cdv-drawer-close {
+    background: none; border: 1px solid var(--border2); border-radius: 8px;
+    color: var(--text3); font-size: 14px; padding: 4px 10px; cursor: pointer;
+    transition: background .15s, color .15s; font-family: inherit;
+  }
+  .cdv-drawer-close:hover { background: rgba(255,255,255,.07); color: var(--text); }
+  .cdv-drawer-yiqi-btn {
+    background: var(--blue); color: #fff; border: none; border-radius: 8px;
+    font-size: 12px; font-weight: 700; padding: 5px 11px; cursor: pointer;
+    font-family: inherit; display: flex; align-items: center; gap: 5px;
+    transition: opacity .15s;
+  }
+  .cdv-drawer-yiqi-btn:hover { opacity: .85; }
+  .cdv-drawer-body {
+    flex: 1; overflow-y: auto; padding: 20px 22px;
+    scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+  }
+  .cdv-drawer-footer {
+    flex-shrink: 0; border-top: 1px solid var(--border2);
+    padding: 14px 22px; background: var(--surface2);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  /* Hide old collapsible card */
+  .cdv-form-card { display: none !important; }
 
   /* ── Step labels ── */
   .cdv-step {
@@ -13373,29 +13402,60 @@ function provBadge(prov) {
   const cls = lower === 'aris' ? 'prov-aris' : lower === 'ivana' ? 'prov-ivana' : 'prov-otro';
   return `<span class="${cls}">${escHtml(prov)}</span>`;
 }
-function encAcSearch(q) {
-  if (!q || q.length < 2) return [];
+// Cache IDB para autocomplete (se puebla una vez y queda en memoria)
+let _encAcIdbCache = null;
 
-  // Fuente 1: allData en memoria (lista de precios cargada)
-  let source = (window.allData && allData.length > 0) ? allData : null;
+async function _encGetSource() {
+  // Fuente 1: allData en memoria (lista de precios ya cargada en la sesión)
+  if (window.allData && allData.length > 0) return allData;
 
-  // Fuente 2: snapshot de localStorage (si allData no está disponible)
-  if (!source) {
-    try {
-      const snap = JSON.parse(localStorage.getItem('dentalab_nov_snapshot') || 'null');
-      if (snap) {
-        source = Object.values(snap).map(s => ({ SKU: s.sku || '', Nombre: s.nombre || '' }));
-      }
-    } catch(e) {}
-  }
+  // Fuente 2: cache IDB ya leído previamente en esta sesión
+  if (_encAcIdbCache && _encAcIdbCache.length > 0) return _encAcIdbCache;
 
-  if (!source || source.length === 0) return [];
+  // Fuente 3: IndexedDB (carga asíncrona, solo la primera vez)
+  try {
+    const rows = await idbLoad();
+    if (rows && rows.length > 0) {
+      _encAcIdbCache = rows;
+      // Poblar allData también para que el resto del CRM lo tenga disponible
+      if (!window.allData || allData.length === 0) { allData = rows; }
+      return rows;
+    }
+  } catch(e) {}
 
+  // Fuente 4: snapshot de localStorage (fallback mínimo)
+  try {
+    const snap = JSON.parse(localStorage.getItem('dentalab_nov_snapshot') || 'null');
+    if (snap) {
+      const src = Object.values(snap).map(s => ({ SKU: s.sku || '', Nombre: s.nombre || '' }));
+      if (src.length > 0) return src;
+    }
+  } catch(e) {}
+
+  return [];
+}
+
+function _encFilterSource(source, q) {
+  if (!source || source.length === 0 || !q || q.length < 2) return [];
   const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
   return source.filter(r => {
     const fields = [String(r.SKU||'').toLowerCase(), String(r.Nombre||'').toLowerCase()];
     return tokens.every(t => fields.some(f => f.includes(t)));
   }).slice(0, 12);
+}
+
+// Versión síncrona — usa lo que ya esté en memoria (allData o cache IDB)
+function encAcSearch(q) {
+  if (!q || q.length < 2) return [];
+  let source = (window.allData && allData.length > 0) ? allData : _encAcIdbCache;
+  return _encFilterSource(source, q);
+}
+
+// Versión asíncrona — espera IDB si es necesario, luego llama callback(items)
+async function encAcSearchAsync(q, callback) {
+  if (!q || q.length < 2) { callback([]); return; }
+  const source = await _encGetSource();
+  callback(_encFilterSource(source, q));
 }
 // Clases CSS necesarias para provBadge (usadas por Cambios)
 (function() {
@@ -13450,6 +13510,29 @@ function renderCambiosPanel() {
       <button class="cdv-btn-registrar-top" id="cdv-btn-open-form">
         ➕ Registrar nuevo caso
       </button>
+    </div>
+
+    <!-- ── Drawer modal estilo YIQI ── -->
+    <div class="cdv-drawer-backdrop" id="cdv-drawer-backdrop">
+      <div class="cdv-drawer" id="cdv-drawer">
+        <!-- Header del drawer -->
+        <div class="cdv-drawer-header">
+          <div class="cdv-drawer-title">🔄 Nuevo Caso</div>
+          <div class="cdv-drawer-header-actions">
+            <button class="cdv-drawer-yiqi-btn" onclick="window.open('https://yiqi.ar', '_blank')">🔗 Pedidos Yiqi ↗</button>
+            <button class="cdv-drawer-close" id="cdv-drawer-close">✕</button>
+          </div>
+        </div>
+        <!-- Body scrollable del drawer (contenido inyectado por JS) -->
+        <div class="cdv-drawer-body" id="cdv-drawer-body"></div>
+        <!-- Footer con CTA -->
+        <div class="cdv-drawer-footer" id="cdv-drawer-footer">
+          <button class="btn-cdv-submit" id="cdv-btn-add">
+            ✅ Registrar caso
+          </button>
+          <div class="cdv-cta-hint">Los campos marcados son obligatorios · El caso queda en estado Pendiente</div>
+        </div>
+      </div>
     </div>
 
     <!-- ── Indicadores resumen ── -->
@@ -13608,6 +13691,23 @@ function renderCambiosPanel() {
           <div class="cdv-radio-group" id="cdv-deposito-group">
             <span class="cdv-radio-btn sel-blue" data-val="deposito1">📦 Depósito 1</span>
             <span class="cdv-radio-btn" data-val="depositocentral">🏢 Depósito Central</span>
+          </div>
+        </div>
+
+        <div class="cdv-section-divider"></div>
+
+        <!-- Servicio técnico -->
+        <div class="cdv-subopt-box" style="margin-top:2px">
+          <span class="cdv-subopt-lbl">🔧 ¿La mercadería tiene que pasar por servicio técnico?</span>
+          <div class="cdv-radio-group" id="cdv-servtec-group">
+            <span class="cdv-radio-btn" data-val="no">✅ No</span>
+            <span class="cdv-radio-btn" data-val="si">🔧 Sí</span>
+          </div>
+        </div>
+        <div id="cdv-servtec-problema-box" style="display:none;margin-top:8px">
+          <div class="cdv-subopt-box">
+            <span class="cdv-subopt-lbl">❓ ¿Qué problema tuvo?</span>
+            <textarea id="cdv-servtec-problema" placeholder="Describí el problema que tuvo el producto..." style="width:100%;min-height:72px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;transition:border-color .15s;line-height:1.5;margin-top:6px" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--border2)'"></textarea>
           </div>
         </div>
 
@@ -13999,6 +14099,7 @@ function applyCdvFilter() {
             : `<span style="font-size:11px;color:var(--text3)">${c.fechaResolucion ? new Date(c.fechaResolucion+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : ''}</span>`
           }
           <button class="btn-cdv-pdf" data-idx="${globalIdx}" title="Exportar PDF" style="background:none;border:1px solid #1e3a5f;color:var(--text3);cursor:pointer;font-size:13px;padding:3px 7px;border-radius:6px;transition:all .15s" onmouseenter="this.style.background='#1e3a5f20';this.style.color='#e2e8f0'" onmouseleave="this.style.background='none';this.style.color='var(--text3)'">📄</button>
+          <button class="btn-cdv-deposito" data-idx="${globalIdx}" title="Aviso para Depósito" style="background:none;border:1px solid #1e3a5f;color:var(--text3);cursor:pointer;font-size:13px;padding:3px 7px;border-radius:6px;transition:all .15s" onmouseenter="this.style.background='#f59e0b20';this.style.color='#f59e0b'" onmouseleave="this.style.background='none';this.style.color='var(--text3)'">📦</button>
           ${c.clienteNombre && c.clienteTel ? `<a href="https://wa.me/549${(c.clienteTel||'').replace(/\D/g,'')}" target="_blank" title="WhatsApp" style="font-size:16px;text-decoration:none">💬</a>` : ''}
           <button class="enc-del" data-idx="${globalIdx}" title="${_canEdit(c.creadoPor) ? 'Eliminar' : '🔒 Sin permiso — registrado por ' + escHtml(c.creadoPor||'otro')}" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:3px 5px;border-radius:5px;transition:color .15s;${_canEdit(c.creadoPor)?'':'opacity:.35;cursor:not-allowed;'}" onmouseenter="this.style.color='#ef4444'" onmouseleave="this.style.color='var(--text3)'">✕</button>
         </div>
@@ -14039,9 +14140,25 @@ function applyCdvFilter() {
       showToast('🗑 Caso eliminado', 'info');
     });
   });
+  tbody.querySelectorAll('.btn-cdv-deposito[data-idx]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const casos = loadCdvCasos();
+      mostrarAvisoDeposito(casos[parseInt(btn.dataset.idx)]);
+    });
+  });
 }
 
 // ── Bind events ──
+// ── CDV Drawer global helpers ──
+let _cdvDrawerBackdrop = null;
+function closeCdvDrawer() {
+  if (!_cdvDrawerBackdrop) _cdvDrawerBackdrop = document.getElementById('cdv-drawer-backdrop');
+  if (_cdvDrawerBackdrop) {
+    _cdvDrawerBackdrop.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+}
+
 function bindCambiosEvents() {
 
   // ── Poblar datalist de clientes con nombres únicos del CRM ──
@@ -14084,23 +14201,36 @@ function bindCambiosEvents() {
     }
   }
 
-  // ── Toggle formulario (colapsable) ──
-  const formCardHeader = $('cdv-form-card-header');
-  const formCardBody   = $('cdv-form-card-body');
-  const formToggleLbl  = $('cdv-form-toggle-lbl');
-  function toggleForm(forceOpen) {
-    if (!formCardBody) return;
-    const isOpen = formCardBody.style.display !== 'none';
-    const open = forceOpen !== undefined ? forceOpen : !isOpen;
-    formCardBody.style.display = open ? 'block' : 'none';
-    if (formToggleLbl) formToggleLbl.textContent = open ? '▲ Colapsar' : '▼ Expandir';
+  // ── Drawer modal (estilo YIQI) ──
+  const drawerBackdrop = $('cdv-drawer-backdrop');
+  const drawerClose    = $('cdv-drawer-close');
+
+  function openCdvDrawer() {
+    if (!drawerBackdrop) return;
+    _cdvDrawerBackdrop = drawerBackdrop;
+    // Move form content into drawer body
+    const drawerBody = $('cdv-drawer-body');
+    const formCardBody = $('cdv-form-card-body');
+    if (drawerBody && formCardBody && !drawerBody._populated) {
+      // Hide old CTA row (footer has the button)
+      const ctaRow = formCardBody.querySelector('.cdv-cta-row');
+      if (ctaRow) ctaRow.style.display = 'none';
+      drawerBody.appendChild(formCardBody);
+      formCardBody.style.display = 'block';
+      drawerBody._populated = true;
+    }
+    drawerBackdrop.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    drawerBody?.scrollTo({ top: 0 });
   }
-  if (formCardHeader) formCardHeader.addEventListener('click', () => toggleForm());
-  const btnOpenForm = $('cdv-btn-open-form');
-  if (btnOpenForm) btnOpenForm.addEventListener('click', () => {
-    toggleForm(true);
-    formCardBody?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (drawerClose) drawerClose.addEventListener('click', closeCdvDrawer);
+  if (drawerBackdrop) drawerBackdrop.addEventListener('click', e => {
+    if (e.target === drawerBackdrop) closeCdvDrawer();
   });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCdvDrawer(); });
+
+  const btnOpenForm = $('cdv-btn-open-form');
+  if (btnOpenForm) btnOpenForm.addEventListener('click', openCdvDrawer);
 
   // Deposito selector
   document.addEventListener('click', e => {
@@ -14110,6 +14240,23 @@ function bindCambiosEvents() {
     if (!group) return;
     group.querySelectorAll('.cdv-radio-btn').forEach(b => b.className = 'cdv-radio-btn');
     btn.classList.add('sel-blue');
+  });
+
+  // Servicio técnico toggle
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('#cdv-servtec-group .cdv-radio-btn');
+    if (!btn) return;
+    const group = document.getElementById('cdv-servtec-group');
+    if (!group) return;
+    group.querySelectorAll('.cdv-radio-btn').forEach(b => b.className = 'cdv-radio-btn');
+    const val = btn.dataset.val;
+    btn.classList.add(val === 'si' ? 'sel-amber' : 'sel-green');
+    const problemaBox = document.getElementById('cdv-servtec-problema-box');
+    if (problemaBox) problemaBox.style.display = val === 'si' ? '' : 'none';
+    if (val === 'no') {
+      const prob = document.getElementById('cdv-servtec-problema');
+      if (prob) prob.value = '';
+    }
   });
 
   // Tipo selector
@@ -14155,20 +14302,23 @@ function bindCambiosEvents() {
     let acItems = [], acIdx = -1;
     input.addEventListener('input', () => {
       const q = input.value.trim();
-      acItems = encAcSearch(q); acIdx = -1;
-      if (!acItems.length) { acList.style.display='none'; return; }
-      acList.style.display = 'block';
-      acList.innerHTML = acItems.map((r,i) =>
-        `<div class="enc-ac-item" data-i="${i}">
-          <span>${escHtml(r.Nombre||'')}</span>
-          <span class="enc-ac-sku">${escHtml(r.SKU||'')}</span>
-        </div>`).join('');
-      acList.querySelectorAll('.enc-ac-item').forEach(el => {
-        el.addEventListener('mousedown', e => {
-          e.preventDefault();
-          const item = acItems[parseInt(el.dataset.i)];
-          input.value = item.Nombre||''; input.dataset.sku = item.SKU||'';
-          acList.style.display='none';
+      acIdx = -1;
+      encAcSearchAsync(q, items => {
+        acItems = items;
+        if (!acItems.length) { acList.style.display='none'; return; }
+        acList.style.display = 'block';
+        acList.innerHTML = acItems.map((r,i) =>
+          `<div class="enc-ac-item" data-i="${i}">
+            <span>${escHtml(r.Nombre||'')}</span>
+            <span class="enc-ac-sku">${escHtml(r.SKU||'')}</span>
+          </div>`).join('');
+        acList.querySelectorAll('.enc-ac-item').forEach(el => {
+          el.addEventListener('mousedown', e => {
+            e.preventDefault();
+            const item = acItems[parseInt(el.dataset.i)];
+            input.value = item.Nombre||''; input.dataset.sku = item.SKU||'';
+            acList.style.display='none';
+          });
         });
       });
     });
@@ -14215,20 +14365,23 @@ function bindCambiosEvents() {
     let acItems = [], acIdx = -1;
     input.addEventListener('input', () => {
       const q = input.value.trim();
-      acItems = encAcSearch(q); acIdx = -1;
-      if (!acItems.length) { acList.style.display='none'; return; }
-      acList.style.display = 'block';
-      acList.innerHTML = acItems.map((r,i) =>
-        `<div class="enc-ac-item" data-i="${i}">
-          <span>${escHtml(r.Nombre||'')}</span>
-          <span class="enc-ac-sku">${escHtml(r.SKU||'')}</span>
-        </div>`).join('');
-      acList.querySelectorAll('.enc-ac-item').forEach(el => {
-        el.addEventListener('mousedown', e => {
-          e.preventDefault();
-          const item = acItems[parseInt(el.dataset.i)];
-          input.value = item.Nombre||''; input.dataset.sku = item.SKU||'';
-          acList.style.display='none';
+      acIdx = -1;
+      encAcSearchAsync(q, items => {
+        acItems = items;
+        if (!acItems.length) { acList.style.display='none'; return; }
+        acList.style.display = 'block';
+        acList.innerHTML = acItems.map((r,i) =>
+          `<div class="enc-ac-item" data-i="${i}">
+            <span>${escHtml(r.Nombre||'')}</span>
+            <span class="enc-ac-sku">${escHtml(r.SKU||'')}</span>
+          </div>`).join('');
+        acList.querySelectorAll('.enc-ac-item').forEach(el => {
+          el.addEventListener('mousedown', e => {
+            e.preventDefault();
+            const item = acItems[parseInt(el.dataset.i)];
+            input.value = item.Nombre||''; input.dataset.sku = item.SKU||'';
+            acList.style.display='none';
+          });
         });
       });
     });
@@ -14256,23 +14409,25 @@ function bindCambiosEvents() {
   if (prodInput && acList) {
     prodInput.addEventListener('input', () => {
       const q = prodInput.value.trim();
-      cdvAcItems = encAcSearch(q);
-      cdvAcIdx   = -1;
-      if (cdvAcItems.length === 0) { acList.style.display = 'none'; return; }
-      acList.style.display = 'block';
-      acList.innerHTML = cdvAcItems.map((r, i) =>
-        `<div class="enc-ac-item" data-i="${i}">
-          <span>${escHtml(r.Nombre||'')}</span>
-          <span class="enc-ac-sku">${escHtml(r.SKU||'')}</span>
-        </div>`
-      ).join('');
-      acList.querySelectorAll('.enc-ac-item').forEach(el => {
-        el.addEventListener('mousedown', e => {
-          e.preventDefault();
-          const item = cdvAcItems[parseInt(el.dataset.i)];
-          prodInput.value = item.Nombre || '';
-          prodInput.dataset.sku = item.SKU || '';
-          acList.style.display = 'none';
+      cdvAcIdx = -1;
+      encAcSearchAsync(q, items => {
+        cdvAcItems = items;
+        if (cdvAcItems.length === 0) { acList.style.display = 'none'; return; }
+        acList.style.display = 'block';
+        acList.innerHTML = cdvAcItems.map((r, i) =>
+          `<div class="enc-ac-item" data-i="${i}">
+            <span>${escHtml(r.Nombre||'')}</span>
+            <span class="enc-ac-sku">${escHtml(r.SKU||'')}</span>
+          </div>`
+        ).join('');
+        acList.querySelectorAll('.enc-ac-item').forEach(el => {
+          el.addEventListener('mousedown', e => {
+            e.preventDefault();
+            const item = cdvAcItems[parseInt(el.dataset.i)];
+            prodInput.value = item.Nombre || '';
+            prodInput.dataset.sku = item.SKU || '';
+            acList.style.display = 'none';
+          });
         });
       });
     });
@@ -14307,6 +14462,8 @@ function bindCambiosEvents() {
     const resolucion = cdvGetSelectedVal('cdv-resol-group');
     const deposito   = cdvGetSelectedVal('cdv-deposito-group');
     const depositoNC = cdvGetSelectedVal('cdv-deposito-nc-group');
+    const servTec        = cdvGetSelectedVal('cdv-servtec-group') || 'no';
+    const servTecProblema = ($('cdv-servtec-problema')?.value || '').trim();
 
     // Collect multi-SKU products — Zona A
     const skusListEl = $('cdv-skus-list');
@@ -14350,6 +14507,7 @@ function bindCambiosEvents() {
       fecha, fechaCambio, transportistaCdv,
       clienteNombre: cliNombre, clienteTel: cliTel, clienteDir: cliDir,
       notas, origen, resolucion, deposito, depositoNC,
+      servTec, servTecProblema,
       estado: 'pendiente', fechaResolucion: null,
       creadoPor: (typeof authCurrentUser !== 'undefined' && authCurrentUser?.name) ? authCurrentUser.name : '—'
     });
@@ -14360,6 +14518,13 @@ function bindCambiosEvents() {
     ['cdv-proveedor','cdv-nropedido','cdv-cli-nombre','cdv-cli-tel','cdv-cli-dir'].forEach(id => {
       const el = $(id); if (el) { el.value = ''; }
     });
+    // Reset servicio técnico
+    const _stGroup = $('cdv-servtec-group');
+    if (_stGroup) _stGroup.querySelectorAll('.cdv-radio-btn').forEach(b => b.className = 'cdv-radio-btn');
+    const _stBox = $('cdv-servtec-problema-box');
+    if (_stBox) _stBox.style.display = 'none';
+    const _stProb = $('cdv-servtec-problema');
+    if (_stProb) _stProb.value = '';
     const notasEl = $('cdv-notas'); if (notasEl) notasEl.value = '';
     $('cdv-fecha').value = todayISO();
     const _fcEl = $('cdv-fecha-cambio'); if (_fcEl) _fcEl.value = todayISO();
@@ -14368,6 +14533,7 @@ function bindCambiosEvents() {
     if (skusListElBReset) { skusListElBReset.innerHTML = ''; addSkuRowB(); }
 
     renderCambiosPanel();
+    closeCdvDrawer();
     showToast(`✓ Caso registrado: ${tipo === 'cambio' ? 'Cambio' : 'Devolución'} · ${productos.length} producto${productos.length>1?'s':''}`, 'ok');
   });
 
@@ -14398,7 +14564,7 @@ function exportCdvPDF(c) {
   const contentW = pageW - margin * 2;
 
   // PDF light-mode palette (replaces dark navy/slate with light grays)
-  const navy   = [235, 239, 245];   // was [15,23,42]  — light gray header bg
+  const navy   = [255, 255, 255];   // white header bg — matches Dentalab logo background
   const blue   = [59, 130, 246];    // accent blue stays the same
   const gray   = [100, 116, 139];   // medium gray for secondary text
   const dark   = [241, 245, 249];   // was [30,41,59]  — very light gray for cards
@@ -14605,6 +14771,30 @@ function exportCdvPDF(c) {
 
   y += 74;
 
+  // ── Servicio Técnico ──
+  {
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(...dark);
+    doc.line(margin, y, pageW - margin, y);
+    y += 5;
+    doc.setFontSize(8);
+    doc.setFont('helvetica','bold');
+    doc.setTextColor(...gray);
+    doc.text('SERVICIO TÉCNICO:', margin, y);
+    y += 5;
+    doc.setFont('helvetica','normal');
+    doc.setTextColor(85, 85, 85);
+    if (c.servTec === 'si') {
+      const stText = 'Requiere pasar por servicio técnico (Ivana)' + (c.servTecProblema ? '\nProblema: ' + c.servTecProblema : '');
+      const stLines = doc.splitTextToSize(stText, contentW);
+      doc.text(stLines, margin, y);
+      y += stLines.length * 4 + 4;
+    } else {
+      doc.text('No requiere servicio técnico', margin, y);
+      y += 8;
+    }
+  }
+
   // ── Notes ──
   if (c.notas) {
     doc.setLineWidth(0.3);
@@ -14642,6 +14832,164 @@ function exportCdvPDF(c) {
     nombreCliente: c.clienteNombre || '',
     tipoPedido:    'retira'
   });
+}
+
+// ══════════════════════════════════════════════════════
+//  CAMBIOS Y DEVOLUCIONES — Aviso para Depósito
+// ══════════════════════════════════════════════════════
+function generarTextoAvisoDeposito(c) {
+  if (!c) return '';
+
+  // Tipo y encabezado
+  const tipoLabel = c.tipo === 'cambio' ? 'CAMBIO DE PRODUCTO' : 'DEVOLUCIÓN';
+
+  // Fecha de cambio/devolución
+  let fechaStr = '—';
+  if (c.fechaCambio) {
+    const d = new Date(c.fechaCambio + 'T00:00:00');
+    const dias = ['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO'];
+    fechaStr = dias[d.getDay()] + ' ' +
+      String(d.getDate()).padStart(2,'0') + '/' +
+      String(d.getMonth()+1).padStart(2,'0');
+  }
+
+  // Modalidad (origen)
+  const modalidadLabel = c.tipo === 'cambio'
+    ? (c.origen === 'domicilio' ? 'En domicilio del cliente' : 'En nuestro local')
+    : (c.origen === 'local' ? 'Compra en local' : 'Pedido enviado');
+
+  // Depósitos
+  const depLabel = dep => dep === 'deposito1' ? 'Depósito 1' : dep === 'depositocentral' ? 'Depósito Central' : (dep || '—');
+
+  // Resolución
+  const resolLabel = c.resolucion === 'cambio_producto' ? 'Cambio de producto'
+    : c.resolucion === 'nota_credito'    ? 'Nota de crédito'
+    : c.resolucion === 'saldo_favor'     ? 'Saldo a favor'
+    : c.resolucion === 'cambio_importe'  ? 'Cambio x importe'
+    : c.resolucion === 'reembolso'       ? 'Reembolso'
+    : (c.resolucion || '—');
+
+  // Productos que devuelve el cliente (sección A)
+  const productosA = c.productos && c.productos.length > 0
+    ? c.productos
+    : [{ nombre: c.producto || '—', sku: c.sku || '', qty: 1 }];
+
+  let lineasA = productosA.map(p =>
+    `   ◦ ${p.qty || 1}x SKU ${p.sku || '—'} – ${p.nombre || '—'}`
+  ).join('\n');
+
+  // Productos que entregamos (sección B) — solo en cambios
+  let seccionB = '';
+  if (c.productosB && c.productosB.length > 0) {
+    const lineasB = c.productosB.map(p =>
+      `   ◦ ${p.qty || 1}x SKU ${p.sku || '—'} – ${p.nombre || '—'}`
+    ).join('\n');
+    seccionB = `\nGestión a realizar:\n• Cambio de producto\n   ◦ Retirar:\n${lineasA}\n   ◦ Entregar:\n${lineasB}`;
+  } else {
+    seccionB = `\nGestión a realizar:\n• ${tipoLabel}\n   ◦ Retirar / Devolver:\n${lineasA}`;
+  }
+
+  // Dirección del cliente
+  const dirLine = c.clienteDir ? `\n• Dirección: ${c.clienteDir}` : '';
+
+  // Transportista
+  const transpLine = c.transportistaCdv ? `\n• Transporte: ${c.transportistaCdv}` : '';
+
+  // Depósito mercadería
+  const depMerc = c.deposito ? `\n• Mercadería vuelve a: ${depLabel(c.deposito)}` : '';
+  const depNC   = c.depositoNC ? `\n• Depósito nota de crédito: ${depLabel(c.depositoNC)}` : '';
+
+  // Administrativo
+  const adminLine = c.nroPedido
+    ? `\nAdministrativo:\n• Se emitirá ${resolLabel} sobre la factura Nº ${c.nroPedido}${c.proveedor ? ' (Proveedor: ' + c.proveedor + ')' : ''}`
+    : '';
+
+  // Servicio técnico
+  let servTecLine = '';
+  if (c.servTec === 'si') {
+    servTecLine = `\n\nServicio Técnico:\n• Requiere pasar por servicio técnico (Ivana)`;
+    if (c.servTecProblema) servTecLine += `\nProblema: ${c.servTecProblema}`;
+  } else {
+    servTecLine = `\n\nServicio Técnico:\n• No quiere`;
+  }
+
+  // Notas internas
+  const notasLine = c.notas ? `\n\nNotas: ${c.notas}` : '';
+
+  return `${tipoLabel} – PEDIDO ${c.nroPedido || 'S/N'} (${(c.clienteNombre || '').toUpperCase()}) – ${fechaStr}
+
+Modalidad: ${modalidadLabel}${dirLine}${transpLine}${depMerc}${depNC}
+${seccionB}
+${adminLine}${servTecLine}${notasLine}`.trim();
+}
+
+function mostrarAvisoDeposito(c) {
+  if (!c) return;
+
+  // Eliminar modal previo si existe
+  const prev = document.getElementById('cdv-deposito-modal-bd');
+  if (prev) prev.remove();
+
+  const texto = generarTextoAvisoDeposito(c);
+
+  const bd = document.createElement('div');
+  bd.id = 'cdv-deposito-modal-bd';
+  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:55000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+  bd.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:560px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5);">
+      <!-- Header -->
+      <div style="padding:16px 20px 14px;border-bottom:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">📦</span>
+          <div>
+            <div style="font-size:14px;font-weight:800;color:var(--text);">Aviso para Depósito</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:1px;">${(c.clienteNombre || '').toUpperCase()}${c.nroPedido ? ' · Pedido ' + c.nroPedido : ''}</div>
+          </div>
+        </div>
+        <button id="cdv-dep-modal-close" style="background:none;border:1px solid var(--border2);border-radius:8px;padding:5px 11px;color:var(--text3);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">✕ Cerrar</button>
+      </div>
+      <!-- Textarea -->
+      <div style="padding:16px 20px;">
+        <textarea id="cdv-dep-textarea" rows="14" readonly
+          style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:'DM Mono',monospace;line-height:1.6;resize:none;box-sizing:border-box;outline:none;">${texto}</textarea>
+      </div>
+      <!-- Footer -->
+      <div style="padding:0 20px 16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+        <button id="cdv-dep-copy-btn"
+          style="padding:9px 20px;border-radius:9px;border:none;background:var(--blue);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:6px;">
+          📋 Copiar texto
+        </button>
+        <a id="cdv-dep-wsp-btn"
+          href="https://wa.me/?text=${encodeURIComponent(texto)}" target="_blank"
+          style="padding:9px 20px;border-radius:9px;border:none;background:#25d366;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;text-decoration:none;display:flex;align-items:center;gap:6px;">
+          💬 Enviar por WhatsApp
+        </a>
+        <a id="cdv-dep-mail-btn"
+          href="mailto:depositodentalab@gmail.com?subject=${encodeURIComponent('Aviso Depósito – ' + (c.clienteNombre||'') + (c.nroPedido ? ' · Pedido '+c.nroPedido : ''))}&body=${encodeURIComponent(texto)}" target="_blank"
+          style="padding:9px 20px;border-radius:9px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;text-decoration:none;display:flex;align-items:center;gap:6px;">
+          ✉️ Enviar por Mail
+        </a>
+      </div>
+    </div>`;
+
+  document.body.appendChild(bd);
+
+  // Cerrar
+  document.getElementById('cdv-dep-modal-close').onclick = () => bd.remove();
+  bd.addEventListener('click', e => { if (e.target === bd) bd.remove(); });
+
+  // Copiar
+  document.getElementById('cdv-dep-copy-btn').onclick = () => {
+    const ta = document.getElementById('cdv-dep-textarea');
+    navigator.clipboard.writeText(ta.value).then(() => {
+      showToast('✓ Texto copiado — listo para pegar', 'ok');
+    }).catch(() => {
+      ta.select();
+      document.execCommand('copy');
+      showToast('✓ Texto copiado', 'ok');
+    });
+  };
 }
 
 // ══════════════════════════════════════════════════════
@@ -27671,7 +28019,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v17.09';
+  const LATEST_VERSION = 'v17.12';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -27684,6 +28032,34 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+  {
+    fecha: '01/05/2026',
+    version: 'v17.12',
+    titulo: 'Corrección: autocompletado de SKU en Cambios y Devoluciones',
+    items: [
+      { tipo: 'corrección', texto: 'El autocompletado de SKU/nombre en las zonas A y B dejaba de funcionar si la lista de precios aún no estaba cargada en memoria (allData vacío). Ahora se incorpora una lectura asíncrona de IndexedDB como fuente adicional.' },
+      { tipo: 'mejora', texto: 'Nueva función encAcSearchAsync: lee IndexedDB en background la primera vez y guarda un cache en memoria (_encAcIdbCache), de modo que las búsquedas siguientes son instantáneas sin bloquear el hilo principal.' },
+      { tipo: 'mejora', texto: 'Si IDB devuelve filas, popula allData automáticamente para que el resto del CRM también lo encuentre disponible sin necesidad de recargar.' },
+    ],
+  },
+  {
+    fecha: '01/05/2026',
+    version: 'v17.11',
+    titulo: 'Cambios y Devoluciones: Aviso para Depósito',
+    items: [
+      { tipo: 'nuevo', texto: 'Botón 📦 en cada fila de Cambios y Devoluciones: genera un aviso en texto plano listo para enviar al depósito.' },
+      { tipo: 'nuevo', texto: 'Modal con el texto pre-armado (tipo, pedido, cliente, productos A/B con SKUs, modalidad, transporte, depósitos y datos administrativos).' },
+      { tipo: 'nuevo', texto: 'Tres acciones directas desde el modal: 📋 Copiar texto, 💬 Enviar por WhatsApp y ✉️ Enviar por Mail a depositodentalab@gmail.com.' },
+    ],
+  },
+  {
+    fecha: '01/05/2026',
+    version: 'v17.10',
+    titulo: 'PDF Cambios y Devoluciones: fondo blanco en encabezado',
+    items: [
+      { tipo: 'mejora', texto: 'El encabezado del PDF de Cambios y Devoluciones ahora tiene fondo blanco (#ffffff) en lugar de gris claro, para que coincida visualmente con el fondo del logo de Dentalab.' },
+    ],
+  },
   {
     version: 'v17.09',
     date: '2025-05-01',
