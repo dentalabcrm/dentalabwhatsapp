@@ -5613,7 +5613,7 @@
         </div>
         <div id="ideas-form-body" style="display:none;padding:18px 20px 20px;">
           <div style="display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:12px;">
-            <input id="ideas-input-title" type="text" maxlength="120" placeholder="Título de la idea..."
+            <input id="ideas-input-title" type="text" maxlength="300" placeholder="Título de la idea..."
               style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-size:14px;font-weight:600;font-family:'DM Sans',sans-serif;outline:none;width:100%;">
             <select id="ideas-input-type"
               style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;">
@@ -5623,7 +5623,7 @@
               <option value="comunicado">📢 Comunicado</option>
             </select>
           </div>
-          <textarea id="ideas-input-desc" maxlength="1000" placeholder="Describí tu idea con el mayor detalle posible..." rows="4"
+          <textarea id="ideas-input-desc" maxlength="5000" placeholder="Describí tu idea con el mayor detalle posible..." rows="4"
             style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;box-sizing:border-box;"></textarea>
           <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:10px;">
             <button class="ideas-emoji-trigger" onclick="event.stopPropagation();_ideasOpenPickerById(this,'ideas-input-desc')" title="Agregar emoji">😊</button>
@@ -27746,7 +27746,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
       titulo: 'Ideas: tipo Comunicado + edición de tipo post-publicación · Importar Yiqi: filtro por estado',
       items: [
         { tipo: 'nuevo', texto: 'Nuevo tipo "📢 Comunicado" disponible en el selector al publicar una nueva idea y al editarla. Badge en color ámbar para distinguirlo visualmente.' },
-        { tipo: 'mejora', texto: 'El editor inline de ideas (botón ✏️) ahora incluye el tipo Comunicado en el select, permitiendo corregir el tipo de cualquier publicación propia después de haberla publicado.' },
+        { tipo: 'mejora', texto: 'Límite de caracteres ampliado en Ideas: título de 120 → 300 caracteres, descripción de 1.000 → 5.000 caracteres. Aplica tanto al crear como al editar.' },
         { tipo: 'nuevo', texto: 'Al importar la planilla de Yiqi, los pedidos cuya columna "Descripción de estado" sea "Anulado", "Con Devolución", "En espera de pago" o "Quiebre 2" se omiten automáticamente y no se cargan al CRM.' },
       ]
     },
@@ -30350,7 +30350,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
       <!-- Editor inline de idea (oculto por defecto) -->
       <div class="idea-edit-area" id="idea-edit-area-${idea.id}" style="display:none;margin-top:14px;border-top:1px solid var(--border2);padding-top:14px;">
         <div style="display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:10px;">
-          <input id="idea-edit-title-${idea.id}" type="text" maxlength="120" value="${_esc(idea.title)}"
+          <input id="idea-edit-title-${idea.id}" type="text" maxlength="300" value="${_esc(idea.title)}"
             style="background:var(--surface2);border:1px solid var(--blue);border-radius:8px;padding:9px 12px;color:var(--text);font-size:14px;font-weight:600;font-family:'DM Sans',sans-serif;outline:none;width:100%;">
           <select id="idea-edit-type-${idea.id}"
             style="background:var(--surface2);border:1px solid var(--blue);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;">
@@ -30361,7 +30361,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
           </select>
         </div>
         <div style="position:relative;margin-bottom:10px;">
-          <textarea id="idea-edit-desc-${idea.id}" maxlength="1000" rows="4"
+          <textarea id="idea-edit-desc-${idea.id}" maxlength="5000" rows="4"
             style="width:100%;background:var(--surface2);border:1px solid var(--blue);border-radius:8px;padding:9px 12px 9px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;box-sizing:border-box;">${_esc(idea.desc)}</textarea>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;">
