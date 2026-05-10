@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v18.41</title>
+<title>Dentalab Whatsapp CRM · v18.42</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -19456,7 +19456,7 @@ function renderEnviosPanel() {
 
   function buildRows(lista) {
     if (lista.length === 0)
-      return `<tr><td colspan="6" style="text-align:center;padding:48px;color:#475569;font-size:14px;">📭 No hay pedidos que coincidan</td></tr>`;
+      return `<tr><td colspan="7" style="text-align:center;padding:48px;color:#475569;font-size:14px;">📭 No hay pedidos que coincidan</td></tr>`;
     return lista.map(e => {
       const idx = e._origIdx;
       const tipoLabel = TIPOS_PEDIDO.find(t => t.value === e.tipoPedido)?.label || e.tipoPedido || '—';
@@ -19484,6 +19484,9 @@ function renderEnviosPanel() {
       const notaIndicator = ''; // dot reemplazado por texto inline abajo
 
       return `<tr data-idx="${idx}" class="${e.anulado ? 'ped-row-anulado' : e.enviado ? 'ped-row-enviado' : ''}" style="${(e.anulado ? 'background:rgba(239,68,68,.10);border-left:3px solid rgba(239,68,68,.6);' : rowBg ? 'background:'+rowBg+';' : '') + (e.anulado ? '' : tipoRowStyle)}">
+        <td>
+          <div class="envio-nro-cell ped-col-nro" data-idx="${idx}" title="Doble clic para editar" style="cursor:pointer;border-radius:5px;padding:2px 4px;transition:background .12s;display:inline-flex;align-items:center;gap:3px;" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background=''">${escHtml(e.nroPedido || '—')}<span style="font-size:9px;opacity:.3;">✏</span></div>
+        </td>
         <td class="ped-col-cliente">
           <div class="envio-cli-cell" data-idx="${idx}" title="Doble clic para editar" style="display:flex;align-items:center;gap:4px;cursor:pointer;border-radius:5px;padding:2px 4px;transition:background .12s;" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background=''">${escHtml(e.clienteNombre || '—')}${notaIndicator}<span style="font-size:9px;opacity:.3;flex-shrink:0;">✏</span></div>
           ${e.vendedor ? `<div style="font-size:10px;color:#94a3b8;padding:0 4px;margin-top:1px;">🧑‍💼 ${escHtml(e.vendedor)}</div>` : ''}
@@ -19493,8 +19496,8 @@ function renderEnviosPanel() {
           ${e.clienteTel ? `<a href="https://wa.me/549${e.clienteTel.replace(/\D/g,'')}" target="_blank" onclick="event.stopPropagation()" title="WhatsApp: ${e.clienteTel}" style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:#38bdf8;text-decoration:none;padding:2px 7px;margin-top:4px;border-radius:5px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);transition:background .12s;" onmouseover="this.style.background='rgba(56,189,248,.22)'" onmouseout="this.style.background='rgba(56,189,248,.1)'">📱 ${escHtml(e.clienteTel)}</a>` : ''}
 
         </td>
-        <td>
-          <div class="envio-nro-cell ped-col-nro" data-idx="${idx}" title="Doble clic para editar" style="cursor:pointer;border-radius:5px;padding:2px 4px;transition:background .12s;display:inline-flex;align-items:center;gap:3px;" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background=''">${escHtml(e.nroPedido || '—')}<span style="font-size:9px;opacity:.3;">✏</span></div>
+        <td style="vertical-align:top;padding:8px 10px;font-size:13px;color:var(--text);font-family:'DM Mono',monospace;white-space:nowrap;">
+          ${e.totalYiqi ? `<span style="color:#10b981;font-weight:700;">$${Number(e.totalYiqi).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>` : '<span style="opacity:.3;">—</span>'}
         </td>
         <td class="ped-col-tipo">${escHtml(tipoLabel)}</td>
         <td class="ped-col-tiempo">
@@ -19698,8 +19701,9 @@ function renderEnviosPanel() {
       <table class="ped-table">
         <thead>
           <tr>
-            <th style="width:${getPedColW('cliente')}px">Cliente<span class="col-resize-handle"></span></th>
             <th style="width:${getPedColW('nro')}px">N° Pedido<span class="col-resize-handle"></span></th>
+            <th style="width:${getPedColW('cliente')}px">Cliente<span class="col-resize-handle"></span></th>
+            <th style="width:${getPedColW('totalDescuento') || 120}px">Total con descuento<span class="col-resize-handle"></span></th>
             <th style="width:${getPedColW('tipo')}px">Tipo<span class="col-resize-handle"></span></th>
             <th style="width:${getPedColW('tiempo')}px">Hora / Tiempo<span class="col-resize-handle"></span></th>
             <th style="width:${getPedColW('condventa') || 130}px">Condición Venta<span class="col-resize-handle"></span></th>
@@ -32551,7 +32555,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v18.41';
+  const LATEST_VERSION = 'v18.42';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -32564,6 +32568,15 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+  {
+    version: 'v18.42',
+    fecha: '2026-05-10',
+    titulo: 'Nueva columna "Total con descuento" en tabla de Pedidos',
+    items: [
+      { tipo: 'nuevo', texto: 'Se agrega la columna "Total con descuento" a la derecha de "Cliente" en la tabla de la pestaña Pedidos. Muestra el valor sincronizado desde Yiqi (API y Excel manual), campo PEDI_TOTAL / "Total con descuento".' },
+      { tipo: 'mejora', texto: 'El valor se formatea como moneda argentina ($ 1.234,56) y se muestra en verde. Si el pedido no tiene total cargado, muestra "—".' },
+    ]
+  },
   {
     version: 'v18.41',
     fecha: '2026-05-10',
