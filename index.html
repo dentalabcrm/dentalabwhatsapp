@@ -369,25 +369,72 @@
       overflow-x: hidden;
       max-width: 100vw;
     }
+
+    /* Header compacto */
     header {
-      padding: 0 12px !important;
+      padding: 8px 12px !important;
       height: auto !important;
       min-height: 52px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: 8px;
-      padding-top: 8px !important;
-      padding-bottom: 8px !important;
+      overflow: hidden;
     }
+    /* Ocultar elementos del header que no caben en mobile */
+    header .stats,
+    header #design-open-btn,
+    header #theme-toggle-btn,
+    header #auth-admin-btn,
+    header #fb-status-indicator,
+    header .brand-sub {
+      display: none !important;
+    }
+    header .brand-name { font-size: 13px; }
+    header img { height: 30px !important; }
+    header #auth-user-chip {
+      margin-left: auto;
+    }
+    header #auth-logout-btn { display: none; }
+
+    /* Tab nav scrolleable */
     .tab-nav {
-      padding: 0 8px !important;
-      overflow-x: auto;
+      padding: 0 6px !important;
+      overflow-x: auto !important;
+      overflow-y: hidden;
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
+      flex-wrap: nowrap !important;
     }
     .tab-nav::-webkit-scrollbar { display: none; }
-    .tab-panel, #panel-envios-dentalab-inner {
+    .tab-btn {
+      padding: 10px 12px !important;
+      font-size: 12px !important;
+      flex-shrink: 0;
+    }
+
+    /* Contenido de pestañas */
+    .tab-panel {
       max-width: 100vw;
       overflow-x: hidden;
+    }
+
+    /* Búsqueda global */
+    #search-wrap, .search-wrap {
+      max-width: 100% !important;
+      min-width: 0 !important;
+    }
+
+    /* Tablas con scroll horizontal */
+    table {
+      display: block;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Modales que se salen de pantalla */
+    .modal-inner, .modal-body, .bd-inner {
+      max-width: calc(100vw - 24px) !important;
+      max-height: 90vh !important;
+      overflow-y: auto;
     }
   }
 
