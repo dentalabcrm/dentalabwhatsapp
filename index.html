@@ -51945,6 +51945,16 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
           if (typeof showToast === 'function') showToast(`✅ ${importados} evento${importados !== 1 ? 's' : ''} importado${importados !== 1 ? 's' : ''} desde GCal`, 'ok');
         }, 1500);
       }
+
+      // Preguntar por envíos recién importados con cobro indefinido
+      const indefinidos = _edEnvios.filter(e =>
+        (e.cobro === 'custom' || e.cobro === 'en_espera') &&
+        !e._listoPreguntado &&
+        !(e.estadoLog || []).some(s => s.estado === 'facturado' || s.estado === 'pago_acreditado')
+      );
+      if (indefinidos.length > 0) {
+        setTimeout(() => _edPreguntarListoEnCadena(indefinidos, 0), 2000);
+      }
     }
 
   } catch(e) {
@@ -52525,6 +52535,61 @@ window.edReprogramarConfirmar = async function(id) {
 };
 
 // Exponer funciones al scope global para que el tab handler pueda llamarlas
+function _edPreguntarListoEnCadena(lista, idx) {
+  if (idx >= lista.length) return;
+  const envio = lista[idx];
+  const envioId = envio.id;
+  const autor = authCurrentUser?.name || '';
+
+  // Marcar como ya preguntado para no volver a preguntar
+  const idxE = _edEnvios.findIndex(e => e.id === envioId);
+  if (idxE >= 0) _edEnvios[idxE]._listoPreguntado = true;
+  edSaveEnvios();
+
+  document.getElementById('ed-abono-bd')?.remove();
+  const mbd = document.createElement('div');
+  mbd.id = 'ed-abono-bd';
+  mbd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+  const nombreCorto = (envio.cliente || '—').replace(/\s+N[°\u00b0]\s*\d+.*$/i, '').trim();
+  const instruccion = envio.cobroCustom ? `<div style="font-size:12px;color:#f59e0b;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:8px 12px;margin-bottom:16px;text-align:left;">✏️ ${escHtml(envio.cobroCustom)}</div>` : '';
+  const total = lista.length;
+  const contador = total > 1 ? `<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">${idx + 1} de ${total}</div>` : '';
+
+  mbd.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:400px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:28px 24px;text-align:center;">
+      ${contador}
+      <div style="font-size:28px;margin-bottom:10px;">🚀</div>
+      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px;">${escHtml(nombreCorto)}</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:14px;">${envio.nroPedido ? 'N° ' + escHtml(String(envio.nroPedido)) : ''}</div>
+      ${instruccion}
+      <div style="font-size:13px;color:var(--text2);margin-bottom:24px;line-height:1.5;">¿Este envío ya está listo para salir?</div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button id="ed-cadena-no"
+          style="flex:1;padding:10px 16px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">
+          Todavía no
+        </button>
+        <button id="ed-cadena-si"
+          style="flex:1;padding:10px 16px;background:#10b981;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">
+          🚀 Sí, está listo
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(mbd);
+
+  document.getElementById('ed-cadena-no').onclick = function() {
+    mbd.remove();
+    _edPreguntarListoEnCadena(lista, idx + 1);
+  };
+
+  document.getElementById('ed-cadena-si').onclick = function() {
+    _edConfirmarAbono(envioId, autor);
+    mbd.remove();
+    setTimeout(() => _edPreguntarListoEnCadena(lista, idx + 1), 300);
+  };
+}
+
 function _edAbrirModalListoCustom(envioId, autor) {
   document.getElementById('ed-abono-bd')?.remove();
   const mbd = document.createElement('div');
