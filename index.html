@@ -52122,7 +52122,7 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
       }
 
       // Parse event data — limpiar etiquetas (WEB) y (ENVIAR) del título
-      const summary     = (ev.summary || '').replace(/\((WEB|ENVIAR)\)-?/gi, '').replace(/^(PEDIDO\s+WEB\s+ENVIAR|WEB\s+ENVIAR|PEDIDO\s+WEB|PEDIDO\s+ENVIAR)\s*[-–]?\s*/i, '').replace(/\s{2,}/g,' ').trim();
+      const summary     = (ev.summary || '').replace(/\((WEB|ENVIAR)\)-?/gi, '').replace(/^(PEDIDO\s+WEB\s+ENVIAR|WEB\s+ENVIAR|PEDIDO\s+WEB|PEDIDO\s+(?:ARIS|MARY|JORGE|FEDE|GREGORIO|GREGO|EDU|JUAN)\s+ENVIAR|PEDIDO\s+ENVIAR|PEDIDO)\s*[-–]?\s*/i, '').replace(/\s{2,}/g,' ').trim();
       // Limpiar HTML de la descripción (Google Calendar puede enviar HTML en algunos clientes)
       const description = (ev.description || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ');
       // Usar start.date si existe (todo el día), si no parsear dateTime respetando la zona horaria local
