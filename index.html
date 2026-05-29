@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.14</title>
+<title>Dentalab Whatsapp CRM · v25.15</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -36341,7 +36341,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.14';
+  const LATEST_VERSION = 'v25.15';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -36354,6 +36354,16 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.15',
+      fecha: '2026-05-29',
+      titulo: 'Envíos Dentalab: confirmación de alerta con notificación a admins en tiempo real',
+      items: [
+        { tipo: 'nuevo', texto: 'Cuando Esteban, Mayuri o Dentalab Repartos toca "Entendido ✓", se registra su nombre y hora. El banner desaparece para ellos.' },
+        { tipo: 'nuevo', texto: 'Los admins ven en la card: ⏳ rojo "Pendiente de confirmar" mientras no fue visto, o ✅ verde "Confirmado por [nombre] · hora" una vez confirmado.' },
+        { tipo: 'nuevo', texto: 'Al admin le aparece un toast verde en pantalla cuando el repartidor confirma (se cierra solo a los 9 segundos). El admin puede descartar la alerta con ×.' },
+      ]
+    },
     {
       version: 'v25.14',
       fecha: '2026-05-28',
@@ -50593,7 +50603,41 @@ fbListen(ED_REPRT_PATH, data => {
   if (panel && panel.classList.contains('active')) edRenderLista();
 });
 
-// ── Permisos ──────────────────────────────────────────────────────────────────
+// Listener: cuando un repartidor confirma, mostrar toast a admins
+fbListen('dentalab/alertas-confirmadas', function(data) {
+  if (!data) return;
+  if (edGetRol() === 'repartidor') return; // solo admins/logística
+  Object.values(data).forEach(function(notif) {
+    if (!notif || !notif.envioId || !notif.ts) return;
+    var key = '_edConfToast_' + notif.envioId + '_' + notif.ts;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+    // Solo mostrar si el envío aún tiene la alerta marcada (no ya descartada)
+    var envio = _edEnvios.find(function(e){ return e.id === notif.envioId; });
+    if (!envio || !envio._alertasRepartidor) return;
+    _edToastConfirmacion(notif);
+  });
+});
+
+function _edToastConfirmacion(notif) {
+  var existing = document.getElementById('_ed-conf-toast-' + notif.envioId);
+  if (existing) existing.remove();
+  var t = document.createElement('div');
+  t.id = '_ed-conf-toast-' + notif.envioId;
+  t.style.cssText = 'position:fixed;bottom:80px;right:16px;z-index:9999;background:#0a2318;border:1.5px solid #4ade80;border-radius:12px;padding:12px 16px;max-width:300px;display:flex;align-items:flex-start;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,.5);';
+  t.innerHTML = '<span style="font-size:20px;flex-shrink:0;">✅</span>'
+    + '<div style="flex:1;min-width:0;">'
+    + '<div style="font-size:12px;font-weight:800;color:#4ade80;margin-bottom:3px;">Cambio confirmado</div>'
+    + '<div style="font-size:11px;color:#86efac;line-height:1.5;">'
+    + '<strong>' + escHtml(notif.vistoPor || 'Repartidor') + '</strong> vio la modificación'
+    + (notif.cliente ? ' de <strong>' + escHtml(notif.cliente.replace(/\s+N[°º]\s*\d+.*$/i,'').trim()) + '</strong>' : '')
+    + (notif.campos ? '<br><span style="opacity:.65;">' + escHtml(notif.campos) + '</span>' : '')
+    + '</div>'
+    + '</div>'
+    + '<button onclick="this.parentNode.remove()" style="background:none;border:none;color:#4ade80;font-size:20px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;margin-top:-2px;">×</button>';
+  document.body.appendChild(t);
+  setTimeout(function(){ if (t.parentNode){ t.style.transition='opacity .4s'; t.style.opacity='0'; setTimeout(function(){ t.remove(); },400); } }, 9000);
+}
 function edGetRol() {
   if (!authCurrentUser) return 'repartidor';
   const name = authCurrentUser.name || '';
@@ -51038,18 +51082,46 @@ function edRenderCardMobile(e, color) {
     ? '<div style="font-size:11px;color:var(--text3);padding:6px 0 2px;border-top:1px solid var(--border2);margin-top:6px;">🧑‍💼 <span style="font-weight:600;color:var(--text2);">Vendedor:</span> ' + escHtml(e.vendedor) + '</div>'
     : '';
 
-  // Alerta de modificación para repartidores
+  // Alerta de modificación para repartidores (y estado de confirmación para admins)
   var alertaHtml = '';
-  if (_esRepNombre && e._alertasRepartidor && e._alertasRepartidor.length > 0) {
+  if (e._alertasRepartidor && e._alertasRepartidor.length > 0) {
     var campos = [...new Set(e._alertasRepartidor.map(function(a){ return a.icono + ' ' + a.label; }))].join(' · ');
-    alertaHtml = '<div onclick="edVerAlertaRepartidor(\'' + e.id + '\')" style="margin-top:10px;padding:10px 14px;background:rgba(245,158,11,.12);border:1.5px solid rgba(245,158,11,.5);border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px;animation:ed-moto-blink 1.2s ease-in-out infinite;">'
-      + '<span style="font-size:18px;">⚠️</span>'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:12px;font-weight:800;color:#f59e0b;">Atención: se modificó el envío</div>'
-      + '<div style="font-size:11px;color:#f59e0b;opacity:.85;margin-top:2px;">' + escHtml(campos) + '</div>'
-      + '</div>'
-      + '<span style="font-size:11px;color:#f59e0b;font-weight:700;white-space:nowrap;">Entendido ✓</span>'
-      + '</div>';
+    var _vistoPor = (e._alertasRepartidor[0] && typeof e._alertasRepartidor[0].vistoPor === 'string' && e._alertasRepartidor[0].vistoPor) || null;
+    if (_esRepNombre && !_vistoPor) {
+      // Repartidor logueado — no confirmó aún → banner naranja parpadeante
+      alertaHtml = '<div onclick="edVerAlertaRepartidor(\'' + e.id + '\')" style="margin-top:10px;padding:10px 14px;background:rgba(245,158,11,.12);border:1.5px solid rgba(245,158,11,.5);border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px;animation:ed-moto-blink 1.2s ease-in-out infinite;">'
+        + '<span style="font-size:18px;">⚠️</span>'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:12px;font-weight:800;color:#f59e0b;">Atención: se modificó el envío</div>'
+        + '<div style="font-size:11px;color:#f59e0b;opacity:.85;margin-top:2px;">' + escHtml(campos) + '</div>'
+        + '</div>'
+        + '<span style="font-size:11px;color:#f59e0b;font-weight:700;white-space:nowrap;">Entendido ✓</span>'
+        + '</div>';
+    } else if (!_esRepNombre) {
+      // Admin/logística — muestra si fue confirmado o sigue pendiente
+      if (_vistoPor) {
+        var _tsLabel = e._alertasRepartidor[0].vistoTs
+          ? (function(ts){ var d=new Date(ts); return d.getDate()+'/'+(d.getMonth()+1)+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0'); })(e._alertasRepartidor[0].vistoTs)
+          : '';
+        alertaHtml = '<div style="margin-top:10px;padding:8px 12px;background:rgba(34,197,94,.10);border:1.5px solid rgba(34,197,94,.35);border-radius:10px;display:flex;align-items:center;gap:8px;">'
+          + '<span style="font-size:15px;">✅</span>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="font-size:11px;font-weight:700;color:#4ade80;">Confirmado por ' + escHtml(_vistoPor) + (_tsLabel ? ' · ' + _tsLabel : '') + '</div>'
+          + '<div style="font-size:10px;color:#4ade80;opacity:.7;margin-top:1px;">' + escHtml(campos) + '</div>'
+          + '</div>'
+          + '<button onclick="edBorrarAlertaAdmin(\'' + e.id + '\')" style="background:none;border:none;color:#4ade80;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;" title="Descartar">×</button>'
+          + '</div>';
+      } else {
+        var _repNom = (_edRepartidores.find(function(r){ return r.id === e.repartidorId; }) || {}).nombre || '';
+        alertaHtml = '<div style="margin-top:10px;padding:8px 12px;background:rgba(239,68,68,.10);border:1.5px solid rgba(239,68,68,.35);border-radius:10px;display:flex;align-items:center;gap:8px;">'
+          + '<span style="font-size:15px;">⏳</span>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="font-size:11px;font-weight:700;color:#f87171;">' + escHtml(campos) + '</div>'
+          + '<div style="font-size:10px;color:#f87171;opacity:.7;margin-top:1px;">Pendiente de confirmar' + (_repNom ? ' · ' + escHtml(_repNom) : '') + '</div>'
+          + '</div>'
+          + '</div>';
+      }
+    }
   }
 
   // Select estado
@@ -54167,14 +54239,38 @@ function _edAbrirModalAbono(envioId, autor) {
 function edVerAlertaRepartidor(id) {
   var idx = _edEnvios.findIndex(function(e){ return e.id === id; });
   if (idx < 0) return;
+  var nombre = (authCurrentUser && authCurrentUser.name) || 'Repartidor';
+  var ts = Date.now();
+  // Marcar vistoPor en cada alerta (no borrar — el admin lo descarta)
+  var alertasActualizadas = (_edEnvios[idx]._alertasRepartidor || []).map(function(a){
+    return Object.assign({}, a, { vistoPor: nombre, vistoTs: ts });
+  });
+  _edEnvios[idx] = Object.assign({}, _edEnvios[idx], { _alertasRepartidor: alertasActualizadas, updatedAt: ts });
+  edSaveEnvios();
+  edRenderLista();
+  // Notificar a admins vía Firebase
+  try {
+    fbWrite('dentalab/alertas-confirmadas/' + id, {
+      envioId: id, vistoPor: nombre, ts: ts,
+      cliente: _edEnvios[idx].cliente || '',
+      campos: alertasActualizadas.map(function(a){ return a.label; }).join(', ')
+    }, 0);
+  } catch(err) {}
+}
+
+function edBorrarAlertaAdmin(id) {
+  var idx = _edEnvios.findIndex(function(e){ return e.id === id; });
+  if (idx < 0) return;
   delete _edEnvios[idx]._alertasRepartidor;
   _edEnvios[idx].updatedAt = Date.now();
   edSaveEnvios();
   edRenderLista();
+  try { fbWrite('dentalab/alertas-confirmadas/' + id, null, 0); } catch(err) {}
 }
 
 window.renderEnviosDentalabPanel = renderEnviosDentalabPanel;
 window.edVerAlertaRepartidor     = edVerAlertaRepartidor;
+window.edBorrarAlertaAdmin       = edBorrarAlertaAdmin;
 window.edAbrirModalNuevo         = edAbrirModalNuevo;
 window.edAbrirModalEditar        = edAbrirModalEditar;
 window.edAbrirModalRepartidores  = edAbrirModalRepartidores;
