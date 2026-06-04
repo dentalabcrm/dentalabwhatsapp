@@ -36607,9 +36607,9 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
     {
       version: 'v25.48',
       fecha: '2026-06-04',
-      titulo: 'Envíos Dentalab: estado actual de repartidores se muestra fijo',
+      titulo: 'Mail: Regla 3 — Pedido con faltante',
       items: [
-        { tipo: 'corrección', texto: 'Envíos Dentalab (mobile y desktop): cuando Esteban, Mayuri o Dentalab Repartos ya tienen un estado asignado (En camino, Entregado, No entregado, No responde), ese estado ahora aparece fijo en el selector. Antes la verificación usaba el campo "quien" que no existe en el log (se guarda como "autor"), por lo que el estado nunca se detectaba.' },
+        { tipo: 'nuevo', texto: 'Nueva Regla 3 fija: cuando depositodentalab@gmail.com envía un mail con "Pedido con faltante" en el body, el sistema responde automáticamente con "Entendido. Gracias por el aviso. Lo hablamos con el cliente y, cuando nos confirme cómo quiere seguir, les avisamos. Juan / Fede". Visible y pausable desde el panel ⚡ Reglas.' },
       ]
     },
     {
@@ -47277,10 +47277,15 @@ function _registrarUsoFrecuente(sku, nombre) {
         tipo: 'especial',
         descripcion: 'Palabras clave: TRANSFERENCIA / A CONFIRMAR / LINK DE PAGO / LINK NAVE / LINK PAYWAY / LINK / EN ESPERA — Body: "PEDIDO ARMADO" → responde con reclamo de pago + adjuntos',
         fija: true
+      },
+      {
+        id: 'fija_pedido_faltante',
+        nombre: 'Pedido con faltante → aviso automático',
+        tipo: 'especial',
+        descripcion: 'Remitente: depositodentalab@gmail.com — Body: "Pedido con faltante" → responde con aviso al cliente',
+        fija: true
       }
     ].map(r => ({ ...r, activa: _isReglaFijaActiva(r.id) }));
-
-    const todasReglas = [...REGLAS_FIJAS, ..._mailReglas];
 
     // Modo prueba
     const modoPrueba = _modoPrueba;
@@ -47693,6 +47698,58 @@ function _registrarUsoFrecuente(sku, nombre) {
     }
   }
 
+  // ── Regla fija: Pedido con faltante → respuesta automática ──
+  async function _checkReglaPedidoFaltante(token, mail) {
+    if (!_isReglaFijaActiva('fija_pedido_faltante')) return false;
+
+    // Condición 1: remitente es depositodentalab@gmail.com (o jm.gaffuri@hotmail.com para pruebas)
+    const fromEmail = (mail.from?.email || '').toLowerCase();
+    if (!fromEmail.includes('depositodentalab@gmail.com') && !fromEmail.includes('jm.gaffuri@hotmail.com')) return false;
+
+    // Condición 2: body contiene "PEDIDO CON FALTANTE"
+    let body = '';
+    try {
+      const r = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${mail.id}?format=full`,
+        { headers: { 'Authorization': 'Bearer ' + token } }
+      );
+      const msg = await r.json();
+      body = _extractBody(msg.payload).toUpperCase();
+      if (!body.includes('PEDIDO CON FALTANTE')) return false;
+
+      // ✅ Condiciones OK — responder
+      const headers = msg.payload?.headers || [];
+      const get = n => headers.find(h => h.name === n)?.value || '';
+      const origSubject  = get('Subject');
+      const origMsgId    = get('Message-ID');
+      const origRefs     = get('References');
+      const origThreadId = msg.threadId;
+
+      const replyRefsChain = [origRefs, origMsgId].filter(Boolean).join(' ').trim();
+
+      _reglasProcesadas.add(origThreadId);
+
+      const replyText = 'Entendido. Gracias por el aviso.\nLo hablamos con el cliente y, cuando nos confirme cómo quiere seguir, les avisamos.\nJuan / Fede';
+      const rawReply = _buildRawEmail({
+        to: _destEmail(DEST_DEPOSITO_REAL),
+        subject: origSubject.startsWith('Re:') ? origSubject : 'Re: ' + origSubject,
+        body: replyText,
+        inReplyTo: origMsgId,
+        references: replyRefsChain || undefined,
+      });
+      await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw: rawReply, threadId: origThreadId })
+      });
+
+      return true;
+    } catch(e) {
+      console.error('[Regla Pedido Faltante] Error:', e);
+      return false;
+    }
+  }
+
   // ── Ejecutar reglas sobre mensajes nuevos ──
   async function _ejecutarReglasMail(mails) {
     // No salir si no hay reglas configurables — las reglas fijas siempre corren
@@ -47722,11 +47779,20 @@ function _registrarUsoFrecuente(sku, nombre) {
       try {
         const ejecutada2 = await _checkReglaPagoPendiente(token, mail);
         if (ejecutada2) {
-          await _saveReglasProcesadas(mailThreadId); // persistir en Firebase + localStorage
+          await _saveReglasProcesadas(mailThreadId);
           showToast('💬 Respuesta automática (pago pendiente) → ' + (_modoPrueba ? MODO_PRUEBA_DEST + ' [PRUEBA]' : DEST_DEPOSITO_REAL), 'ok');
           continue;
         }
       } catch(e) { console.error('[Regla Pago Pendiente]', e); }
+
+      try {
+        const ejecutada3 = await _checkReglaPedidoFaltante(token, mail);
+        if (ejecutada3) {
+          await _saveReglasProcesadas(mailThreadId);
+          showToast('📦 Respuesta automática (pedido con faltante) → ' + (_modoPrueba ? MODO_PRUEBA_DEST + ' [PRUEBA]' : DEST_DEPOSITO_REAL), 'ok');
+          continue;
+        }
+      } catch(e) { console.error('[Regla Pedido Faltante]', e); }
 
       for (const regla of _mailReglas) {
         if (!regla.activa) continue;
@@ -48002,6 +48068,13 @@ function _registrarUsoFrecuente(sku, nombre) {
         nombre: 'Pago pendiente → Reclamo + a facturar',
         tipo: 'especial',
         descripcion: 'Palabras clave: TRANSFERENCIA / A CONFIRMAR / LINK DE PAGO / LINK NAVE / LINK PAYWAY / LINK / EN ESPERA — Body: "PEDIDO ARMADO" → responde con reclamo de pago + adjuntos [🧪 PRUEBA]',
+        fija: true
+      },
+      {
+        id: 'fija_pedido_faltante',
+        nombre: 'Pedido con faltante → aviso automático',
+        tipo: 'especial',
+        descripcion: 'Remitente: depositodentalab@gmail.com — Body: "Pedido con faltante" → responde con aviso al cliente',
         fija: true
       }
     ].map(r => ({ ...r, activa: _isReglaFijaActiva(r.id) }));
@@ -53067,10 +53140,11 @@ function edRenderCardMobile(e, color) {
     // (está en el log con su nombre), no si viene del estado inicial asignado por admin
     var _estadoActualLabel = '';
     if (_esRepartidorPrincipalMob || _esDepositoCentralMob) {
-      // Mostrar el estado actual fijo si el envío ya tiene un estado de repartidor asignado
-      var _estadosRep = ['en_camino', 'entregado', 'no_entregado', 'no_responde'];
-      var _tieneEstadoRep = e.estado && _estadosRep.includes(e.estado);
-      if (_tieneEstadoRep) {
+      var _repNombreMob = _userNameMob;
+      var _loSeteoElRep = (e.estadoLog || []).some(function(l){
+        return l.estado === e.estado && l.quien && l.quien.indexOf(_repNombreMob) !== -1;
+      });
+      if (_loSeteoElRep && e.estado && e.estado !== 'pendiente' && e.estado !== 'listo') {
         var _eActual = ED_ESTADOS ? ED_ESTADOS.find(function(s){ return s.id === e.estado; }) : null;
         if (_eActual) {
           _estadoActualLabel = '<option value="" disabled selected style="color:#94a3b8;font-weight:700;">' + _eActual.icon + ' ' + _eActual.label + '</option>';
@@ -53749,9 +53823,7 @@ function edRenderCard(e, color) {
           ` : rol === 'repartidor' ? `
             <select onchange="edCambiarEstado('${e.id}', this.value)"
               style="font-size:11px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);cursor:pointer;">
-              ${ED_ESTADOS_REPARTIDOR.includes(e.estado)
-                ? (() => { const _est = ED_ESTADOS.find(s => s.id === e.estado); return _est ? `<option value="" disabled selected style="color:#94a3b8;font-weight:700;">${_est.icon} ${_est.label}</option>` : ''; })()
-                : `<option value="" disabled selected style="color:#94a3b8;">👆 Actualizá el estado</option>`}
+              ${!ED_ESTADOS_REPARTIDOR.includes(e.estado) ? `<option value="" disabled selected style="color:#94a3b8;">👆 Actualizá el estado</option>` : ''}
               ${estadoOptionsRepartidor}
             </select>
           ` : edPuedeCambiarEstado() ? `
