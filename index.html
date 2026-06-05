@@ -52607,26 +52607,28 @@ const ED_COLLAPSED_FB_PATH = 'dentalab/ed_grupos_colapsados';
 let _edManualOrder = [];
 let _edGruposColapsados = {}; // { reprtId: true/false }
 
-function edLoadGruposColapsados() {
-  try {
-    const local = localStorage.getItem('dentalab_ed_grupos_colapsados');
-    if (local) _edGruposColapsados = JSON.parse(local);
-  } catch(e) { _edGruposColapsados = {}; }
-  try {
-    db.ref(ED_COLLAPSED_FB_PATH).on('value', snap => {
-      _edGruposColapsados = snap.val() || {};
-      try { localStorage.setItem('dentalab_ed_grupos_colapsados', JSON.stringify(_edGruposColapsados)); } catch(e) {}
-      edRenderLista();
-    });
-  } catch(e) {}
+function _edEsRepartidorPersonal() {
+  const nombre = authCurrentUser?.name || '';
+  return ['Esteban','Mayuri','Dentalab Repartos'].includes(nombre);
 }
 
-async function edToggleGrupoColapsado(reprtId) {
-  const actual = !!_edGruposColapsados[reprtId];
-  const nuevo = !actual;
+function _edCollapsedLocalKey() {
+  const nombre = authCurrentUser?.name || 'unknown';
+  return 'dentalab_ed_grupos_colapsados_' + nombre.replace(/\s+/g,'_');
+}
+
+function edLoadGruposColapsados() {
+  // Siempre localStorage personal — nunca se comparte entre usuarios
+  try {
+    const local = localStorage.getItem(_edCollapsedLocalKey());
+    _edGruposColapsados = local ? JSON.parse(local) : {};
+  } catch(e) { _edGruposColapsados = {}; }
+}
+
+function edToggleGrupoColapsado(reprtId) {
+  const nuevo = !_edGruposColapsados[reprtId];
   _edGruposColapsados[reprtId] = nuevo;
-  try { localStorage.setItem('dentalab_ed_grupos_colapsados', JSON.stringify(_edGruposColapsados)); } catch(e) {}
-  try { await db.ref(ED_COLLAPSED_FB_PATH + '/' + reprtId).set(nuevo); } catch(e) {}
+  try { localStorage.setItem(_edCollapsedLocalKey(), JSON.stringify(_edGruposColapsados)); } catch(e) {}
   edRenderLista();
 }
 
