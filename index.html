@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.263</title>
+<title>Dentalab Whatsapp CRM · v25.264</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -11811,6 +11811,43 @@ function _getSearchIdx(r) {
   return r._sIdx;
 }
 
+// ── Sinónimos de búsqueda (mismos que en el link de Pedido Whatsapp): si el término
+//    escrito coincide con cualquiera de un grupo, también se busca con los demás
+//    términos del mismo grupo (ej: "irrigador" también encuentra "Duchador"). ──
+function _sinPuntGlobal(s) { return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[-/.]/g, ""); }
+const SINONIMOS_RAW = [
+  ['Irrigador', 'Duchador'],
+  ['Placas', 'Termoplaca'],
+  ['Escáner intraoral', 'scanner intraoral', 'escaner', 'scanner', 'escáner 3D', 'intraoral'],
+  ['RX Portátil', 'rayos x', 'rayos', 'radiografía', 'radiografia', 'equipo de rayos'],
+  ['Sistema Radiográfico Digital', 'RVG', 'radiovisiógrafo', 'radiovisiografo', 'sensor', 'sensor RVG', 'sensor digital'],
+  ['Lámpara de Fotocurado', 'fotocurado', 'lámpara LED', 'luz de fotocurado', 'lámpara de luz'],
+  ['Autoclave', 'esterilizador', 'esterilizadora', 'clase B', 'autoclave 21L'],
+  ['Fisiodispenser', 'motor de implantes', 'implantes', 'implant motor'],
+  ['Micromotor Eléctrico', 'motor eléctrico', 'motor de cirugía', 'micromotor LED'],
+  ['Endo Motor', 'motor endo', 'endodoncia', 'endomotor'],
+  ['Localizador de Ápice', 'apex locator', 'localizador', 'ápice', 'apice'],
+  ['Sillón odontológico', 'sillón dental', 'unidad dental', 'sillón'],
+  ['Horno para Porcelana', 'horno cerámica', 'horno dental'],
+  ['Termoformadora', 'plastificadora', 'máquina de placas', 'vacuum former'],
+  ['Contra Ángulo', 'contraangulo', 'CA', 'contra ángulo óptico'],
+  ['Turbina', 'alta', 'pieza de alta', 'alta velocidad'],
+  ['Micromotor neumático', 'baja', 'pieza de baja'],
+  ['Compresor', 'compresora de aire'],
+  ['Aspirador', 'aspiración', 'bomba de aspiración'],
+];
+const SINONIMOS = SINONIMOS_RAW.map(grupo => grupo.map(t => _sinPuntGlobal(t.toLowerCase())));
+function _candidatosSinonimos(t) {
+  const candidatos = [t];
+  if (t.length < 3) return candidatos; // evita falsos positivos con términos muy cortos
+  SINONIMOS.forEach(grupo => {
+    if (grupo.some(g => g === t || g.includes(t) || t.includes(g))) {
+      grupo.forEach(g => { if (!candidatos.includes(g)) candidatos.push(g); });
+    }
+  });
+  return candidatos;
+}
+
 function applyFilters() {
   const q = $("search").value.toLowerCase().trim();
 
@@ -11844,8 +11881,13 @@ function applyFilters() {
       const fieldsSinPunt = [idx[3], idx[4], idx[5]];
       // Además del match exacto, probar ignorando guiones/barras/puntos y tildes/ñ
       // (para que "ocryl" encuentre "O-cryl", "acrilico" encuentre "Acrílico", etc.)
+      // y probar también los sinónimos del grupo de cada término (ej: "irrigador" → "Duchador").
       const _sinPunt = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[-/.]/g, "");
-      if (!tokens.every(t => fields.some(f => f.includes(t)) || fieldsSinPunt.some(f => f.includes(_sinPunt(t))))) return false;
+      const tokensOk = tokens.every(t => {
+        const candidatos = _candidatosSinonimos(t);
+        return candidatos.some(c => fields.some(f => f.includes(c)) || fieldsSinPunt.some(f => f.includes(_sinPunt(c))));
+      });
+      if (!tokensOk) return false;
     }
     if (prov !== "todos" && r["Proveedor"] !== prov) return false;
     if (lista !== "todas" && parseFloat(r[lista]||0) <= 0) return false;
@@ -39037,7 +39079,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.263';
+  const LATEST_VERSION = 'v25.264';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -39050,6 +39092,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.264',
+      fecha: '2026-07-21',
+      titulo: 'Sinónimos de búsqueda también en Lista de Precios',
+      items: [
+        { tipo: 'nuevo', texto: 'El buscador interno de Lista de Precios ahora usa los mismos sinónimos que el link de Pedido Whatsapp: buscar "irrigador" también encuentra "Duchador", "placas" encuentra "Termoplaca", "sensor" encuentra "RVG", etc.' },
+      ]
+    },
     {
       version: 'v25.263',
       fecha: '2026-07-21',
