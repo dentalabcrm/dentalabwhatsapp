@@ -121,11 +121,24 @@
   .chk-ofertas{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text2);white-space:nowrap;cursor:pointer;}
   .prod-oferta{font-size:10px;color:var(--red);font-weight:700;margin-top:2px;}
   .prod-consultar{font-size:12px;color:var(--text3);font-style:italic;font-family:'DM Sans',sans-serif;font-weight:500;}
+  .buscador-input-wrap{position:relative;flex:1;min-width:200px;}
   .buscador-row input[type="text"]{
-    flex:1;min-width:200px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;
+    width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:10px;padding:10px 34px 10px 12px;
     font-size:13.5px;background:var(--panel2);color:var(--text);
   }
   .buscador-row input[type="text"]:focus{outline:2px solid var(--blue);outline-offset:-1px;background:#fff;}
+  .btn-limpiar-busqueda{
+    position:absolute;right:6px;top:50%;transform:translateY(-50%);
+    background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;
+    padding:5px 7px;line-height:1;border-radius:6px;
+  }
+  .btn-limpiar-busqueda:hover{background:var(--border);color:var(--text);}
+  .btn-vaciar-carrito{
+    display:inline-flex;align-items:center;gap:5px;background:none;border:1px solid var(--border);
+    color:var(--red,#dc2626);border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;
+    cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;
+  }
+  .btn-vaciar-carrito:hover{background:#dc262610;border-color:var(--red,#dc2626);}
   .chk-stock{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);white-space:nowrap;cursor:pointer;}
   .btn-ir-final{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:9px 14px;font-size:12.5px;color:var(--text2);cursor:pointer;white-space:nowrap;}
 
@@ -137,6 +150,9 @@
   .prod-row-clickeable{cursor:pointer;transition:background .12s,border-color .12s;}
   .prod-row-clickeable:active{background:#bfdbfe;}
   .prod-row-en-carrito{background:#dbeafe;border-color:var(--blue);border-width:2px;}
+  .prod-row-agotado .prod-nombre{text-decoration:line-through;text-decoration-color:var(--text3);color:var(--text3);}
+  .prod-row-agotado .prod-precio{text-decoration:line-through;text-decoration-color:var(--text3);color:var(--text3);}
+  .prod-row-agotado .prod-foto{opacity:.45;filter:grayscale(65%);}
   .prod-info{flex:1;min-width:0;}
   .prod-foto{width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--border);}
   img.prod-foto{cursor:zoom-in;}
@@ -1695,7 +1711,7 @@ function renderResultados(){
     const clickeable = qtyEnCarrito > 0
       ? ` onclick="quitarDelCarrito('${it.s}')"`
       : (puedeAgregar ? ` onclick="agregarAlCarrito('${it.s}')"` : '');
-    const claseFila = `prod-row${(puedeAgregar || qtyEnCarrito > 0) ? ' prod-row-clickeable' : ''}${qtyEnCarrito > 0 ? ' prod-row-en-carrito' : ''}`;
+    const claseFila = `prod-row${(puedeAgregar || qtyEnCarrito > 0) ? ' prod-row-clickeable' : ''}${qtyEnCarrito > 0 ? ' prod-row-en-carrito' : ''}${it.st ? ' prod-row-agotado' : ''}`;
     return `
       <div class="${claseFila}"${clickeable}>
         ${adminIcons}${foto}
@@ -1862,6 +1878,8 @@ function renderCarrito(){
       : '';
   }
   if (btn) btn.disabled = carrito.size === 0;
+  const btnVaciar = document.getElementById('btn-vaciar-carrito');
+  if (btnVaciar) btnVaciar.style.display = carrito.size ? 'inline-flex' : 'none';
   _actualizarBarraCarritoFlotante();
   _guardarCarritoLS();
 }
@@ -1945,7 +1963,10 @@ function renderPrincipal(){
     <div class="card" id="card-buscar">
       <h1>Buscar productos</h1>
       <div class="buscador-row">
-        <input type="text" id="input-busqueda" placeholder="Nombre o SKU… (o dejá vacío para ver todo el catálogo)" oninput="onBusquedaInput(this.value)">
+        <div class="buscador-input-wrap">
+          <input type="text" id="input-busqueda" placeholder="Nombre o SKU… (o dejá vacío para ver todo el catálogo)" oninput="onBusquedaInput(this.value)">
+          <button type="button" id="btn-limpiar-busqueda" class="btn-limpiar-busqueda" onclick="limpiarBusqueda()" title="Borrar búsqueda" style="display:none;">✕</button>
+        </div>
         <button class="btn-ir-final" onclick="irAlFinalDeLista()" title="Saltar al final de la lista">⬇ Ir al final</button>
       </div>
       <div class="filtros-row">
@@ -1969,7 +1990,10 @@ function renderPrincipal(){
     </div>
 
     <div class="card card-pedido" id="card-pedido">
-      <h1>🛒 Tu pedido</h1>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <h1 style="margin:0;">🛒 Tu pedido</h1>
+        <button id="btn-vaciar-carrito" class="btn-vaciar-carrito" onclick="confirmarVaciarCarrito()" style="display:none;" title="Vaciar todo el carrito">🗑 Vaciar carrito</button>
+      </div>
       <div id="carrito-items"></div>
       <div class="totales">
         <div class="row"><span>Total</span><span id="carrito-total">$0</span></div>
@@ -2050,8 +2074,27 @@ let _busquedaTimer = null;
 window.onBusquedaInput = (val) => {
   busqueda = val;
   paginaActual = 1;
+  _actualizarBtnLimpiarBusqueda();
   clearTimeout(_busquedaTimer);
   _busquedaTimer = setTimeout(renderResultados, 150);
+};
+function _actualizarBtnLimpiarBusqueda(){
+  const btn = document.getElementById('btn-limpiar-busqueda');
+  if (btn) btn.style.display = (document.getElementById('input-busqueda')?.value || '') ? 'block' : 'none';
+}
+window.limpiarBusqueda = () => {
+  const input = document.getElementById('input-busqueda');
+  if (input) { input.value = ''; input.focus(); }
+  onBusquedaInput('');
+};
+
+window.confirmarVaciarCarrito = () => {
+  if (!carrito.size) return;
+  const cantidad = carrito.size;
+  const ok = confirm(`¿Vaciar todo el carrito? Se van a borrar los ${cantidad} producto${cantidad === 1 ? '' : 's'} que agregaste. Esta acción no se puede deshacer.`);
+  if (!ok) return;
+  carrito.clear();
+  renderCarrito();
 };
 
 window.onFiltroChange = () => {
