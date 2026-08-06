@@ -17123,7 +17123,7 @@ function publicarPresupuestoParaCliente() {
   };
   try { db.ref('dentalab/presupuestos_publicos/' + id).set(snapshot); }
   catch (e) { console.error('Error publicando presupuesto público:', e); }
-  return new URL('presupuesto-cliente.html', location.href).href + '?id=' + id;
+  return 'https://dentalabcrm.github.io/presupuestos/presupuesto-cliente.html?id=' + id;
 }
 
 // Muestra un modal con las propuestas de cambios que los clientes mandaron desde su link editable
