@@ -65071,6 +65071,12 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
             if (datosPdf.observaciones) {
               observaciones = [observaciones, '📄 ' + datosPdf.observaciones].filter(Boolean).join('\n').slice(0, 300);
             }
+          } else if (!direccionGcal) {
+            // Mismo respaldo que ya existe para cuando el transporte se detecta del título:
+            // todos los transportes menos "Envíos Dentalab" muestran "Sucursal CABA" si no
+            // hay una dirección puntual. Acá hace falta repetirlo porque el transporte recién
+            // se conoció leyendo el PDF (llegó tarde para el chequeo original, más arriba).
+            direccionGcal = 'Sucursal CABA';
           }
           // Cliente y N° de pedido: solo completan si el título no trajo nada (no pisan
           // un dato ya detectado, que suele ser más específico que el del PDF).
