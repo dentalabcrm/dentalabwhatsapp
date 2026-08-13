@@ -63295,6 +63295,7 @@ function edAplicarDatosPdfAlFormulario(datos, textLines) {
 
   if (datos.cliente) { const el = g('ed-f-cliente'); if (el) el.value = datos.cliente; }
   if (datos.nroPedido) { const el = g('ed-f-pedido'); if (el) el.value = datos.nroPedido; }
+  if (datos.telefono) { const el = g('ed-f-telefono'); if (el) el.value = datos.telefono; }
 
   // Transporte primero — dispara solo los toggles visuales de tipo de entrega / pago en
   // origen-destino que ya tiene el campo (mismo comportamiento que si lo tipeara a mano).
@@ -64150,7 +64151,7 @@ async function _extraerTextoPDFDesdeBuffer(buf) {
 // Extrae Vendedor, Lugar de Entrega y Observaciones del presupuesto en PDF (formato Yiqi).
 // Diseñado y probado contra el formato real de "PRESUPUESTO" que emite el sistema.
 function _parsearDatosEnvioDesdePDFTexto(textLines) {
-  const resultado = { vendedor: '', direccion: '', observaciones: '', pagoEnvio: '', tipoEntrega: '', cliente: '', condicionVenta: '', total: '', nroPedido: '' };
+  const resultado = { vendedor: '', direccion: '', observaciones: '', pagoEnvio: '', tipoEntrega: '', cliente: '', condicionVenta: '', total: '', nroPedido: '', telefono: '' };
   const ETIQUETAS_TOTALES = [/\bNeto\b/i, /\bIVA\b/i, /%\s*Dto/i, /Desc\s*gral/i, /Percep\.?/i, /\bTotal\b/i];
 
   let idxObs = -1, idxLugar = -1;
@@ -64181,6 +64182,13 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
     if (!resultado.nroPedido) {
       const m = linea.match(/Manual\s*-?\s*(\d{3,8})\b/i);
       if (m) resultado.nroPedido = m[1];
+    }
+    if (!resultado.telefono) {
+      // El teléfono viene entre paréntesis en la línea de "Domicilio Comercial:", ej:
+      // "(4777-6909 / 2858-5684)" o "(+5492966641078)". Si hay más de uno separados por
+      // "/", se toma el primero.
+      const m = linea.match(/Domicilio\s+Comercial\s*:.*?\(([+\d][\d\s\-+/]{5,})\)/i);
+      if (m) resultado.telefono = m[1].split('/')[0].trim();
     }
   });
 
@@ -65133,7 +65141,7 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
 
       // Extraer teléfono de la descripción (línea con 📞)
       const _telefonoGcalLine = descLines.find(l => /^📞/.test(l.trim()));
-      const telefonoGcal = _telefonoGcalLine ? _telefonoGcalLine.trim().replace(/^📞\s*/, '').trim() : '';
+      let telefonoGcal = _telefonoGcalLine ? _telefonoGcalLine.trim().replace(/^📞\s*/, '').trim() : '';
 
       const obsLines = descLines.filter(l => {
         const lt = l.trim();
@@ -65227,6 +65235,7 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
           // un dato ya detectado, que suele ser más específico que el del PDF).
           if (!cliente && datosPdf.cliente) cliente = datosPdf.cliente;
           if (!nroPedido && datosPdf.nroPedido) nroPedido = datosPdf.nroPedido;
+          if (!telefonoGcal && datosPdf.telefono) telefonoGcal = datosPdf.telefono;
           // Cobro: solo si el título no detectó ningún cobro (para no pisar algo más
           // específico, ej. "ya pagó" tipeado a mano). El monto solo se guarda cuando el
           // cobro mapeado es efectivo — es lo que se usa para el total de cobros en efectivo.
