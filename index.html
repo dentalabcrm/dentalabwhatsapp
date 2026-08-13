@@ -64066,7 +64066,7 @@ async function _extraerTextoPDFDesdeBuffer(buf) {
 // Extrae Vendedor, Lugar de Entrega y Observaciones del presupuesto en PDF (formato Yiqi).
 // Diseñado y probado contra el formato real de "PRESUPUESTO" que emite el sistema.
 function _parsearDatosEnvioDesdePDFTexto(textLines) {
-  const resultado = { vendedor: '', direccion: '', observaciones: '', pagoEnvio: '', tipoEntrega: '' };
+  const resultado = { vendedor: '', direccion: '', observaciones: '', pagoEnvio: '', tipoEntrega: '', cliente: '', condicionVenta: '', total: '', nroPedido: '' };
   const ETIQUETAS_TOTALES = [/\bNeto\b/i, /\bIVA\b/i, /%\s*Dto/i, /Desc\s*gral/i, /Percep\.?/i, /\bTotal\b/i];
 
   let idxObs = -1, idxLugar = -1;
@@ -64081,6 +64081,22 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
     if (!resultado.direccion) {
       const m = linea.match(/Lugar\s+de\s+Entrega\s*:\s*(.*?)(?:\s+Forma\s*:|$)/i);
       if (m && m[1].trim()) resultado.direccion = m[1].trim();
+    }
+    if (!resultado.cliente) {
+      const m = linea.match(/Raz[oó]n\s+Social\s*:\s*(.+?)(?:\s+CUIT\s*:|$)/i);
+      if (m && m[1].trim()) resultado.cliente = m[1].trim();
+    }
+    if (!resultado.condicionVenta) {
+      const m = linea.match(/Condici[oó]n\s+de\s+Vta\s*:\s*(.+)$/i);
+      if (m && m[1].trim()) resultado.condicionVenta = m[1].trim();
+    }
+    if (!resultado.total) {
+      const m = linea.match(/^Total\s*\$?\s*([\d.,]+)/i);
+      if (m) resultado.total = m[1].trim();
+    }
+    if (!resultado.nroPedido) {
+      const m = linea.match(/Manual\s*-?\s*(\d{3,8})\b/i);
+      if (m) resultado.nroPedido = m[1];
     }
   });
 
@@ -64139,6 +64155,19 @@ async function _leerPDFAdjuntoDeEvento(ev, token) {
     console.warn('[AutoSync GCal] Error leyendo PDF adjunto:', e.message);
     return null;
   }
+}
+
+// Traduce el texto de "Condición de Vta" del PDF (formato Yiqi) al tipo de cobro que usa
+// Envíos Dentalab. Solo mapea a un tipo concreto cuando hay certeza (para no marcar como
+// "efectivo" algo que en realidad es tarjeta o Mercado Pago, ya que esto se usa para saber
+// el total real de cobros en efectivo). Si no hay un mapeo seguro, devuelve null.
+function _mapearCobroDesdeCondicionVenta(texto) {
+  const t = (texto || '').toLowerCase();
+  if (!t) return null;
+  if (/transferencia/.test(t)) return 'transferencia';
+  if (/cuenta\s*corriente|d[ií]as\s+fecha\s+de\s+factura|f\.?\s*p\.?\s*f\.?/.test(t)) return 'cuenta_corriente';
+  if (/^contado$/.test(t.trim())) return 'efectivo';
+  return null; // Tarjeta, Mercado Pago u otro: se deja para 'custom' con el texto original
 }
 
 async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _hastaOverride = null) {
@@ -65006,20 +65035,62 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
 
       // Si el evento tiene un presupuesto en PDF adjunto, se lee siempre que haya adjunto
       // (sin importar el transporte) porque el vendedor es un dato útil en cualquier envío.
-      // La dirección y las observaciones del PDF, en cambio, solo se usan para "Envíos
-      // Dentalab" — para el resto de los transportes esos datos ya se completan distinto
-      // (con las preguntas de "pago en destino/origen" y "domicilio/sucursal" del envío).
-      const _esEnviosDentalab = !transporte || /envíos?\s*dentalab/i.test(transporte);
       if ((ev.attachments || []).some(a => a.mimeType === 'application/pdf' || /\.pdf$/i.test(a.title || ''))) {
         const datosPdf = await _leerPDFAdjuntoDeEvento(ev, token);
         if (datosPdf) {
           if (datosPdf.vendedor) vendedorGcal = datosPdf.vendedor;
           if (datosPdf.pagoEnvio) pagoEnvioGcal = datosPdf.pagoEnvio;
           if (datosPdf.tipoEntrega) tipoEntregaGcal = datosPdf.tipoEntrega;
+
+          // Transporte: si el título no dijo nada, buscar un nombre de transportista conocido
+          // en las observaciones del PDF (misma lista que ya se usa para el título). Si tampoco
+          // aparece ahí, no se toca — queda "" y más abajo ya cae solo en "Envíos Dentalab".
+          if (!transporte && datosPdf.observaciones) {
+            for (const t of TRANSPORTES_KNOWN) {
+              const rx = new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\b', 'i');
+              if (rx.test(datosPdf.observaciones)) { transporte = t; break; }
+            }
+            if (!transporte) {
+              for (const [rx, nombre] of ALIAS_CORTOS) {
+                if (rx.test(datosPdf.observaciones)) { transporte = nombre; break; }
+              }
+            }
+          }
+          // Horario: si el título no trajo uno, buscarlo en las observaciones del PDF.
+          if (!horario && datosPdf.observaciones) {
+            const _mHorario = datosPdf.observaciones.match(horarioRx);
+            if (_mHorario) horario = _mHorario[0].trim();
+          }
+
+          // Con el transporte ya actualizado (título u observaciones), recién ahora se decide
+          // si corresponde usar dirección/observaciones del PDF (solo para Envíos Dentalab —
+          // el resto de los transportes completa esos datos distinto).
+          const _esEnviosDentalab = !transporte || /envíos?\s*dentalab/i.test(transporte);
           if (_esEnviosDentalab) {
             if (datosPdf.direccion) direccionGcal = datosPdf.direccion;
             if (datosPdf.observaciones) {
               observaciones = [observaciones, '📄 ' + datosPdf.observaciones].filter(Boolean).join('\n').slice(0, 300);
+            }
+          }
+          // Cliente y N° de pedido: solo completan si el título no trajo nada (no pisan
+          // un dato ya detectado, que suele ser más específico que el del PDF).
+          if (!cliente && datosPdf.cliente) cliente = datosPdf.cliente;
+          if (!nroPedido && datosPdf.nroPedido) nroPedido = datosPdf.nroPedido;
+          // Cobro: solo si el título no detectó ningún cobro (para no pisar algo más
+          // específico, ej. "ya pagó" tipeado a mano). El monto solo se guarda cuando el
+          // cobro mapeado es efectivo — es lo que se usa para el total de cobros en efectivo.
+          if (!cobroGcal && datosPdf.condicionVenta) {
+            const _cobroMapeado = _mapearCobroDesdeCondicionVenta(datosPdf.condicionVenta);
+            if (_cobroMapeado) {
+              cobroFinalGcal = _cobroMapeado;
+              if (_cobroMapeado === 'efectivo' && datosPdf.total) {
+                const _montoNum = Math.round(parseFloat(datosPdf.total.replace(/\./g, '').replace(',', '.')));
+                if (!isNaN(_montoNum)) montoEfectivo = String(_montoNum);
+              }
+            } else {
+              // Tarjeta, Mercado Pago u otro medio sin mapeo exacto → "A confirmar", en vez
+              // de dejarlo como instrucción personalizada.
+              cobroFinalGcal = 'en_espera';
             }
           }
         }
