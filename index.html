@@ -64457,7 +64457,7 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
       // 3) Horario: del título primero — solo para Envíos Dentalab
       const descLines = description.split('\n').map(s => s.trim()).filter(Boolean);
       // Safari iOS no soporta lookbehind — versión compatible
-      const horarioRx = /\b\d{1,2}:\d{2}\s*[-–a]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|\b\d{1,2}\s*[aA]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?\b|\b\d{1,2}\s*[-–]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?\b|\d{1,2}:\d{2}\s*[-–a]\s*\d{1,2}:\d{2}(?:\s*[aApP][mM])?|\d{1,2}:\d{2}\s*[aA]\s*\d{1,2}(?::\d{2})?|\d{1,2}[Hh][Ss]?\s*[aA]\s*\d{1,2}[Hh][Ss]?|\b([01]?\d|2[0-3])\s+[aA]\s+([01]?\d|2[0-3])\b|>\s*\d{1,2}[Hh][Ss]?|hasta\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|a\s+partir\s+de\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|a\s+las?\s+\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|antes\s+de\s+las?\s+\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|despu[eé]s\s+de\s+las?\s+\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|entre\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?\s*y\s*\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|entre\s+(?:las?\s+)?([01]?\d|2[0-3])\s*y\s*([01]?\d|2[0-3])\b|de\s+\d{1,2}(?:[Hh][Ss]?)?\s*[aA]\s*\d{1,2}\s*[Hh][Ss]?|\d{1,2}\.\d{2}\s*[Hh][Ss]?\s*[aA]\s*\d{1,2}\.\d{2}\s*[Hh][Ss]?|\d{1,2}\/\d{1,2}\s*[Hh][Ss]?|~\s*\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|apr?o[xk]\.?\s*(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|alrededor\s+de\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|\d{1,2}\s*[aA][mMpP][mM](?:\s*[-–a]\s*\d{1,2}\s*[aApP][mM])?|por\s+la\s+(?:ma[ñn]ana|tarde|noche)|ma[ñn]ana\s+temprano|\d{1,2}\s+[aA]\s+\d{1,2}\s+[oO]\s+\d{1,2}\s+[aA]\s+\d{1,2}|mediod[ií]a|al\s+cierre|al\s+abrir|primera\s+hora|[uú]ltima\s+hora/i;
+      const horarioRx = /\b\d{1,2}\s+[aA]\s+\d{1,2}\s+[oO]\s+\d{1,2}\s+[aA]\s+\d{1,2}\b|\b\d{1,2}:\d{2}\s*[-–a]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|\b\d{1,2}\s*[aA]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?\b|\b\d{1,2}\s*[-–]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?\b|\d{1,2}:\d{2}\s*[-–a]\s*\d{1,2}:\d{2}(?:\s*[aApP][mM])?|\d{1,2}:\d{2}\s*[aA]\s*\d{1,2}(?::\d{2})?|\d{1,2}[Hh][Ss]?\s*[aA]\s*\d{1,2}[Hh][Ss]?|\b([01]?\d|2[0-3])\s+[aA]\s+([01]?\d|2[0-3])\b|>\s*\d{1,2}[Hh][Ss]?|hasta\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|a\s+partir\s+de\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|a\s+las?\s+\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|antes\s+de\s+las?\s+\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|despu[eé]s\s+de\s+las?\s+\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|entre\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?\s*y\s*\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|entre\s+(?:las?\s+)?([01]?\d|2[0-3])\s*y\s*([01]?\d|2[0-3])\b|de\s+\d{1,2}(?:[Hh][Ss]?)?\s*[aA]\s*\d{1,2}\s*[Hh][Ss]?|\d{1,2}\.\d{2}\s*[Hh][Ss]?\s*[aA]\s*\d{1,2}\.\d{2}\s*[Hh][Ss]?|\d{1,2}\/\d{1,2}\s*[Hh][Ss]?|~\s*\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|apr?o[xk]\.?\s*(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|alrededor\s+de\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|\d{1,2}\s*[aA][mMpP][mM](?:\s*[-–a]\s*\d{1,2}\s*[aApP][mM])?|por\s+la\s+(?:ma[ñn]ana|tarde|noche)|ma[ñn]ana\s+temprano|mediod[ií]a|al\s+cierre|al\s+abrir|primera\s+hora|[uú]ltima\s+hora/i;
       const horarioMatch = summary.match(horarioRx);
       let horario = horarioMatch ? horarioMatch[0].trim() : '';
       // Limpiar texto extra pegado al horario (ej: "14:00 a 20:00 - Pendiente")
@@ -64653,7 +64653,9 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
         }
       }
       // Default horario según transporte
+      let _horarioEsDefault = false;
       if (!horario) {
+        _horarioEsDefault = true;
         if (!transporte || /envíos?\s*dentalab/i.test(transporte)) {
           horario = '12 a 18 hs';
         } else if (/\bOCA\b/i.test(transporte) || /\bAndreani\b/i.test(transporte)) {
@@ -65056,8 +65058,9 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
               }
             }
           }
-          // Horario: si el título no trajo uno, buscarlo en las observaciones del PDF.
-          if (!horario && datosPdf.observaciones) {
+          // Horario: si el título no trajo uno REAL (solo el valor por defecto según
+          // transporte), buscarlo en las observaciones del PDF y usarlo en su lugar.
+          if ((!horario || _horarioEsDefault) && datosPdf.observaciones) {
             const _mHorario = datosPdf.observaciones.match(horarioRx);
             if (_mHorario) horario = _mHorario[0].trim();
           }
@@ -65068,9 +65071,10 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
           const _esEnviosDentalab = !transporte || /envíos?\s*dentalab/i.test(transporte);
           if (_esEnviosDentalab) {
             if (datosPdf.direccion) direccionGcal = datosPdf.direccion;
-            if (datosPdf.observaciones) {
-              observaciones = [observaciones, '📄 ' + datosPdf.observaciones].filter(Boolean).join('\n').slice(0, 300);
-            }
+            // Nota: el texto de "Observaciones" del PDF NO se agrega a la etiqueta del envío.
+            // Ya se usa arriba para sacar horario, cobro, pago en origen/destino y tipo de
+            // entrega como campos propios — volcar además el texto crudo sería repetir la
+            // misma información dos veces.
           } else if (!direccionGcal) {
             // Mismo respaldo que ya existe para cuando el transporte se detecta del título:
             // todos los transportes menos "Envíos Dentalab" muestran "Sucursal CABA" si no
