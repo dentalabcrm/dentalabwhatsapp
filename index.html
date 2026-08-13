@@ -64033,6 +64033,102 @@ async function edImportarDesdeGCal() {
   bd.addEventListener('click', e => { if (e.target === bd) bd.remove(); });
 }
 
+// ══════════════════════════════════════════════════════
+//  PDF adjunto en eventos de Calendar → completar datos de envíos "Envíos Dentalab"
+// ══════════════════════════════════════════════════════
+// Cuando alguien carga el evento a mano en Google Calendar (sin pasar por el CRM) y le
+// adjunta el presupuesto en PDF, esto lee ese PDF y saca el vendedor, el lugar de entrega
+// y las observaciones — así no hace falta escribirlos de nuevo al importar el envío.
+// Reutiliza el mismo motor de lectura de PDF que ya usa "Importar presupuesto" (pdf.js).
+
+async function _extraerTextoPDFDesdeBuffer(buf) {
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const allItems = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const vp = page.getViewport({ scale: 1 });
+    const tc = await page.getTextContent();
+    tc.items.forEach(it => {
+      const str = String(it.str || '').trim();
+      if (!str) return;
+      allItems.push({ str, x: it.transform[4], y: vp.height - it.transform[5], page: p });
+    });
+  }
+  const lines = [];
+  allItems.forEach(it => {
+    const l = lines.find(ln => ln.page === it.page && Math.abs(ln.y - it.y) < 5);
+    if (l) l.items.push(it); else lines.push({ page: it.page, y: it.y, items: [it] });
+  });
+  lines.sort((a, b) => a.page !== b.page ? a.page - b.page : a.y - b.y);
+  return lines.map(l => l.items.sort((a, b) => a.x - b.x).map(i => i.str).join('\t'));
+}
+
+// Extrae Vendedor, Lugar de Entrega y Observaciones del presupuesto en PDF (formato Yiqi).
+// Diseñado y probado contra el formato real de "PRESUPUESTO" que emite el sistema.
+function _parsearDatosEnvioDesdePDFTexto(textLines) {
+  const resultado = { vendedor: '', direccion: '', observaciones: '' };
+  const ETIQUETAS_TOTALES = [/\bNeto\b/i, /\bIVA\b/i, /%\s*Dto/i, /Desc\s*gral/i, /Percep\.?/i, /\bTotal\b/i];
+
+  let idxObs = -1, idxLugar = -1;
+  textLines.forEach((raw, i) => {
+    const linea = raw.replace(/\t/g, ' ');
+    if (idxObs === -1 && /Observaciones\s*:/i.test(linea)) idxObs = i;
+    if (idxLugar === -1 && /Lugar\s+de\s+Entrega\s*:/i.test(linea)) idxLugar = i;
+    if (!resultado.vendedor) {
+      const m = linea.match(/Vendedor\s*:\s*(.+)$/i);
+      if (m) resultado.vendedor = m[1].trim();
+    }
+    if (!resultado.direccion) {
+      const m = linea.match(/Lugar\s+de\s+Entrega\s*:\s*(.*?)(?:\s+Forma\s*:|$)/i);
+      if (m && m[1].trim()) resultado.direccion = m[1].trim();
+    }
+  });
+
+  // Observaciones: todo lo que queda entre "Observaciones:" y "Lugar de Entrega:", recortando
+  // lo que se cuela de la cajita de totales (Neto/IVA/etc.), que en el PDF cae en la misma zona.
+  if (idxObs >= 0) {
+    const fin = idxLugar >= 0 ? idxLugar : textLines.length;
+    const obsFrags = [];
+    for (let i = idxObs; i < fin; i++) {
+      let linea = textLines[i].replace(/\t/g, ' ');
+      if (i === idxObs) linea = linea.replace(/^.*Observaciones\s*:\s*/i, '');
+      let corte = linea.length;
+      ETIQUETAS_TOTALES.forEach(rx => {
+        const m = linea.match(rx);
+        if (m && m.index < corte) corte = m.index;
+      });
+      const frag = linea.slice(0, corte).trim();
+      if (frag) obsFrags.push(frag);
+    }
+    resultado.observaciones = obsFrags.join(', ');
+  }
+  return resultado;
+}
+
+// Busca un adjunto PDF en el evento de Calendar y devuelve los datos ya parseados, o null si
+// no hay adjunto, no es un PDF, o no se pudo leer (por ejemplo, por permisos de Drive — el
+// token actual solo puede leer archivos que esta app creó; si el PDF lo subió otra herramienta,
+// puede no tener acceso. En ese caso se sigue con el resto de la importación sin cortar nada).
+async function _leerPDFAdjuntoDeEvento(ev, token) {
+  try {
+    const adj = (ev.attachments || []).find(a => a.mimeType === 'application/pdf' || /\.pdf$/i.test(a.title || ''));
+    if (!adj || !adj.fileId) return null;
+    const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${adj.fileId}?alt=media`, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!resp.ok) {
+      console.warn('[AutoSync GCal] No se pudo leer el PDF adjunto (revisar permisos de Drive):', resp.status, adj.title);
+      return null;
+    }
+    const buf = await resp.arrayBuffer();
+    const textLines = await _extraerTextoPDFDesdeBuffer(buf);
+    return _parsearDatosEnvioDesdePDFTexto(textLines);
+  } catch (e) {
+    console.warn('[AutoSync GCal] Error leyendo PDF adjunto:', e.message);
+    return null;
+  }
+}
+
 async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _hastaOverride = null) {
   const desde = _desdeOverride || document.getElementById('ed-gcal-desde')?.value;
   const hasta  = _hastaOverride || document.getElementById('ed-gcal-hasta')?.value;
@@ -64887,7 +64983,21 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
         _obsVistas.add(key);
         return true;
       });
-      const observaciones = _obsDedup.join('\n').slice(0, 300);
+      let observaciones = _obsDedup.join('\n').slice(0, 300);
+
+      // Si el transporte es "Envíos Dentalab" y el evento tiene un presupuesto en PDF
+      // adjunto, completar vendedor y dirección desde ahí (más confiable que el título
+      // cuando el evento se cargó a mano), y sumar sus observaciones a las ya detectadas.
+      if (!transporte || /envíos?\s*dentalab/i.test(transporte)) {
+        const datosPdf = await _leerPDFAdjuntoDeEvento(ev, token);
+        if (datosPdf) {
+          if (datosPdf.vendedor) vendedorGcal = datosPdf.vendedor;
+          if (datosPdf.direccion) direccionGcal = datosPdf.direccion;
+          if (datosPdf.observaciones) {
+            observaciones = [observaciones, '📄 ' + datosPdf.observaciones].filter(Boolean).join('\n').slice(0, 300);
+          }
+        }
+      }
 
       const id = 'ed_gcal_' + gcalId.slice(-8) + '_' + Math.random().toString(36).slice(2,5);
 
