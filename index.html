@@ -64110,7 +64110,7 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
   if (/\bpago\s+en\s+origen\b/.test(obsLow)) resultado.pagoEnvio = 'origen';
   else if (/\bpago\s+en\s+destino\b/.test(obsLow)) resultado.pagoEnvio = 'destino';
   else resultado.pagoEnvio = '';
-  if (/\bdep[oó]sito\b/.test(obsLow) || /\bsucursal\b/.test(obsLow)) resultado.tipoEntrega = 'sucursal';
+  if (/\bdep[oó]sito\b/.test(obsLow) || /\bsucursal\b/.test(obsLow) || /\bterminal\b/.test(obsLow)) resultado.tipoEntrega = 'sucursal';
   else if (/\bdomicilio\b/.test(obsLow)) resultado.tipoEntrega = 'domicilio';
   else resultado.tipoEntrega = '';
 
@@ -64275,8 +64275,15 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
         continue;
       }
 
-      // Parse event data — limpiar etiquetas (WEB) y (ENVIAR) del título
-      const summary     = (ev.summary || '').replace(/\((WEB|ENVIAR)\)-?/gi, '').replace(/^(PEDIDO\s+WEB\s+ENVIAR|WEB\s+ENVIAR|PEDIDO\s+WEB|PEDIDO\s+(?:ARIS|MARY|JORGE|FEDE|GREGORIO|GREGO|EDU|JUAN)\s+ENVIAR|PEDIDO\s+ENVIAR|PEDIDO)\s*[-–]?\s*/i, '').replace(/\s{2,}/g,' ').trim();
+      // Parse event data — limpiar etiquetas (WEB) y (ENVIAR) del título. La de ENVIAR se
+      // limpia de forma permisiva (con o sin alguno de los paréntesis, con guion normal o
+      // largo después) porque a veces se carga a mano y queda mal tipeada, ej: "ENVIAR)-...",
+      // "(ENVIAR-...", etc. — en cualquier variante, se excluye del título sincronizado.
+      const summary     = (ev.summary || '')
+        .replace(/\(?ENVIAR\)?\s*[-–—]?\s*/gi, '')
+        .replace(/\(WEB\)-?/gi, '')
+        .replace(/^(PEDIDO\s+WEB\s+ENVIAR|WEB\s+ENVIAR|PEDIDO\s+WEB|PEDIDO\s+(?:ARIS|MARY|JORGE|FEDE|GREGORIO|GREGO|EDU|JUAN)\s+ENVIAR|PEDIDO\s+ENVIAR|PEDIDO)\s*[-–]?\s*/i, '')
+        .replace(/\s{2,}/g,' ').trim();
       const _rawDesc = (ev.description || '')
         .replace(/&lt;br\s*\/?&gt;/gi, '\n')
         .replace(/<br\s*\/?>/gi, '\n')
@@ -64298,7 +64305,7 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
       else if (/\bpago\s+en\s+destino\b/.test(_descLowPE)) pagoEnvioGcal = 'destino';
       let tipoEntregaGcal = '';
       if (/\ba\s+domicilio\b/.test(_descLowPE)) tipoEntregaGcal = 'domicilio';
-      else if (/\ba\s+sucursal\b/.test(_descLowPE)) tipoEntregaGcal = 'sucursal';
+      else if (/\ba\s+sucursal\b/.test(_descLowPE) || /\bterminal\b/.test(_descLowPE) || /\bdep[oó]sito\b/.test(_descLowPE)) tipoEntregaGcal = 'sucursal';
 
       // ── Detección de COMBO: "Nombre1 (num1) / Nombre2 (num2) [/ Nombre3 (num3)...] - Transporte - Cobro - COMBO, hora" ──
       // Se activa si el título contiene la palabra "combo" y el primer segmento (antes del primer guión) tiene 2+ nombres separados por "/".
