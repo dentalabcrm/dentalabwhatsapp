@@ -64130,6 +64130,16 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
   else if (/\bdomicilio\b/.test(obsLow)) resultado.tipoEntrega = 'domicilio';
   else resultado.tipoEntrega = '';
 
+  // Tipo de entrega también se busca en la sección "Servicios" del PDF (el servicio de
+  // envío contratado, ej. "Estándar a domicilio" o "Retiro en una sucursal") — es un dato
+  // más confiable que las observaciones libres, así que pisa lo que se haya detectado ahí.
+  const textoCompletoPDF = textLines.join(' ').replace(/\t/g, ' ');
+  if (/retiro\s+en\s+(?:una\s+)?sucursal/i.test(textoCompletoPDF) || /\ba\s+sucursal(?:\s+de\s+correo)?\b/i.test(textoCompletoPDF)) {
+    resultado.tipoEntrega = 'sucursal';
+  } else if (/\ba\s+domicilio\b/i.test(textoCompletoPDF)) {
+    resultado.tipoEntrega = 'domicilio';
+  }
+
   // Si el PDF no trae vendedor cargado, se asume "Web" (pedido generado sin vendedor asignado).
   if (!resultado.vendedor) resultado.vendedor = 'Web';
 
