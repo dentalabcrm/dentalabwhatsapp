@@ -63306,9 +63306,19 @@ function edAplicarDatosPdfAlFormulario(datos, textLines) {
     tEl.dispatchEvent(new Event('input'));
   }
 
-  if (datos.direccion) {
+  if (datos.direccion || (transporteDetectado && transporteDetectado !== 'Envíos Dentalab' && transporteDetectado !== 'Envios Dentalab') || (tEl && tEl.value.trim())) {
     const el = g('ed-f-dir');
-    if (el) { el.value = datos.direccion; el.dataset.userEdited = '1'; }
+    if (el) {
+      // Todos los transportes menos "Envíos Dentalab" van con "Sucursal CABA" en la
+      // dirección, siempre — sin importar qué dirección haya en el PDF (esa es la del
+      // cliente final, no la de dónde Dentalab entrega el bulto al transportista).
+      // Se mira el transporte que quedó en el campo (recién detectado del PDF, ya tipeado
+      // a mano antes de soltar el archivo, o el de un envío existente que se está editando).
+      const _transporteActual = (tEl?.value || '').trim();
+      const _esEnviosDentalab = !_transporteActual || /envíos?\s*dentalab/i.test(_transporteActual);
+      el.value = _esEnviosDentalab ? datos.direccion : 'Sucursal CABA';
+      el.dataset.userEdited = '1';
+    }
   }
   if (datos.horario) {
     const el = g('ed-f-horario');
@@ -65224,11 +65234,10 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
             // Ya se usa arriba para sacar horario, cobro, pago en origen/destino y tipo de
             // entrega como campos propios — volcar además el texto crudo sería repetir la
             // misma información dos veces.
-          } else if (!direccionGcal) {
-            // Mismo respaldo que ya existe para cuando el transporte se detecta del título:
-            // todos los transportes menos "Envíos Dentalab" muestran "Sucursal CABA" si no
-            // hay una dirección puntual. Acá hace falta repetirlo porque el transporte recién
-            // se conoció leyendo el PDF (llegó tarde para el chequeo original, más arriba).
+          } else {
+            // Todos los transportes menos "Envíos Dentalab" van con "Sucursal CABA" en la
+            // dirección, siempre — pisa cualquier dirección específica que se haya detectado
+            // antes (del título o del PDF), no solo cuando queda vacía.
             direccionGcal = 'Sucursal CABA';
           }
           // Cliente y N° de pedido: solo completan si el título no trajo nada (no pisan
