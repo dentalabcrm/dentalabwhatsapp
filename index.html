@@ -64066,7 +64066,7 @@ async function _extraerTextoPDFDesdeBuffer(buf) {
 // Extrae Vendedor, Lugar de Entrega y Observaciones del presupuesto en PDF (formato Yiqi).
 // Diseñado y probado contra el formato real de "PRESUPUESTO" que emite el sistema.
 function _parsearDatosEnvioDesdePDFTexto(textLines) {
-  const resultado = { vendedor: '', direccion: '', observaciones: '' };
+  const resultado = { vendedor: '', direccion: '', observaciones: '', pagoEnvio: '', tipoEntrega: '' };
   const ETIQUETAS_TOTALES = [/\bNeto\b/i, /\bIVA\b/i, /%\s*Dto/i, /Desc\s*gral/i, /Percep\.?/i, /\bTotal\b/i];
 
   let idxObs = -1, idxLugar = -1;
@@ -64102,6 +64102,18 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
     }
     resultado.observaciones = obsFrags.join(', ');
   }
+
+  // Pago en origen/destino y domicilio/sucursal — se buscan en el texto de observaciones
+  // ya extraído (mismo criterio de palabras clave que ya usa el CRM para el título del
+  // evento). "Depósito" cuenta como sucursal, por pedido explícito.
+  const obsLow = resultado.observaciones.toLowerCase();
+  if (/\bpago\s+en\s+origen\b/.test(obsLow)) resultado.pagoEnvio = 'origen';
+  else if (/\bpago\s+en\s+destino\b/.test(obsLow)) resultado.pagoEnvio = 'destino';
+  else resultado.pagoEnvio = '';
+  if (/\bdep[oó]sito\b/.test(obsLow) || /\bsucursal\b/.test(obsLow)) resultado.tipoEntrega = 'sucursal';
+  else if (/\bdomicilio\b/.test(obsLow)) resultado.tipoEntrega = 'domicilio';
+  else resultado.tipoEntrega = '';
+
   return resultado;
 }
 
@@ -64985,16 +64997,23 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
       });
       let observaciones = _obsDedup.join('\n').slice(0, 300);
 
-      // Si el transporte es "Envíos Dentalab" y el evento tiene un presupuesto en PDF
-      // adjunto, completar vendedor y dirección desde ahí (más confiable que el título
-      // cuando el evento se cargó a mano), y sumar sus observaciones a las ya detectadas.
-      if (!transporte || /envíos?\s*dentalab/i.test(transporte)) {
+      // Si el evento tiene un presupuesto en PDF adjunto, se lee siempre que haya adjunto
+      // (sin importar el transporte) porque el vendedor es un dato útil en cualquier envío.
+      // La dirección y las observaciones del PDF, en cambio, solo se usan para "Envíos
+      // Dentalab" — para el resto de los transportes esos datos ya se completan distinto
+      // (con las preguntas de "pago en destino/origen" y "domicilio/sucursal" del envío).
+      const _esEnviosDentalab = !transporte || /envíos?\s*dentalab/i.test(transporte);
+      if ((ev.attachments || []).some(a => a.mimeType === 'application/pdf' || /\.pdf$/i.test(a.title || ''))) {
         const datosPdf = await _leerPDFAdjuntoDeEvento(ev, token);
         if (datosPdf) {
           if (datosPdf.vendedor) vendedorGcal = datosPdf.vendedor;
-          if (datosPdf.direccion) direccionGcal = datosPdf.direccion;
-          if (datosPdf.observaciones) {
-            observaciones = [observaciones, '📄 ' + datosPdf.observaciones].filter(Boolean).join('\n').slice(0, 300);
+          if (datosPdf.pagoEnvio) pagoEnvioGcal = datosPdf.pagoEnvio;
+          if (datosPdf.tipoEntrega) tipoEntregaGcal = datosPdf.tipoEntrega;
+          if (_esEnviosDentalab) {
+            if (datosPdf.direccion) direccionGcal = datosPdf.direccion;
+            if (datosPdf.observaciones) {
+              observaciones = [observaciones, '📄 ' + datosPdf.observaciones].filter(Boolean).join('\n').slice(0, 300);
+            }
           }
         }
       }
