@@ -64060,7 +64060,7 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
     const allImported = true;
 
     let importados = 0, yaExistian = 0;
-    toImport.forEach(ev => {
+    for (const ev of toImport) {
       const gcalId = ev.id;
 
 
@@ -64144,7 +64144,7 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
           }
         }
         yaExistian++;
-        return;
+        continue;
       }
 
       // Parse event data — limpiar etiquetas (WEB) y (ENVIAR) del título
@@ -64899,7 +64899,30 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
           if (silencioso) console.log('[AutoSync GCal] Vinculado calEventId a envío existente:', _edEnvios[idxVinc].cliente);
         }
         yaExistian++;
-        return;
+        continue;
+      }
+
+      // ── Reclamo atómico de este evento antes de crear el envío ──────────────
+      // Con 3 usuarios corriendo su propio auto-sync cada 15 minutos, dos navegadores
+      // pueden pasar el chequeo de arriba casi al mismo tiempo (antes de que el cambio
+      // del otro les llegue vía Firebase) y terminar creando el mismo envío duplicado.
+      // Esta transacción es atómica en el servidor: si dos clientes la disparan a la vez
+      // para el mismo gcalId, Firebase solo le confirma "gané" a uno de los dos.
+      let _ganeElLock = true;
+      try {
+        const _lockRes = await db.ref('dentalab/envios_dentalab_gcal_lock/' + gcalId).transaction(actual => {
+          if (actual) return; // ya reclamado por otro cliente → abortar sin tocar nada
+          return { por: (typeof authCurrentUser !== 'undefined' ? authCurrentUser?.name : '') || '', ts: Date.now() };
+        });
+        _ganeElLock = !!_lockRes.committed;
+      } catch (eLock) {
+        console.error('[AutoSync GCal] Error en lock de', gcalId, eLock);
+        _ganeElLock = false; // ante la duda, no crear — mejor un evento pendiente que uno duplicado
+      }
+      if (!_ganeElLock) {
+        if (silencioso) console.log('[AutoSync GCal] Otro cliente ya está importando este evento en paralelo, se omite:', ev.summary, gcalId);
+        yaExistian++;
+        continue;
       }
 
       _edEnvios.push({
@@ -64931,7 +64954,7 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
         comboItems:   esComboDetectado ? comboItemsDetectados : null,
       });
       importados++;
-    });
+    }
 
     if (status) {
       if (!importados && yaExistian) {
