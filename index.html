@@ -64130,6 +64130,9 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
   else if (/\bdomicilio\b/.test(obsLow)) resultado.tipoEntrega = 'domicilio';
   else resultado.tipoEntrega = '';
 
+  // Si el PDF no trae vendedor cargado, se asume "Web" (pedido generado sin vendedor asignado).
+  if (!resultado.vendedor) resultado.vendedor = 'Web';
+
   return resultado;
 }
 
