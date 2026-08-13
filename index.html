@@ -64133,6 +64133,10 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
   // Si el PDF no trae vendedor cargado, se asume "Web" (pedido generado sin vendedor asignado).
   if (!resultado.vendedor) resultado.vendedor = 'Web';
 
+  // Si las observaciones dicen "Pedido Web", el vendedor es "Web" sin importar lo que
+  // diga el campo Vendedor del PDF (pisa incluso un nombre real ya detectado).
+  if (/\bpedido\s+web\b/i.test(resultado.observaciones)) resultado.vendedor = 'Web';
+
   return resultado;
 }
 
