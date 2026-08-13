@@ -9711,7 +9711,8 @@ async function publicarCatalogoWeb() {
       const cp = SKUS_SIN_PRECIO_PUBLICO.includes(sku) ? 1 : 0;
       const item = { s: sku, n: nombre, p1: cp ? 0 : p1, p2: cp ? 0 : p2, st, sb, of, m: marca, g: grupo, cp };
       if (subgrupo) item.sg = subgrupo;
-      const img = imagenesCache[claveImg(sku)];
+      const imgRaw = imagenesCache[claveImg(sku)];
+      const img = Array.isArray(imgRaw) ? imgRaw[0] : imgRaw;
       if (img) item.img = img;
       // "¡Disponible otra vez!" — hay una novedad de tipo 'restock' reciente para este SKU
       if (st === 0 && restockFechaPorSku[sku]) item.restockedAt = restockFechaPorSku[sku];
@@ -9804,7 +9805,8 @@ async function _fetchImgDataURLDrive(fileId) {
 const _fotoPdfCache = {};
 async function _fotoParaSkuPdf(sku) {
   if (!sku) return null;
-  const fileId = _skuImagenesCache[claveImgGlobal(sku)];
+  const _raw = _skuImagenesCache[claveImgGlobal(sku)];
+  const fileId = Array.isArray(_raw) ? _raw[0] : _raw;
   if (!fileId) return null;
   if (!(fileId in _fotoPdfCache)) _fotoPdfCache[fileId] = await _fetchImgDataURLDrive(fileId);
   const cached = _fotoPdfCache[fileId];
@@ -13380,7 +13382,8 @@ function renderTable() {
     const _provStyle = getProvRowStyle(r["Proveedor"] || "");
     const _provStyleAttr = _provStyle.border ? ` style="${(_provStyle.bg ? 'background:' + _provStyle.bg + ';' : '') + _provStyle.border}"` : '';
     // ── Celdas fijas en el orden configurado ──
-    const _fotoId = (!r._customSku && !r._manualDraft && r.SKU) ? _skuImagenesCache[claveImgGlobal(r.SKU)] : null;
+    const _fotoIdRaw = (!r._customSku && !r._manualDraft && r.SKU) ? _skuImagenesCache[claveImgGlobal(r.SKU)] : null;
+    const _fotoId = Array.isArray(_fotoIdRaw) ? _fotoIdRaw[0] : _fotoIdRaw;
     const _fotoThumb = _fotoId ? `<img src="https://drive.google.com/thumbnail?id=${_fotoId}&sz=w60" loading="lazy" style="width:26px;height:26px;object-fit:cover;border-radius:5px;vertical-align:middle;margin-right:6px;" alt="">` : '';
     const _skuTd = `<td class="td-sku${!r._customSku && !r._manualDraft && r.SKU ? ' sku-con-foto' : ''}" ${!r._customSku && !r._manualDraft && r.SKU ? `data-sku="${escHtml(r.SKU||'')}" data-nombre="${escHtml(r.Nombre||'')}" data-precio="${parseFloat(r[LISTAS[0]?.key]||0)}" data-stock="${parseFloat(r['Deposito 1 - Local']||0)+parseFloat(r['Deposito Central']||0)}" title="Click para ver foto del producto"` : ''}>${r._manualDraft ? `<span class="sku-text" style="color:#f59e0b">${escHtml(r.SKU||'—')}</span><span style="font-size:9px;font-weight:700;color:#f59e0b;background:#f59e0b18;border-radius:3px;padding:1px 4px;margin-left:3px;">MANUAL</span>` : r._customSku ? `<span class="sku-text" style="color:#f59e0b">${escHtml(r.SKU||'—')}</span><span style="font-size:9px;font-weight:700;color:#f59e0b;background:#f59e0b18;border-radius:3px;padding:1px 4px;margin-left:3px;">CUSTOM</span>` : r.SKU ? `${_fotoThumb}<span class="sku-text">${r.SKU}</span><span class="sku-cam-icon" title="Ver foto">📷</span>` : ""}</td>`;
     // Badge de ingreso reciente — si el producto aparece en novedades con stock aumentado
@@ -15135,7 +15138,8 @@ async function _cargarFotoConCachePrimero(sku, wrap, skuLabel, nombreLabel) {
     if (typeof db !== 'undefined') {
       const key = String(sku).trim().replace(/[.#$\[\]/]/g, '_');
       const snap = await db.ref('dentalab/sku_imagenes/' + key).once('value');
-      const cachedId = snap.val();
+      const cachedRaw = snap.val();
+      const cachedId = Array.isArray(cachedRaw) ? cachedRaw[0] : cachedRaw;
       if (cachedId) {
         const img = document.createElement('img');
         img.style.cssText = 'max-width:100%;max-height:320px;object-fit:contain;border-radius:10px;display:block;';
@@ -15214,17 +15218,26 @@ async function _borrarFotoSku(sku, bd) {
       const errData = await resp.json().catch(() => ({}));
       throw new Error(errData?.error?.message || `Error ${resp.status}`);
     }
-    // Limpiar la caché para que el catálogo deje de mostrarla
+    // Sacar solo esta foto del array (no borrar las demás que pueda tener el mismo SKU)
+    let restantes = [];
     try {
       const key = String(sku).trim().replace(/[.#$\[\]/]/g, '_');
-      if (key && typeof db !== 'undefined') await db.ref('dentalab/sku_imagenes/' + key).remove();
+      if (key && typeof db !== 'undefined') {
+        const snap = await db.ref('dentalab/sku_imagenes/' + key).once('value');
+        const actual = snap.val();
+        const actualArr = Array.isArray(actual) ? actual : (actual ? [actual] : []);
+        restantes = actualArr.filter(id => id !== fileId);
+        if (restantes.length) await db.ref('dentalab/sku_imagenes/' + key).set(restantes);
+        else await db.ref('dentalab/sku_imagenes/' + key).remove();
+      }
     } catch (e) { /* silencioso */ }
     if (typeof schedulePublicarCatalogoWeb === 'function') schedulePublicarCatalogoWeb();
-    if (typeof showToast === 'function') showToast('🗑 Foto borrada (movida a la papelera de Drive)', 'success');
+    if (typeof showToast === 'function') showToast(restantes.length ? `🗑 Foto borrada (quedan ${restantes.length})` : '🗑 Foto borrada (movida a la papelera de Drive)', 'success');
     wrap.innerHTML = '';
     delete wrap.dataset.fileId;
-    _skuFotoNoEncontrada(wrap, sku);
-    btn.style.display = 'none';
+    if (restantes.length) _mostrarImagenDrive(restantes[0], wrap, sku);
+    else _skuFotoNoEncontrada(wrap, sku);
+    btn.style.display = restantes.length ? '' : 'none';
   } catch (e) {
     if (typeof showToast === 'function') showToast('⚠ No se pudo borrar: ' + e.message, 'warn');
     btn.disabled = false; btn.textContent = textoOriginal;
@@ -15517,12 +15530,19 @@ function _mostrarImagenDrive(fileId, wrap, skuLabel) {
 
 // Guarda el ID de archivo de Drive ya resuelto para este SKU, para que el catálogo
 // público (pedido-web-cliente.html) pueda mostrar la foto sin necesitar la API Key.
-function _guardarImagenSkuCache(sku, fileId) {
+async function _guardarImagenSkuCache(sku, fileId) {
   try {
     if (!sku || !fileId || typeof db === 'undefined') return;
     const key = String(sku).trim().replace(/[.#$\[\]/]/g, '_');
     if (!key) return;
-    db.ref('dentalab/sku_imagenes/' + key).set(fileId);
+    // Se agrega al array existente en vez de pisarlo directo, así nunca se pierden fotos
+    // ya cargadas (por ejemplo, desde el catálogo de pedidos) si esta búsqueda automática
+    // encuentra una imagen para un SKU que ya tenía otras guardadas.
+    const snap = await db.ref('dentalab/sku_imagenes/' + key).once('value');
+    const actual = snap.val();
+    const actualArr = Array.isArray(actual) ? actual : (actual ? [actual] : []);
+    if (actualArr.includes(fileId)) return; // ya estaba guardada, no duplicar
+    await db.ref('dentalab/sku_imagenes/' + key).set([...actualArr, fileId]);
   } catch (e) { /* silencioso */ }
 }
 
