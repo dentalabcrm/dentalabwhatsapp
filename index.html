@@ -35149,7 +35149,8 @@ function authUpdateHeader() {
   if (refreshBtn) refreshBtn.style.display = (authCurrentUser.role === 'admin' || authCurrentUser.name === ADMIN_USER) ? 'inline-flex' : 'none';
   const resetCredYiqiBtn = document.getElementById('btn-reset-cred-yiqi');
   if (resetCredYiqiBtn) resetCredYiqiBtn.style.display = (authCurrentUser.role === 'admin' || authCurrentUser.name === ADMIN_USER) ? 'inline-flex' : 'none';
-  if ((authCurrentUser.role === 'admin' || authCurrentUser.name === ADMIN_USER) && typeof _iaInitBoton === 'function') _iaInitBoton();
+  // Botón flotante del Asistente IA local: desactivado por pedido (molestaba, tapaba controles).
+  // if ((authCurrentUser.role === 'admin' || authCurrentUser.name === ADMIN_USER) && typeof _iaInitBoton === 'function') _iaInitBoton();
 }
 
 // ── Login completo: oculta overlay y carga la app ──
