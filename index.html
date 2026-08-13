@@ -1514,6 +1514,9 @@
     max-height: 220px; overflow-y: auto; box-shadow: 0 12px 28px rgba(0,0,0,.45);
     display: none;
   }
+  #ed-f-pdf-drop.ed-pdf-drop-activo {
+    border-color: #f59e0b; background: rgba(245,158,11,.08);
+  }
   .ed-combo-opt {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     padding: 8px 12px; font-size: 13px; color: var(--text2); cursor: pointer;
@@ -63254,6 +63257,81 @@ function _edComboHide(ddId) {
   setTimeout(() => { const dd = document.getElementById(ddId); if (dd) dd.style.display = 'none'; }, 150);
 }
 
+// ── Cargar un PDF de presupuesto en el modal de Nuevo/Editar envío ──
+// Reutiliza el mismo motor de lectura (_extraerTextoPDFDesdeBuffer / _parsearDatosEnvioDesdePDFTexto)
+// que ya usa el auto-sync de Google Calendar, pero acá parte de un archivo local en vez de un
+// adjunto de Drive.
+window.edPdfDropHandler = function(ev, zoneEl) {
+  ev.preventDefault();
+  zoneEl.classList.remove('ed-pdf-drop-activo');
+  const file = Array.from(ev.dataTransfer?.files || []).find(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+  if (file) edPdfFileSelected(file);
+  else if (typeof showToast === 'function') showToast('⚠ Eso no es un PDF', 'warn');
+};
+
+window.edPdfFileSelected = async function(file) {
+  if (!file) return;
+  const textoEl = document.getElementById('ed-f-pdf-drop-texto');
+  const textoOriginal = textoEl ? textoEl.textContent : '';
+  if (textoEl) textoEl.textContent = '📄 Leyendo PDF…';
+  try {
+    if (typeof pdfjsLib === 'undefined') throw new Error('Librería de PDF no disponible');
+    const buf = await file.arrayBuffer();
+    const textLines = await _extraerTextoPDFDesdeBuffer(buf);
+    const datos = _parsearDatosEnvioDesdePDFTexto(textLines);
+    edAplicarDatosPdfAlFormulario(datos, textLines);
+    if (textoEl) textoEl.textContent = '✓ Datos cargados desde el PDF';
+    if (typeof showToast === 'function') showToast('✓ Formulario completado desde el PDF', 'ok');
+    setTimeout(() => { if (textoEl) textoEl.textContent = textoOriginal; }, 2500);
+  } catch (e) {
+    if (textoEl) textoEl.textContent = textoOriginal;
+    if (typeof showToast === 'function') showToast('⚠ No se pudo leer el PDF: ' + e.message, 'warn');
+    else alert('No se pudo leer el PDF: ' + e.message);
+  }
+};
+
+function edAplicarDatosPdfAlFormulario(datos, textLines) {
+  const g = id => document.getElementById(id);
+
+  if (datos.cliente) { const el = g('ed-f-cliente'); if (el) el.value = datos.cliente; }
+  if (datos.nroPedido) { const el = g('ed-f-pedido'); if (el) el.value = datos.nroPedido; }
+
+  // Transporte primero — dispara solo los toggles visuales de tipo de entrega / pago en
+  // origen-destino que ya tiene el campo (mismo comportamiento que si lo tipeara a mano).
+  const transporteDetectado = _detectarTransporteEnTexto(datos.observaciones) || _detectarTransporteEnTexto((textLines || []).join(' '));
+  const tEl = g('ed-f-transporte');
+  if (transporteDetectado && transporteDetectado !== 'Envíos Dentalab' && transporteDetectado !== 'Envios Dentalab' && tEl) {
+    tEl.value = transporteDetectado;
+    tEl.dispatchEvent(new Event('input'));
+  }
+
+  if (datos.direccion) {
+    const el = g('ed-f-dir');
+    if (el) { el.value = datos.direccion; el.dataset.userEdited = '1'; }
+  }
+  if (datos.horario) {
+    const el = g('ed-f-horario');
+    if (el) { el.value = datos.horario; el.dataset.userEdited = '1'; }
+  }
+  if (datos.pagoEnvio && typeof edSetPagoEnvio === 'function') edSetPagoEnvio(datos.pagoEnvio);
+  if (datos.tipoEntrega && typeof edSetTipoEntrega === 'function') edSetTipoEntrega(datos.tipoEntrega);
+  if (datos.vendedor) { const el = g('ed-f-vendedor'); if (el) el.value = datos.vendedor; }
+
+  if (datos.condicionVenta) {
+    const cobroSel = g('ed-f-cobro');
+    const mapeado = _mapearCobroDesdeCondicionVenta(datos.condicionVenta);
+    const cobroFinal = mapeado || 'en_espera';
+    if (cobroSel) {
+      cobroSel.value = cobroFinal;
+      cobroSel.dispatchEvent(new Event('change'));
+      if (mapeado === 'efectivo' && datos.total) {
+        const montoNum = Math.round(parseFloat(datos.total.replace(/\./g, '').replace(',', '.')));
+        if (!isNaN(montoNum)) { const el = g('ed-f-monto'); if (el) el.value = montoNum; }
+      }
+    }
+  }
+}
+
 function edAbrirModalNuevo() {
   edAbrirModalForm(null);
 }
@@ -63295,6 +63373,12 @@ function edAbrirModalForm(envio) {
           <input type="checkbox" id="ed-f-es-combo" ${envio?.esCombo ? 'checked' : ''} onchange="edToggleComboMode(this.checked)" style="width:16px;height:16px;accent-color:#f59e0b;cursor:pointer;flex-shrink:0;">
           <span style="font-size:12px;font-weight:700;color:#f59e0b;">🧩 Es un combo (2 o más pedidos van juntos en el mismo bulto)</span>
         </label>
+        <div id="ed-f-pdf-drop" ondragover="event.preventDefault();this.classList.add('ed-pdf-drop-activo')" ondragleave="this.classList.remove('ed-pdf-drop-activo')" ondrop="edPdfDropHandler(event, this)" onclick="document.getElementById('ed-f-pdf-input').click()"
+          style="border:2px dashed var(--border2);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s;">
+          <div id="ed-f-pdf-drop-texto" style="font-size:12.5px;font-weight:700;color:var(--text2);">📄 Arrastrá acá un PDF de presupuesto, o hacé clic para elegirlo</div>
+          <div style="font-size:10.5px;color:var(--text3);margin-top:3px;">Completa cliente, dirección, vendedor, cobro y transporte solo</div>
+          <input type="file" id="ed-f-pdf-input" accept="application/pdf" style="display:none;" onchange="edPdfFileSelected(this.files[0])">
+        </div>
         <div id="ed-f-normal-wrap" style="display:${envio?.esCombo ? 'none' : 'flex'};flex-direction:column;gap:12px;">
         <div>
           <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Cliente *</label>
@@ -64178,6 +64262,46 @@ async function _leerPDFAdjuntoDeEvento(ev, token) {
 // Envíos Dentalab. Solo mapea a un tipo concreto cuando hay certeza (para no marcar como
 // "efectivo" algo que en realidad es tarjeta o Mercado Pago, ya que esto se usa para saber
 // el total real de cobros en efectivo). Si no hay un mapeo seguro, devuelve null.
+// Lista de transportes conocidos + alias cortos, para detectar el nombre de un transportista
+// dentro de un texto libre (observaciones del PDF, etc.). Copia reducida de la que ya usa el
+// sync de Google Calendar — separada a propósito para no arriesgar esa lógica ya probada.
+const TRANSPORTES_KNOWN_PDF = [
+  'Envíos Dentalab','Envios Dentalab',
+  'OCA','Correo Argentino','Via Cargo','Vía Cargo','Andreani','Logística Andreani',
+  'Expreso Lider','Lider','Expreso Mar del Plata','Expreso MDP','Expreso Mardel',
+  'Buspack','Oro Negro','Expreso Oro Negro','Cruz del Sur','Alta Cordoba',
+  'Camionera Mendocina','Jet Smart','Integral Pack','Crucero del Norte','Crucero Express',
+  'Flecha Bus','JetPaq','CREDIFIN','Chevallier','Tres Hermanos','Rodriguez Hnos','3 Hnos',
+  'Tomas Beraldi','Expreso Demonte','Central Argentino','Transporte Orion',
+  'Expreso Landaburu','Transporte El Padrino','Balut Encomienda',
+  'MD Cargas','Expreso Singer','Expreso El Rápido','La Sevillanita','Fast Mail','Urbano',
+  'Ocasa','DHL','FedEx','UPS','Shipnow','Moova','Paq.ar','Envíopack','EPick','Treggo','Cargo Postal',
+];
+const ALIAS_CORTOS_PDF = [
+  [/\bOrion\b/i, 'Transporte Orion'], [/\bPadrino\b/i, 'Transporte El Padrino'],
+  [/\bBalut\b/i, 'Balut Encomienda'], [/\bGorgone\b/i, 'Transporte Nicolas Gorgone S.R.L'],
+  [/\bLandaburu\b/i, 'Expreso Landaburu'], [/\bDemonte\b/i, 'Expreso Demonte'],
+  [/\bBeraldi\b/i, 'Tomas Beraldi'], [/\bChevallier\b/i, 'Chevallier'],
+  [/\bFlecha\s*Bus\b/i, 'Flecha Bus'], [/\bCrucero\b/i, 'Crucero del Norte'],
+  [/\bBuspack\b/i, 'Buspack'], [/\bAndreani\b/i, 'Andreani'],
+  [/\bOro\s*Negro\b/i, 'Oro Negro'], [/\bCruz\s*del\s*Sur\b/i, 'Cruz del Sur'],
+  [/\bAlta\s*C[oó]rdoba\b/i, 'Alta Cordoba'], [/\bLider\b/i, 'Expreso Lider'],
+  [/\bVia\s*Cargo\b|\bV[ií]a\s*Cargo\b/i, 'Via Cargo'], [/\bCorreo\s*Argentino\b/i, 'Correo Argentino'],
+  [/\bMDP\b|\bMardel\b/i, 'Expreso Mar del Plata'], [/\bDHL\b/i, 'DHL'],
+  [/\bFedEx\b|\bFed\s*Ex\b/i, 'FedEx'], [/\bUPS\b/i, 'UPS'], [/\bMoova\b/i, 'Moova'],
+];
+function _detectarTransporteEnTexto(texto) {
+  if (!texto) return '';
+  for (const t of TRANSPORTES_KNOWN_PDF) {
+    const rx = new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\b', 'i');
+    if (rx.test(texto)) return t;
+  }
+  for (const [rx, nombre] of ALIAS_CORTOS_PDF) {
+    if (rx.test(texto)) return nombre;
+  }
+  return '';
+}
+
 function _mapearCobroDesdeCondicionVenta(texto) {
   const t = (texto || '').toLowerCase();
   if (!t) return null;
