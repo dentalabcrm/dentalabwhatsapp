@@ -64711,6 +64711,22 @@ function _detectarCobroEnTexto(texto) {
 
   if (_RX_SOLO_ENTREGAR_PDF.some(rx => rx.test(textoLow))) cobro = 'solo_entregar';
   else if (_RX_EN_ESPERA_PDF.some(rx => rx.test(textoLow))) cobro = 'en_espera';
+  // Etiqueta explícita "Pago: [método]" — muy común en estos PDFs (ej: "Pago: Transferencia
+  // Bancaria"). Se lee el método que sigue, en vez de dejar que la palabra suelta "Pago" se
+  // confunda más abajo con "ya pagó" (solo_entregar).
+  else if (/\bpago\s*:\s*([^,]+)/i.test(textoLow)) {
+    const _metodoPago = textoLow.match(/\bpago\s*:\s*([^,]+)/i)[1];
+    if (/transfer/.test(_metodoPago)) cobro = 'transferencia';
+    else if (/usdt?\b|us\$|u\$s|d[oó]lar/i.test(_metodoPago)) cobro = 'dolares';
+    else if (/cuenta\s*corriente/.test(_metodoPago)) cobro = 'cuenta_corriente';
+    else if (/mercado\s*pago|tarjeta/.test(_metodoPago)) cobro = 'en_espera';
+    else if (/efectivo/.test(_metodoPago)) {
+      cobro = 'efectivo';
+      const amtM = _metodoPago.match(/\$\s*([\d.,]+)/);
+      if (amtM) { const n = parseFloat(amtM[1].replace(/\./g,'').replace(',','.')); if (!isNaN(n) && n > 0) montoEfectivo = String(Math.round(n)); }
+    }
+    // si el método no se reconoce, no fuerza nada acá — sigue probando el resto de la cadena
+  }
   // Mercado Pago / Tarjeta sueltos (sin "recibido"/"pendiente" que ya se manejó arriba) →
   // "A confirmar". Antes que el chequeo genérico de "pago" para que "Mercado Pago" no se
   // confunda con "ya pagó" (solo_entregar), y antes de "transferencia" para que "MercadoPago"
