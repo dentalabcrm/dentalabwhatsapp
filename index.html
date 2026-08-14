@@ -29147,6 +29147,10 @@ function openEnvioGCalModal(env) {
           }
         }
         if (cobroFinal1) {
+          if (cobroFinal1 === 'si' && !montoAplicar1 && datos.total) {
+            const montoNum = Math.round(parseFloat(datos.total.replace(/\./g, '').replace(',', '.')));
+            if (!isNaN(montoNum)) { montoAplicar1 = String(montoNum); monedaAplicar1 = 'efectivo'; }
+          }
           cobroSel.value = cobroFinal1;
           if (montoAplicar1 && monedaAplicar1 === 'efectivo') { const montoEl = document.getElementById('gcal-monto'); if (montoEl) montoEl.value = Number(montoAplicar1).toLocaleString('es-AR'); }
           if (montoAplicar1 && monedaAplicar1 === 'dolares') { const montoEl = document.getElementById('gcal-monto-usd'); if (montoEl) montoEl.value = Number(montoAplicar1).toLocaleString('es-AR'); }
@@ -29878,6 +29882,10 @@ function openGCalModal(pedido) {
           }
         }
         if (cobroFinal2) {
+          if (cobroFinal2 === 'si' && !montoAplicar2 && datos.total) {
+            const montoNum = Math.round(parseFloat(datos.total.replace(/\./g, '').replace(',', '.')));
+            if (!isNaN(montoNum)) { montoAplicar2 = String(montoNum); monedaAplicar2 = 'efectivo'; }
+          }
           cobroSel.value = cobroFinal2;
           if (montoAplicar2 && monedaAplicar2 === 'efectivo') { const montoEl = backdrop.querySelector('#gcal-monto'); if (montoEl) montoEl.value = Number(montoAplicar2).toLocaleString('es-AR'); }
           if (montoAplicar2 && monedaAplicar2 === 'dolares') { const montoEl = backdrop.querySelector('#gcal-monto-usd'); if (montoEl) montoEl.value = Number(montoAplicar2).toLocaleString('es-AR'); }
@@ -63606,6 +63614,13 @@ function edAplicarDatosPdfAlFormulario(datos, textLines) {
       }
     }
     if (cobroFinal) {
+      // Si el cobro terminó siendo efectivo y no se sacó un monto de las observaciones
+      // (porque se detectó por "Pago: Efectivo" y no por un "$XXXX" explícito), se usa el
+      // Total del PDF — los pagos en efectivo siempre cobran el total del presupuesto.
+      if (cobroFinal === 'efectivo' && !montoAplicar && datos.total) {
+        const montoNum = Math.round(parseFloat(datos.total.replace(/\./g, '').replace(',', '.')));
+        if (!isNaN(montoNum)) { montoAplicar = String(montoNum); monedaAplicar = 'efectivo'; }
+      }
       cobroSel.value = cobroFinal;
       cobroSel.dispatchEvent(new Event('change'));
       if (montoAplicar && monedaAplicar === 'efectivo') { const el = g('ed-f-monto'); if (el) el.value = montoAplicar; }
@@ -65708,6 +65723,13 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
               // de dejarlo como instrucción personalizada.
               cobroFinalGcal = 'en_espera';
             }
+          }
+          // Si el cobro terminó siendo efectivo y no se sacó un monto (porque se detectó
+          // por "Pago: Efectivo" y no por un "$XXXX" explícito en las observaciones), se usa
+          // el Total del PDF — los pagos en efectivo siempre cobran el total del presupuesto.
+          if (!cobroGcal && cobroFinalGcal === 'efectivo' && !montoEfectivo && datosPdf.total) {
+            const _montoTotalNum = Math.round(parseFloat(datosPdf.total.replace(/\./g, '').replace(',', '.')));
+            if (!isNaN(_montoTotalNum)) montoEfectivo = String(_montoTotalNum);
           }
         }
       }
