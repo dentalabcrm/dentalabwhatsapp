@@ -1517,6 +1517,16 @@
   #ed-f-pdf-drop.ed-pdf-drop-activo, #gcal-pdf-drop.ed-pdf-drop-activo {
     border-color: #f59e0b; background: rgba(245,158,11,.08);
   }
+  #panel-envios-dentalab.ed-panel-drop-activo {
+    outline: 3px dashed #f59e0b; outline-offset: -3px; background: rgba(245,158,11,.04);
+  }
+  #panel-envios-dentalab.ed-panel-drop-activo::after {
+    content: "📄 Soltá el PDF para crear un envío nuevo";
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    background: #f59e0b; color: #000; font-weight: 800; font-size: 13px;
+    padding: 10px 18px; border-radius: 10px; z-index: 99999; pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
   .ed-combo-opt {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     padding: 8px 12px; font-size: 13px; color: var(--text2); cursor: pointer;
@@ -9271,7 +9281,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 <!-- ════════ PANEL: ENVÍOS DENTALAB ════════ -->
-<div class="tab-panel" id="panel-envios-dentalab">
+<div class="tab-panel" id="panel-envios-dentalab" ondragover="edPanelDragOver(event)" ondragleave="edPanelDragLeave(event)" ondrop="edPanelDrop(event)">
   <div id="panel-envios-dentalab-inner"></div>
 </div>
 
@@ -63636,6 +63646,36 @@ function edAplicarDatosPdfAlFormulario(datos, textLines) {
     }
   }
 }
+
+// ── Arrastrar un PDF a cualquier parte del panel de Envíos Dentalab (no solo dentro del
+// modal): abre "+ Nuevo envío" solo y le pasa el archivo, para no tener que abrir el
+// modal a mano antes de soltar el PDF. ──
+window.edPanelDragOver = function(ev){
+  if (Array.from(ev.dataTransfer?.types || []).includes('Files')) {
+    ev.preventDefault();
+    document.getElementById('panel-envios-dentalab')?.classList.add('ed-panel-drop-activo');
+  }
+};
+window.edPanelDragLeave = function(ev){
+  // Solo sacar el resaltado si realmente salió del panel (no al pasar entre hijos internos)
+  if (ev.currentTarget === ev.target || !ev.currentTarget.contains(ev.relatedTarget)) {
+    document.getElementById('panel-envios-dentalab')?.classList.remove('ed-panel-drop-activo');
+  }
+};
+window.edPanelDrop = async function(ev){
+  ev.preventDefault();
+  document.getElementById('panel-envios-dentalab')?.classList.remove('ed-panel-drop-activo');
+  // Si el drop ocurrió dentro del propio modal de "+ Nuevo envío" (que ya tiene su propia
+  // zona de carga), no hacer nada acá — se encarga el handler del modal.
+  if (ev.target.closest && ev.target.closest('#ed-modal-bd')) return;
+  const file = Array.from(ev.dataTransfer?.files || []).find(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+  if (!file) return;
+  if (!document.getElementById('ed-modal-bd')) edAbrirModalNuevo();
+  // Esperar a que el modal termine de armarse en el DOM antes de procesar el archivo.
+  setTimeout(() => {
+    if (typeof edPdfFileSelected === 'function') edPdfFileSelected(file);
+  }, 150);
+};
 
 function edAbrirModalNuevo() {
   edAbrirModalForm(null);
