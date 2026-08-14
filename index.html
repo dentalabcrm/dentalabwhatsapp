@@ -63547,9 +63547,17 @@ window.edPdfFileSelected = async function(file) {
     const textLines = await _extraerTextoPDFDesdeBuffer(buf);
     const datos = _parsearDatosEnvioDesdePDFTexto(textLines);
     edAplicarDatosPdfAlFormulario(datos, textLines);
-    if (textoEl) textoEl.textContent = '✓ Datos cargados desde el PDF';
+    if (textoEl) textoEl.textContent = '✓ Datos cargados — creando envío…';
     if (typeof showToast === 'function') showToast('✓ Formulario completado desde el PDF', 'ok');
-    setTimeout(() => { if (textoEl) textoEl.textContent = textoOriginal; }, 2500);
+
+    // Si es un envío nuevo (no editando uno existente), se guarda solo — sin este paso,
+    // había que tocar "Crear envío" a mano después de cada PDF.
+    const btnGuardar = document.getElementById('ed-btn-guardar');
+    if (btnGuardar && btnGuardar.dataset.modo === 'nuevo') {
+      setTimeout(() => { document.getElementById('ed-btn-guardar')?.click(); }, 500);
+    } else {
+      setTimeout(() => { if (textoEl) textoEl.textContent = textoOriginal; }, 2500);
+    }
   } catch (e) {
     if (textoEl) textoEl.textContent = textoOriginal;
     if (typeof showToast === 'function') showToast('⚠ No se pudo leer el PDF: ' + e.message, 'warn');
@@ -63835,7 +63843,7 @@ function edAbrirModalForm(envio) {
       <div style="padding:14px 22px;border-top:1px solid var(--border2);display:flex;gap:8px;justify-content:flex-end;">
         <button onclick="document.getElementById('ed-modal-bd').remove()"
           style="padding:8px 18px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text2);font-size:13px;cursor:pointer;">Cancelar</button>
-        <button onclick="edGuardarForm('${envio?.id||''}')"
+        <button id="ed-btn-guardar" data-modo="${isNew ? 'nuevo' : 'editar'}" onclick="edGuardarForm('${envio?.id||''}')"
           style="padding:8px 18px;background:#f59e0b;border:none;border-radius:8px;color:#000;font-size:13px;font-weight:700;cursor:pointer;">${isNew ? 'Crear envío' : 'Guardar cambios'}</button>
       </div>
     </div>
@@ -64602,11 +64610,17 @@ const ALIAS_CORTOS_PDF = [
 // Detector de horario en texto libre — misma expresión que ya usa el sync de Calendar para
 // leer el horario del título/descripción del evento, copiada acá para que también la puedan
 // usar el modal de Nuevo Envío y los modales de Google Calendar al leer un PDF.
-const HORARIO_RX_PDF = /\b\d{1,2}\s+[aA]\s+\d{1,2}\s+[oO]\s+\d{1,2}\s+[aA]\s+\d{1,2}\b|\b\d{1,2}:\d{2}\s*[-–a]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|\b\d{1,2}\s*[aA]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?\b|\b\d{1,2}\s*[-–]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?\b|\d{1,2}:\d{2}\s*[-–a]\s*\d{1,2}:\d{2}(?:\s*[aApP][mM])?|\d{1,2}:\d{2}\s*[aA]\s*\d{1,2}(?::\d{2})?|\d{1,2}[Hh][Ss]?\s*[aA]\s*\d{1,2}[Hh][Ss]?|\b([01]?\d|2[0-3])\s+[aA]\s+([01]?\d|2[0-3])\b|>\s*\d{1,2}[Hh][Ss]?|hasta\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|a\s+partir\s+de\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|a\s+las?\s+\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|antes\s+de\s+las?\s+\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|despu[eé]s\s+de\s+las?\s+\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|entre\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?\s*y\s*\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|entre\s+(?:las?\s+)?([01]?\d|2[0-3])\s*y\s*([01]?\d|2[0-3])\b|de\s+\d{1,2}(?:[Hh][Ss]?)?\s*[aA]\s*\d{1,2}\s*[Hh][Ss]?|\d{1,2}\.\d{2}\s*[Hh][Ss]?\s*[aA]\s*\d{1,2}\.\d{2}\s*[Hh][Ss]?|\d{1,2}\/\d{1,2}\s*[Hh][Ss]?|~\s*\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|apr?o[xk]\.?\s*(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|alrededor\s+de\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|\d{1,2}\s*[aA][mMpP][mM](?:\s*[-–a]\s*\d{1,2}\s*[aApP][mM])?|por\s+la\s+(?:ma[ñn]ana|tarde|noche)|ma[ñn]ana\s+temprano|mediod[ií]a|al\s+cierre|al\s+abrir|primera\s+hora|[uú]ltima\s+hora/i;
+const HORARIO_RX_PDF = /\b\d{1,2}\s+[aA]\s+\d{1,2}\s+[oO]\s+\d{1,2}\s+[aA]\s+\d{1,2}\b|\b\d{1,2}:\d{2}\s*[-–a]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|\b\d{1,2}\s*[aA]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?\b|\b\d{1,2}\s*[-–]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?\b|\d{1,2}:\d{2}\s*[-–a]\s*\d{1,2}:\d{2}(?:\s*(?:[aA][mM]|[pP][mM]))?|\d{1,2}:\d{2}\s*[aA]\s*\d{1,2}(?::\d{2})?|\d{1,2}[Hh][Ss]?\s*[aA]\s*\d{1,2}[Hh][Ss]?|\b([01]?\d|2[0-3])\s+[aA]\s+([01]?\d|2[0-3])\b|>\s*\d{1,2}[Hh][Ss]?|hasta\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*(?:[Hh][Ss]?)?|a\s+partir\s+de\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*(?:[Hh][Ss]?)?|a\s+las?\s+\d{1,2}(?::\d{2}|\.\d{2})?\s*(?:[Hh][Ss]?)?|antes\s+de\s+las?\s+\d{1,2}(?::\d{2})?\s*(?:[Hh][Ss]?)?|despu[eé]s\s+de\s+las?\s+\d{1,2}(?::\d{2})?\s*(?:[Hh][Ss]?)?|entre\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?\s*y\s*(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|entre\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*y\s*(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*(?:[Hh][Ss]?)?|entre\s+(?:las?\s+)?([01]?\d|2[0-3])\s*y\s*(?:las?\s+)?([01]?\d|2[0-3])\b|de\s+\d{1,2}(?:[Hh][Ss]?)?\s*[aA]\s*\d{1,2}\s*[Hh][Ss]?|\d{1,2}\.\d{2}\s*[Hh][Ss]?\s*[aA]\s*\d{1,2}\.\d{2}\s*[Hh][Ss]?|\d{1,2}\/\d{1,2}\s*[Hh][Ss]?|~\s*\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|apr?o[xk]\.?\s*(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|alrededor\s+de\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|\d{1,2}\s*(?:[aA][mM]|[pP][mM])(?:\s*[-–a]\s*\d{1,2}\s*(?:[aA][mM]|[pP][mM]))?|por\s+la\s+(?:ma[ñn]ana|tarde|noche)|ma[ñn]ana\s+temprano|mediod[ií]a|al\s+cierre|al\s+abrir|primera\s+hora|[uú]ltima\s+hora/i;
 
 function _detectarTransporteEnTexto(texto) {
   if (!texto) return '';
-  for (const t of TRANSPORTES_KNOWN_PDF) {
+  // Se combina la lista compartida de "Editar envío" (sincronizada en vivo por Firebase —
+  // cualquier transporte que alguien agregue con "+ Agregar" aparece acá automáticamente)
+  // con los alias fijos de nombres y variantes cortas que ya tenía este detector.
+  const _listaTransportes = (typeof _edTransportes !== 'undefined' && Array.isArray(_edTransportes) && _edTransportes.length)
+    ? [...new Set([..._edTransportes, ...TRANSPORTES_KNOWN_PDF])]
+    : TRANSPORTES_KNOWN_PDF;
+  for (const t of _listaTransportes) {
     const rx = new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\b', 'i');
     if (rx.test(texto)) return t;
   }
@@ -64694,7 +64708,7 @@ function _detectarCobroEnTexto(texto) {
     /\bconfirmado\b/, /\bsolo\s+entregar\b/, /\bsin\s+cobro\b/, /\blisto\b/, /\bcobrado\b/,
     /\bcobro\s+realizado\b/, /\bentregado\s+y\s+cobrado\b/, /\bentregar\s+sin\s+cobrar\b/,
     /\bno\s+pedir\s+pago\b/, /\bno\s+cobrar?\b/, /\bno\s+cobrar\s+al\s+cliente\b/,
-    /\bcliente\s+ya\s+pag[oó]\b/, /\bcliente\s+ya\s+abon[oó]\b/, /\bpago\s+recibido\b/,
+    /\bcliente\s+ya\s+pag[oó](?![a-záéíóúñ])/, /\bcliente\s+ya\s+abon[oó](?![a-záéíóúñ])/, /\bpago\s+recibido\b/,
     /\bpago\s+confirmado\b/, /\bpago\s+ok\b/, /\bpago\s+hecho\b/, /\babono\s+realizado\b/,
     /\bya\s+est[aá]\s+pago\b/, /\bya\s+qued[oó]\s+pago\b/, /\btodo\s+pago\b/,
     /\bcuenta\s+saldada\b/, /\bcancelado\b/, /\bsaldado\b/, /\bok\s+entregar\b/,
@@ -64702,14 +64716,14 @@ function _detectarCobroEnTexto(texto) {
     /\bcontra\s+entrega\s+no\b/, /\bsin\s+cobrar\s+env[ií]o\b/, /\bsin\s+pedir\s+dinero\b/,
     /\bya\s+transferido\b/, /\btransferencia\s+recibida\b/, /\bmercado\s+pago\s+recibido\b/,
     /\bse[ñn]a\s+abonada\b/, /\bpedido\s+pago\b/, /\borden\s+pagada\b/, /\bfactura\s+abonada\b/,
-    /\befectivo\s+recibido\b/, /\bcobrado\s+por\s+app\b/, /\bqr\s+pagado\b/, /\bya\s+se\s+cobr[oó]\b/,
+    /\befectivo\s+recibido\b/, /\bcobrado\s+por\s+app\b/, /\bqr\s+pagado\b/, /\bya\s+se\s+cobr[oó](?![a-záéíóúñ])/,
     /\bpagaron\b/, /\babonaron\b/, /\bpago\s+registrado\b/, /\bpago\s+aplicado\b/,
-    /\bpago\s+acreditado\b/, /\bya\s+pag[oó]\b/, /\bya\s+abon[oó]\b/, /\bya\s+pago\b/, /\bya\s+abono\b/,
+    /\bpago\s+acreditado\b/, /\bya\s+pag[oó](?![a-záéíóúñ])/, /\bya\s+abon[oó](?![a-záéíóúñ])/, /\bya\s+pago\b/, /\bya\s+abono\b/,
   ];
   const _RX_EN_ESPERA_PDF = [
     /\ba\s*confirmar\b/, /\ben\s*espera\b/, /\bpendiente\s+de\s+pago\b/, /\bpago\s+pendiente\b/,
     /\bfalta\s+pagar\b/, /\bfalta\s+abonar\b/, /\b(debe|adeuda)\b/, /\bsin\s+pagar\b/, /\bsin\s+abonar\b/,
-    /\ba[uú]n\s+no\s+pag[oó]\b/, /\baun\s+no\s+pago\b/, /\btodav[ií]a\s+no\s+pag[oó]\b/,
+    /\ba[uú]n\s+no\s+pag[oó](?![a-záéíóúñ])/, /\baun\s+no\s+pago\b/, /\btodav[ií]a\s+no\s+pag[oó](?![a-záéíóúñ])/,
     /\btodavia\s+no\s+pago\b/, /\besperando\s+pago\b/, /\besperando\s+confirmaci[oó]n\b/,
     /\bpago\s+no\s+confirmado\b/, /\bsin\s+confirmaci[oó]n\b/, /\bno\s+figura\s+pago\b/,
     /\bpago\s+no\s+recibido\b/, /\btransferencia\s+pendiente\b/, /\btransferencia\s+no\s+acreditada\b/,
@@ -64718,9 +64732,9 @@ function _detectarCobroEnTexto(texto) {
     /\bcontra\s+entrega\b/, /\bctra\s+entrega\b/, /\bpago\s+al\s+recibir\b/, /\bdebe\s+efectivo\b/,
     /\bdebe\s+transferencia\b/, /\bcliente\s+debe\b/, /\bfalta\s+confirmaci[oó]n\b/,
     /\ben\s+validaci[oó]n\b/, /\bpago\s+rechazado\b/, /\bpago\s+fallido\b/, /\boperaci[oó]n\s+pendiente\b/,
-    /\ba\s+cobrar\b/, /\bfalta\s+cobrar\b/, /\bno\s+se\s+cobr[oó]\b/, /\bsin\s+acreditar\b/,
+    /\ba\s+cobrar\b/, /\bfalta\s+cobrar\b/, /\bno\s+se\s+cobr[oó](?![a-záéíóúñ])/, /\bsin\s+acreditar\b/,
     /\bpendiente\s+validaci[oó]n\b/, /\bpend\s+pago\b/, /\bpago\s+pend\b/, /\bx\s+confirmar\b/,
-    /\bs\/pago\b/, /\bs\s+abono\b/, /\bno\s+pag[oó]\b/, /\bno\s+abon[oó]\b/, /\bno\s+abono\b/,
+    /\bs\/pago\b/, /\bs\s+abono\b/, /\bno\s+pag[oó](?![a-záéíóúñ])/, /\bno\s+abon[oó](?![a-záéíóúñ])/, /\bno\s+abono\b/,
     /\bno\s+pago\b/, /\bdebe\s+abonar\b/, /\bdebe\s+pagar\b/, /\bpendiente\b/,
   ];
 
@@ -64733,9 +64747,9 @@ function _detectarCobroEnTexto(texto) {
     const _metodoPago = textoLow.match(/\bpago\s*:\s*([^,]+)/i)[1];
     if (/transfer/.test(_metodoPago)) cobro = 'transferencia';
     else if (/usdt?\b|us\$|u\$s|d[oó]lar/i.test(_metodoPago)) cobro = 'dolares';
-    else if (/cuenta\s*corriente/.test(_metodoPago)) cobro = 'cuenta_corriente';
-    else if (/mercado\s*pago|tarjeta/.test(_metodoPago)) cobro = 'en_espera';
-    else if (/efectivo/.test(_metodoPago)) {
+    else if (/cuenta\s*corriente|cta\.?\s*c(?:te\.?|orriente)/.test(_metodoPago)) cobro = 'cuenta_corriente';
+    else if (/mercado\s*pago|tarjeta|link/.test(_metodoPago)) cobro = 'en_espera';
+    else if (/efectivo/.test(_metodoPago) && !/\b(no|sin)\s+efectivo\b/.test(_metodoPago)) {
       cobro = 'efectivo';
       const amtM = _metodoPago.match(/\$\s*([\d.,]+)/);
       if (amtM) { const n = parseFloat(amtM[1].replace(/\./g,'').replace(',','.')); if (!isNaN(n) && n > 0) montoEfectivo = String(Math.round(n)); }
@@ -64746,18 +64760,20 @@ function _detectarCobroEnTexto(texto) {
     else if (/a\s+convenir|convenir|por\s+confirmar|a\s+confirmar|sin\s+definir|sin\s+especificar|no\s+especificad/i.test(_metodoPago)) cobro = 'en_espera';
     // si el método no se reconoce, no fuerza nada acá — sigue probando el resto de la cadena
   }
-  // Mercado Pago / Tarjeta sueltos (sin "recibido"/"pendiente" que ya se manejó arriba) →
-  // "A confirmar". Antes que el chequeo genérico de "pago" para que "Mercado Pago" no se
-  // confunda con "ya pagó" (solo_entregar), y antes de "transferencia" para que "MercadoPago"
-  // junto no caiga ahí por el patrón genérico.
-  else if (/\bmercado\s*pago\b/i.test(textoLow) || /\btarjeta\s+de\s+(cr[eé]dito|d[eé]bito)\b/i.test(textoLow)) cobro = 'en_espera';
-  else if (/\b(pag[oó]|pagado|acreditado|abonado|abon[oó])\b/i.test(textoLow) && !/\bno\s+(pag[oó]|pago|abon[oó]|abono)\b/i.test(textoLow)) cobro = 'solo_entregar';
+  // Mercado Pago / Tarjeta / Link de pago sueltos (sin "recibido"/"pendiente" que ya se
+  // manejó arriba) → "A confirmar". Un "Link" de cobro (Nave, Payway, MercadoPago, tarjeta,
+  // cuotas) es plata que todavía no entró — no es lo mismo que una transferencia bancaria
+  // directa, aunque a veces se cargue mal la Condición de Vta como "Contado" o
+  // "Transferencia" por error. Se chequea antes que "transferencia" (que si no, se lo come
+  // por tener "link" en su lista) y antes del chequeo genérico de "pago".
+  else if (/\bmercado\s*pago\b/i.test(textoLow) || /\btarjeta\s+de\s+(cr[eé]dito|d[eé]bito)\b/i.test(textoLow) || /\blink\b/i.test(textoLow)) cobro = 'en_espera';
+  else if (/\b(pag[oó](?![a-záéíóúñ])|pagado|acreditado|abonado|abon[oó](?![a-záéíóúñ]))\b/i.test(textoLow) && !/\bno\s+(pag[oó]|pago|abon[oó]|abono)\b/i.test(textoLow) && !/\bpago\s+en\s+(destino|origen)\b/i.test(textoLow)) cobro = 'solo_entregar';
   else if (/\busdt?\b/i.test(textoLow) || /us\$/i.test(textoLow) || /u\$s/i.test(textoLow) || /\bd[oó]lar(?:es)?\b/i.test(textoLow)) {
     cobro = 'dolares';
     const amtMD = texto.match(/(?:usdt?|us\$|u\$s|d[oó]lares?)\s*\$?\s*([\d.,]+)/i) || texto.match(/([\d.,]+)\s*\$?\s*(?:usdt?|us\$|u\$s|d[oó]lares?)/i);
     if (amtMD) { const n = parseFloat(amtMD[1].replace(/\./g,'').replace(',','.')); if (!isNaN(n) && n > 0) montoDolares = String(Math.round(n)); }
   }
-  else if (/🏛\s*cta\.?\s*c(?:te\.?|orriente)/i.test(textoLow) || /\b(a\s+cuenta(\s+c(?:te\.?|orriente))?|a\s+cta\.?\s*c(?:te\.?|orriente)|cta\.?\s*c(?:te\.?|orriente)|cta\.?\s+corriente|cuenta\s+c(?:te\.?|orriente)|cuenta\s+corriente|\bcuenta\b|\bcta\.?\b)/i.test(textoLow)) cobro = 'cuenta_corriente';
+  else if (/🏛\s*cta\.?\s*c(?:te\.?|orriente)/i.test(textoLow) || /\b(a\s+cuenta\s+c(?:te\.?|orriente)|a\s+cta\.?\s*c(?:te\.?|orriente)|cta\.?\s*c(?:te\.?|orriente)|cta\.?\s+corriente|cuenta\s+c(?:te\.?|orriente)|cuenta\s+corriente)\b/i.test(textoLow)) cobro = 'cuenta_corriente';
   else if (/\b(transf\w*renci\w*|transfer(encia|necia)?|transfier[eo]|tranfier[eo]|transfiri[oó]|transf\.?|tarjeta(\s+de\s+cr[eé]dito)?|d[eé]bito|link(\s+(de\s+)?pago)?|link\s+nave|link\s+payway|link\s+mercado\s*pago|link\s+m\.?\s*p\.?|payway|nave|m\.?\s*p\.?|mercado\s*pago)\b/i.test(textoLow)) cobro = 'transferencia';
   else if (/\?{2,}/.test(texto)) cobro = 'en_espera';
   else if (/\b(c(?:on)?tra\s+entrega|ctra\s+entrega)\b.*\$\s*\d|\$\s*\d.*\b(c(?:on)?tra\s+entrega|ctra\s+entrega)\b/i.test(texto)) {
@@ -64766,7 +64782,7 @@ function _detectarCobroEnTexto(texto) {
     if (amtM) { const n = parseFloat(amtM[1].replace(/\./g,'').replace(',','.')); if (!isNaN(n) && n > 0) montoEfectivo = String(Math.round(n)); }
   }
   else if (/\b(cta\.?\s*c(?:te\.?|orriente)|cuenta\s+c(?:te\.?|orriente)|cta\.?\s+corriente|cuenta\s+corriente)\b/i.test(textoLow)) cobro = 'cuenta_corriente';
-  else if (/\b(cobrar?(\s+en\s+efectivo)?|efectivo|paga?\s+en\s+efectivo|abona?\s+en\s+efectivo|va\s+a\s+pagar\s+en\s+efectivo|cobra|abona|cobrar?\s+al?\s+entregar?|cobrar?\s+en\s+mano|en\s+mano|cash|billete[s]?|plata\s+en\s+mano|pago\s+en\s+mano|cobrar?\s+en\s+destino|cobro\s+en\s+mano|cobro\s+al?\s+entregar?)\b|\$\s*\d/i.test(textoLow)) {
+  else if ((/\b(cobrar?(\s+en\s+efectivo)?|efectivo|paga?\s+en\s+efectivo|abona?\s+en\s+efectivo|va\s+a\s+pagar\s+en\s+efectivo|cobra|abona|cobrar?\s+al?\s+entregar?|cobrar?\s+en\s+mano|en\s+mano|cash|billete[s]?|plata\s+en\s+mano|pago\s+en\s+mano|cobrar?\s+en\s+destino|cobro\s+en\s+mano|cobro\s+al?\s+entregar?)\b|\$\s*\d/i.test(textoLow)) && !/\b(no|sin)\s+efectivo\b/.test(textoLow)) {
     cobro = 'efectivo';
     const amtM = texto.match(/\$\s*([\d.,]+)/);
     if (amtM) { const n = parseFloat(amtM[1].replace(/\./g,'').replace(',','.')); if (!isNaN(n) && n > 0) montoEfectivo = String(Math.round(n)); }
