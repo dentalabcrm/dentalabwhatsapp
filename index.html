@@ -64711,6 +64711,11 @@ function _detectarCobroEnTexto(texto) {
 
   if (_RX_SOLO_ENTREGAR_PDF.some(rx => rx.test(textoLow))) cobro = 'solo_entregar';
   else if (_RX_EN_ESPERA_PDF.some(rx => rx.test(textoLow))) cobro = 'en_espera';
+  // Mercado Pago / Tarjeta sueltos (sin "recibido"/"pendiente" que ya se manejó arriba) →
+  // "A confirmar". Antes que el chequeo genérico de "pago" para que "Mercado Pago" no se
+  // confunda con "ya pagó" (solo_entregar), y antes de "transferencia" para que "MercadoPago"
+  // junto no caiga ahí por el patrón genérico.
+  else if (/\bmercado\s*pago\b/i.test(textoLow) || /\btarjeta\s+de\s+(cr[eé]dito|d[eé]bito)\b/i.test(textoLow)) cobro = 'en_espera';
   else if (/\b(pag[oó]|pagado|acreditado|abonado|abon[oó])\b/i.test(textoLow) && !/\bno\s+(pag[oó]|pago|abon[oó]|abono)\b/i.test(textoLow)) cobro = 'solo_entregar';
   else if (/\busdt?\b/i.test(textoLow) || /us\$/i.test(textoLow) || /u\$s/i.test(textoLow) || /\bd[oó]lar(?:es)?\b/i.test(textoLow)) {
     cobro = 'dolares';
