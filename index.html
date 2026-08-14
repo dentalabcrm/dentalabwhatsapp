@@ -64598,7 +64598,7 @@ const ALIAS_CORTOS_PDF = [
   [/\bOrion\b/i, 'Transporte Orion'], [/\bPadrino\b/i, 'Transporte El Padrino'],
   [/\bBalut\b/i, 'Balut Encomienda'], [/\bGorgone\b/i, 'Transporte Nicolas Gorgone S.R.L'],
   [/\bLandaburu\b/i, 'Expreso Landaburu'], [/\bDemonte\b/i, 'Expreso Demonte'],
-  [/\bBeraldi\b/i, 'Tomas Beraldi'], [/\bChevallier\b/i, 'Chevallier'],
+  [/\bBeraldi\b/i, 'Tomas Beraldi'], [/\bBerald\b/i, 'Tomas Beraldi'], [/\bChevallier\b/i, 'Chevallier'],
   [/\bFlecha\s*Bus\b/i, 'Flecha Bus'], [/\bCrucero\b/i, 'Crucero del Norte'],
   [/\bBuspack\b/i, 'Buspack'], [/\bAndreani\b/i, 'Andreani'],
   [/\bOro\s*Negro\b/i, 'Oro Negro'], [/\bCruz\s*del\s*Sur\b/i, 'Cruz del Sur'],
@@ -64614,6 +64614,11 @@ const HORARIO_RX_PDF = /\b\d{1,2}\s+[aA]\s+\d{1,2}\s+[oO]\s+\d{1,2}\s+[aA]\s+\d{
 
 function _detectarTransporteEnTexto(texto) {
   if (!texto) return '';
+  // Casos de renombrado: el nombre que se usa acá adentro es distinto (más corto) al que
+  // puede aparecer escrito en el PDF o estar cargado en la lista de "Editar envío". Van
+  // primero, para que ganen siempre sin importar qué diga la lista completa.
+  if (/\b(expreso\s+)?punta\s+alta\b/i.test(texto)) return 'Punta Alta';
+
   // Se combina la lista compartida de "Editar envío" (sincronizada en vivo por Firebase —
   // cualquier transporte que alguien agregue con "+ Agregar" aparece acá automáticamente)
   // con los alias fijos de nombres y variantes cortas que ya tenía este detector.
