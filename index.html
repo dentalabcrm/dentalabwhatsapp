@@ -64740,6 +64740,10 @@ function _detectarCobroEnTexto(texto) {
       const amtM = _metodoPago.match(/\$\s*([\d.,]+)/);
       if (amtM) { const n = parseFloat(amtM[1].replace(/\./g,'').replace(',','.')); if (!isNaN(n) && n > 0) montoEfectivo = String(Math.round(n)); }
     }
+    // "Forma de pago a convenir", "por confirmar", "sin definir", etc. → A confirmar,
+    // explícito, para que no se caiga al respaldo de "Condición de Vta" (que suele decir
+    // "Contado" en estos casos aunque en realidad todavía no se sabe cómo va a pagar).
+    else if (/a\s+convenir|convenir|por\s+confirmar|a\s+confirmar|sin\s+definir|sin\s+especificar|no\s+especificad/i.test(_metodoPago)) cobro = 'en_espera';
     // si el método no se reconoce, no fuerza nada acá — sigue probando el resto de la cadena
   }
   // Mercado Pago / Tarjeta sueltos (sin "recibido"/"pendiente" que ya se manejó arriba) →
