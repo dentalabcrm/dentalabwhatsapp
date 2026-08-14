@@ -1514,7 +1514,7 @@
     max-height: 220px; overflow-y: auto; box-shadow: 0 12px 28px rgba(0,0,0,.45);
     display: none;
   }
-  #ed-f-pdf-drop.ed-pdf-drop-activo {
+  #ed-f-pdf-drop.ed-pdf-drop-activo, #gcal-pdf-drop.ed-pdf-drop-activo {
     border-color: #f59e0b; background: rgba(245,158,11,.08);
   }
   .ed-combo-opt {
@@ -28808,6 +28808,12 @@ function openEnvioGCalModal(env) {
       <button id="gcal-close" style="margin-left:auto;background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 12px;color:#fff;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">✕</button>
     </div>
     <div style="padding:24px;display:flex;flex-direction:column;gap:14px;">
+      <div id="gcal-pdf-drop" ondragover="event.preventDefault();this.classList.add('ed-pdf-drop-activo')" ondragleave="this.classList.remove('ed-pdf-drop-activo')" ondrop="gcalPdfDrop1(event, this)" onclick="document.getElementById('gcal-pdf-input').click()"
+        style="border:2px dashed var(--border2);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s;">
+        <div id="gcal-pdf-drop-texto" style="font-size:12.5px;font-weight:700;color:var(--text2);">📄 Arrastrá acá un PDF de presupuesto, o hacé clic para elegirlo</div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:3px;">Completa dirección, transporte, cobro, vendedor y teléfono solo</div>
+        <input type="file" id="gcal-pdf-input" accept="application/pdf" style="display:none;" onchange="gcalPdfFile1(this.files[0])">
+      </div>
       <div>
         <label style="font-size:10px;font-weight:800;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;display:block;margin-bottom:6px;">📌 TÍTULO</label>
         <input id="gcal-titulo" type="text" value="${escHtml(tituloDefault)}" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;">
@@ -28931,6 +28937,9 @@ function openEnvioGCalModal(env) {
     <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:8px;">
       <button id="gcal-confirm-direct" style="width:100%;background:linear-gradient(135deg,#10b981,#059669);border:none;border-radius:10px;padding:13px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity .15s;">
         ⚡ Crear evento DIRECTO en Google Calendar
+      </button>
+      <button id="gcal-guardar-envio-directo" style="width:100%;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:10px;padding:11px;color:#000;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">
+        📦 Guardar directo en Envíos Dentalab
       </button>
       <button id="gcal-guardar-cobros" style="width:100%;background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(5,150,105,.15));border:1px solid rgba(16,185,129,.5);border-radius:10px;padding:11px;color:#10b981;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;display:none;" onmouseover="this.style.background='linear-gradient(135deg,rgba(16,185,129,.25),rgba(5,150,105,.25))'" onmouseout="this.style.background='linear-gradient(135deg,rgba(16,185,129,.15),rgba(5,150,105,.15))'">
         💾 Guardar en Cobros
@@ -29064,6 +29073,111 @@ function openEnvioGCalModal(env) {
   document.getElementById('gcal-fecha')?.addEventListener('change', updatePreviewOnly);
   document.getElementById('gcal-titulo')?.addEventListener('input', updatePreviewOnly);
   updateAll(true); // inicial
+
+  // ── Cargar un PDF de presupuesto: completa dirección/transporte/cobro/vendedor/teléfono ──
+  window.gcalPdfDrop1 = function(ev, zoneEl) {
+    ev.preventDefault();
+    zoneEl.classList.remove('ed-pdf-drop-activo');
+    const file = Array.from(ev.dataTransfer?.files || []).find(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+    if (file) gcalPdfFile1(file);
+    else if (typeof showToast === 'function') showToast('⚠ Eso no es un PDF', 'warn');
+  };
+  window.gcalPdfFile1 = async function(file) {
+    if (!file) return;
+    const textoEl = document.getElementById('gcal-pdf-drop-texto');
+    const textoOriginal = textoEl ? textoEl.textContent : '';
+    if (textoEl) textoEl.textContent = '📄 Leyendo PDF…';
+    try {
+      if (typeof pdfjsLib === 'undefined') throw new Error('Librería de PDF no disponible');
+      const buf = await file.arrayBuffer();
+      const textLines = await _extraerTextoPDFDesdeBuffer(buf);
+      const datos = _parsearDatosEnvioDesdePDFTexto(textLines);
+
+      const transporteDetectado = _detectarTransporteEnTexto(datos.observaciones) || _detectarTransporteEnTexto(textLines.join(' '));
+      const transpSel = document.getElementById('gcal-transporte');
+      if (transporteDetectado && transpSel) {
+        const yaExiste = Array.from(transpSel.options).some(o => o.value === transporteDetectado);
+        if (!yaExiste) {
+          const lista = gcalLoadTransportes();
+          lista.push(transporteDetectado);
+          gcalSaveTransportes(lista);
+          gcalFillDatalist(transporteDetectado);
+        }
+        transpSel.value = transporteDetectado;
+        _gcalAutoRangoPorTransporte();
+      }
+      const _transporteActual = (transpSel?.value || '').trim();
+      const _esEnviosDentalabPdf = !_transporteActual || /envíos?\s*dentalab/i.test(_transporteActual);
+      const dirEl = document.getElementById('gcal-direccion');
+      if (dirEl && (datos.direccion || !_esEnviosDentalabPdf)) dirEl.value = _esEnviosDentalabPdf ? datos.direccion : 'Sucursal CABA';
+
+      const telEl = document.getElementById('gcal-telefono');
+      if (telEl && datos.telefono) telEl.value = datos.telefono;
+
+      const vendSel = document.getElementById('gcal-vendedor');
+      if (vendSel && datos.vendedor && Array.from(vendSel.options).some(o => o.value === datos.vendedor)) vendSel.value = datos.vendedor;
+
+      const pagoSel = document.getElementById('gcal-pago-envio');
+      if (pagoSel && datos.pagoEnvio) pagoSel.value = datos.pagoEnvio;
+      const tipoSel = document.getElementById('gcal-tipo-entrega');
+      if (tipoSel && datos.tipoEntrega) tipoSel.value = datos.tipoEntrega;
+
+      if (datos.condicionVenta) {
+        const cobroSel = document.getElementById('gcal-cobro');
+        const mapeado = _mapearCobroDesdeCondicionVenta(datos.condicionVenta);
+        const cobroFinal1 = mapeado === 'efectivo' ? 'si' : mapeado === 'transferencia' ? 'transferencia' : mapeado === 'cuenta_corriente' ? 'cuenta_corriente' : 'espera';
+        if (cobroSel) {
+          cobroSel.value = cobroFinal1;
+          if (mapeado === 'efectivo' && datos.total) {
+            const montoNum = Math.round(parseFloat(datos.total.replace(/\./g, '').replace(',', '.')));
+            const montoEl = document.getElementById('gcal-monto');
+            if (!isNaN(montoNum) && montoEl) montoEl.value = montoNum.toLocaleString('es-AR');
+          }
+        }
+      }
+      window._gcalUltimosDatosPdf = datos; // usado por "Guardar directo en Envíos Dentalab"
+      updateAll(false);
+      if (textoEl) textoEl.textContent = '✓ Datos cargados desde el PDF';
+      if (typeof showToast === 'function') showToast('✓ Formulario completado desde el PDF', 'ok');
+      setTimeout(() => { if (textoEl) textoEl.textContent = textoOriginal; }, 2500);
+    } catch (e) {
+      if (textoEl) textoEl.textContent = textoOriginal;
+      if (typeof showToast === 'function') showToast('⚠ No se pudo leer el PDF: ' + e.message, 'warn');
+      else alert('No se pudo leer el PDF: ' + e.message);
+    }
+  };
+
+  // ── Guardar directo en Envíos Dentalab, sin pasar por Google Calendar ──
+  document.getElementById('gcal-guardar-envio-directo')?.addEventListener('click', () => {
+    const fecha = document.getElementById('gcal-fecha')?.value;
+    const transporteVal = document.getElementById('gcal-transporte')?.value.trim() || '';
+    const cobroSelVal = document.getElementById('gcal-cobro')?.value || '';
+    const cobroMap1 = { si: 'efectivo', no: 'ya_pago', tarjeta: 'efectivo', a_confirmar: 'en_espera', transferencia: 'transferencia', dolares: 'dolares', espera: 'en_espera', solo_entregar: 'solo_entregar', cuenta_corriente: 'cuenta_corriente', custom: 'custom' };
+    const cobroEd = cobroMap1[cobroSelVal] || 'en_espera';
+    const rangoVal = document.getElementById('gcal-rango')?.value.trim() || document.getElementById('gcal-hora')?.value || '';
+    const nuevo = _crearEnvioDentalabDesde({
+      cliente: clienteFull,
+      nroPedido: env.numeroPedido || env.nroPedido || '',
+      direccion: document.getElementById('gcal-direccion')?.value.trim() || '',
+      tipoEntrega: document.getElementById('gcal-tipo-entrega')?.value || '',
+      fecha,
+      horario: rangoVal,
+      transporte: transporteVal || 'Envíos Dentalab',
+      cobro: cobroEd,
+      cobroCustom: cobroSelVal === 'custom' ? (document.getElementById('gcal-cobro-custom')?.value.trim() || '') : '',
+      montoEfectivo: cobroEd === 'efectivo' ? (document.getElementById('gcal-monto')?.value.replace(/\./g,'') || '') : '',
+      montoDolares: cobroEd === 'dolares' ? (document.getElementById('gcal-monto-usd')?.value.replace(/\./g,'') || '') : '',
+      vendedor: document.getElementById('gcal-vendedor')?.value || '',
+      telefono: document.getElementById('gcal-telefono')?.value.trim() || '',
+      pagoEnvio: document.getElementById('gcal-pago-envio')?.value || '',
+      observaciones: document.getElementById('gcal-observaciones')?.value.trim() || '',
+    });
+    if (nuevo) {
+      if (typeof showToast === 'function') showToast('✅ Envío creado en Envíos Dentalab (' + fecha + ')', 'ok');
+      if (typeof edRenderLista === 'function') edRenderLista();
+      close();
+    }
+  });
 
   function close() { backdrop.remove(); }
   document.getElementById('gcal-close').addEventListener('click', close);
@@ -29428,6 +29542,12 @@ function openGCalModal(pedido) {
       <button id="gcal-close" style="margin-left:auto;background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 12px;color:#fff;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">✕ Cerrar</button>
     </div>
     <div style="padding:24px;display:flex;flex-direction:column;gap:14px;">
+      <div id="gcal-pdf-drop" ondragover="event.preventDefault();this.classList.add('ed-pdf-drop-activo')" ondragleave="this.classList.remove('ed-pdf-drop-activo')" ondrop="gcalPdfDrop2(event, this)" onclick="document.getElementById('gcal-pdf-input').click()"
+        style="border:2px dashed var(--border2);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s;">
+        <div id="gcal-pdf-drop-texto" style="font-size:12.5px;font-weight:700;color:var(--text2);">📄 Arrastrá acá un PDF de presupuesto, o hacé clic para elegirlo</div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:3px;">Completa dirección, transporte, cobro, vendedor y teléfono solo</div>
+        <input type="file" id="gcal-pdf-input" accept="application/pdf" style="display:none;" onchange="gcalPdfFile2(this.files[0])">
+      </div>
       <div>
         <label style="font-size:10px;font-weight:800;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;display:block;margin-bottom:4px;">📌 TÍTULO DEL EVENTO</label>
         <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">⚡ Se actualiza automáticamente con los campos de abajo</div>
@@ -29552,6 +29672,9 @@ function openGCalModal(pedido) {
       <button id="gcal-confirm-direct" style="width:100%;background:linear-gradient(135deg,#10b981,#059669);border:none;border-radius:10px;padding:13px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity .15s;">
         ⚡ Crear evento DIRECTO en Google Calendar
       </button>
+      <button id="gcal-guardar-envio-directo" style="width:100%;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:10px;padding:11px;color:#000;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">
+        📦 Guardar directo en Envíos Dentalab
+      </button>
       <button id="gcal-guardar-cobros" style="width:100%;background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(5,150,105,.15));border:1px solid rgba(16,185,129,.5);border-radius:10px;padding:11px;color:#10b981;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;display:none;" onmouseover="this.style.background='linear-gradient(135deg,rgba(16,185,129,.25),rgba(5,150,105,.25))'" onmouseout="this.style.background='linear-gradient(135deg,rgba(16,185,129,.15),rgba(5,150,105,.15))'">
         💾 Guardar en Cobros
       </button>
@@ -29666,6 +29789,110 @@ function openGCalModal(pedido) {
   backdrop.querySelector('#gcal-transporte')?.addEventListener('change', () => { _gcalAutoRangoPorTransporte2(); refreshTituloYPreview(true); });
   backdrop.querySelector('#gcal-fecha')?.addEventListener('change', refreshTituloYPreview);
   refreshTituloYPreview(true); // inicial
+
+  // ── Cargar un PDF de presupuesto: completa dirección/transporte/cobro/vendedor/teléfono ──
+  window.gcalPdfDrop2 = function(ev, zoneEl) {
+    ev.preventDefault();
+    zoneEl.classList.remove('ed-pdf-drop-activo');
+    const file = Array.from(ev.dataTransfer?.files || []).find(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+    if (file) gcalPdfFile2(file);
+    else if (typeof showToast === 'function') showToast('⚠ Eso no es un PDF', 'warn');
+  };
+  window.gcalPdfFile2 = async function(file) {
+    if (!file) return;
+    const textoEl = backdrop.querySelector('#gcal-pdf-drop-texto');
+    const textoOriginal = textoEl ? textoEl.textContent : '';
+    if (textoEl) textoEl.textContent = '📄 Leyendo PDF…';
+    try {
+      if (typeof pdfjsLib === 'undefined') throw new Error('Librería de PDF no disponible');
+      const buf = await file.arrayBuffer();
+      const textLines = await _extraerTextoPDFDesdeBuffer(buf);
+      const datos = _parsearDatosEnvioDesdePDFTexto(textLines);
+
+      const transporteDetectado = _detectarTransporteEnTexto(datos.observaciones) || _detectarTransporteEnTexto(textLines.join(' '));
+      const transpSel = backdrop.querySelector('#gcal-transporte');
+      if (transporteDetectado && transpSel) {
+        const yaExiste = Array.from(transpSel.options).some(o => o.value === transporteDetectado);
+        if (!yaExiste) {
+          const lista = gcalLoadTransportes();
+          lista.push(transporteDetectado);
+          gcalSaveTransportes(lista);
+          gcalFillDatalist(transporteDetectado);
+        }
+        transpSel.value = transporteDetectado;
+        if (typeof _gcalAutoRangoPorTransporte2 === 'function') _gcalAutoRangoPorTransporte2();
+      }
+      const _transporteActual = (transpSel?.value || '').trim();
+      const _esEnviosDentalabPdf = !_transporteActual || /envíos?\s*dentalab/i.test(_transporteActual);
+      const dirEl = backdrop.querySelector('#gcal-direccion');
+      if (dirEl && (datos.direccion || !_esEnviosDentalabPdf)) dirEl.value = _esEnviosDentalabPdf ? datos.direccion : 'Sucursal CABA';
+
+      const telEl = backdrop.querySelector('#gcal-telefono');
+      if (telEl && datos.telefono) telEl.value = datos.telefono;
+
+      const vendSel = backdrop.querySelector('#gcal-vendedor');
+      if (vendSel && datos.vendedor && Array.from(vendSel.options).some(o => o.value === datos.vendedor)) vendSel.value = datos.vendedor;
+
+      const pagoSel = backdrop.querySelector('#gcal-pago-envio');
+      if (pagoSel && datos.pagoEnvio) pagoSel.value = datos.pagoEnvio;
+      const tipoSel = backdrop.querySelector('#gcal-tipo-entrega');
+      if (tipoSel && datos.tipoEntrega) tipoSel.value = datos.tipoEntrega;
+
+      if (datos.condicionVenta) {
+        const cobroSel = backdrop.querySelector('#gcal-cobro');
+        const mapeado = _mapearCobroDesdeCondicionVenta(datos.condicionVenta);
+        const cobroFinal2 = mapeado === 'efectivo' ? 'si' : mapeado === 'transferencia' ? 'transferencia' : mapeado === 'cuenta_corriente' ? 'cuenta_corriente' : 'espera';
+        if (cobroSel) {
+          cobroSel.value = cobroFinal2;
+          if (mapeado === 'efectivo' && datos.total) {
+            const montoNum = Math.round(parseFloat(datos.total.replace(/\./g, '').replace(',', '.')));
+            const montoEl = backdrop.querySelector('#gcal-monto');
+            if (!isNaN(montoNum) && montoEl) montoEl.value = montoNum.toLocaleString('es-AR');
+          }
+        }
+      }
+      refreshTituloYPreview(false);
+      if (textoEl) textoEl.textContent = '✓ Datos cargados desde el PDF';
+      if (typeof showToast === 'function') showToast('✓ Formulario completado desde el PDF', 'ok');
+      setTimeout(() => { if (textoEl) textoEl.textContent = textoOriginal; }, 2500);
+    } catch (e) {
+      if (textoEl) textoEl.textContent = textoOriginal;
+      if (typeof showToast === 'function') showToast('⚠ No se pudo leer el PDF: ' + e.message, 'warn');
+      else alert('No se pudo leer el PDF: ' + e.message);
+    }
+  };
+
+  // ── Guardar directo en Envíos Dentalab, sin pasar por Google Calendar ──
+  backdrop.querySelector('#gcal-guardar-envio-directo')?.addEventListener('click', () => {
+    const fecha = backdrop.querySelector('#gcal-fecha')?.value;
+    const transporteVal = backdrop.querySelector('#gcal-transporte')?.value.trim() || '';
+    const cobroSelVal = backdrop.querySelector('#gcal-cobro')?.value || '';
+    const cobroMap2 = { si: 'efectivo', no: 'ya_pago', tarjeta: 'efectivo', a_confirmar: 'en_espera', transferencia: 'transferencia', dolares: 'dolares', espera: 'en_espera', solo_entregar: 'solo_entregar', cuenta_corriente: 'cuenta_corriente', custom: 'custom' };
+    const cobroEd = cobroMap2[cobroSelVal] || 'en_espera';
+    const rangoVal = backdrop.querySelector('#gcal-rango')?.value.trim() || backdrop.querySelector('#gcal-hora')?.value || '';
+    const nuevo = _crearEnvioDentalabDesde({
+      cliente: clienteFull,
+      nroPedido: pedido.nroPedido || '',
+      direccion: backdrop.querySelector('#gcal-direccion')?.value.trim() || '',
+      tipoEntrega: backdrop.querySelector('#gcal-tipo-entrega')?.value || '',
+      fecha,
+      horario: rangoVal,
+      transporte: transporteVal || 'Envíos Dentalab',
+      cobro: cobroEd,
+      cobroCustom: cobroSelVal === 'custom' ? (backdrop.querySelector('#gcal-cobro-custom')?.value.trim() || '') : '',
+      montoEfectivo: cobroEd === 'efectivo' ? (backdrop.querySelector('#gcal-monto')?.value.replace(/\./g,'') || '') : '',
+      montoDolares: cobroEd === 'dolares' ? (backdrop.querySelector('#gcal-monto-usd')?.value.replace(/\./g,'') || '') : '',
+      vendedor: backdrop.querySelector('#gcal-vendedor')?.value || '',
+      telefono: backdrop.querySelector('#gcal-telefono')?.value.trim() || '',
+      pagoEnvio: backdrop.querySelector('#gcal-pago-envio')?.value || '',
+      observaciones: backdrop.querySelector('#gcal-observaciones')?.value.trim() || '',
+    });
+    if (nuevo) {
+      if (typeof showToast === 'function') showToast('✅ Envío creado en Envíos Dentalab (' + fecha + ')', 'ok');
+      if (typeof edRenderLista === 'function') edRenderLista();
+      close();
+    }
+  });
 
   // ── Recolectar datos del form ──
   function _getGcalFormData() {
@@ -64318,6 +64545,71 @@ function _detectarTransporteEnTexto(texto) {
     if (rx.test(texto)) return nombre;
   }
   return '';
+}
+
+// Crea un envío nuevo directo en Envíos Dentalab a partir de un objeto de datos (no de un
+// formulario) — pensado para los botones "📦 Guardar directo en Envíos Dentalab" de los
+// modales de Google Calendar. Replica la misma lógica de inicialización que ya usa
+// edGuardarForm para envíos nuevos, sin modificar esa función.
+function _crearEnvioDentalabDesde(datos) {
+  if (!datos.cliente || !datos.fecha) {
+    if (typeof showToast === 'function') showToast('⚠ Falta cliente o fecha para crear el envío', 'warn');
+    return null;
+  }
+  const now = Date.now();
+  const autor = (typeof authCurrentUser !== 'undefined' && authCurrentUser?.name) || '';
+  const id = 'ed_' + now + '_' + Math.random().toString(36).slice(2, 7);
+  const cobroFinal = datos.cobro || 'en_espera';
+  const _esDepositoCentralNew = autor === 'Deposito Central';
+  let _initLog = [];
+  if (_esDepositoCentralNew && cobroFinal === 'solo_entregar') {
+    _initLog = [
+      { estado: 'pago_acreditado', label: 'Pago acreditado', icon: '💳', ts: now, autor },
+      { estado: 'facturado', label: 'Facturado', icon: '🧾', ts: now + 1, autor },
+    ];
+  } else if (cobroFinal === 'ya_pago' || cobroFinal === 'solo_entregar') {
+    _initLog = [{ estado: 'pago_acreditado', label: 'Pago acreditado', icon: '💳', ts: now, autor }];
+  } else if (_esDepositoCentralNew && (cobroFinal === 'efectivo' || cobroFinal === 'dolares')) {
+    _initLog = [{ estado: 'facturado', label: 'Facturado', icon: '🧾', ts: now, autor }];
+  } else if (_esDepositoCentralNew && cobroFinal === 'custom') {
+    _initLog = [
+      { estado: 'pago_acreditado', label: 'Pago acreditado', icon: '💳', ts: now, autor },
+      { estado: 'facturado', label: 'Facturado', icon: '🧾', ts: now + 1, autor },
+    ];
+  }
+  const transporte = datos.transporte || 'Envíos Dentalab';
+  const _pagoEnvioDefault = datos.pagoEnvio || (typeof _edDefaultPagoEnvio === 'function' ? _edDefaultPagoEnvio(transporte) : '');
+  const envioObj = {
+    id,
+    cliente: datos.cliente,
+    nroPedido: datos.nroPedido || '',
+    direccion: datos.direccion || '',
+    tipoEntrega: datos.tipoEntrega || '',
+    fecha: datos.fecha,
+    horario: datos.horario || '',
+    repartidorId: '',
+    estado: 'pendiente',
+    observaciones: datos.observaciones || '',
+    telefono: datos.telefono || '',
+    costoEnvio: null,
+    cobro: cobroFinal,
+    cobroCustom: datos.cobroCustom || '',
+    montoEfectivo: datos.montoEfectivo || '',
+    montoDolares: datos.montoDolares || '',
+    vendedor: datos.vendedor || '',
+    transporte,
+    pagoEnvio: _pagoEnvioDefault,
+    creadoAt: now,
+    updatedAt: now,
+    creadoPor: autor,
+    estadoLog: _initLog,
+    esCombo: false,
+    comboItems: null,
+  };
+  if (typeof _edEnvios === 'undefined') { if (typeof showToast === 'function') showToast('⚠ Envíos Dentalab no está cargado en esta pestaña', 'warn'); return null; }
+  _edEnvios.push(envioObj);
+  if (typeof edSaveEnvios === 'function') edSaveEnvios();
+  return envioObj;
 }
 
 function _mapearCobroDesdeCondicionVenta(texto) {
