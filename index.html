@@ -29127,17 +29127,29 @@ function openEnvioGCalModal(env) {
       const tipoSel = document.getElementById('gcal-tipo-entrega');
       if (tipoSel && datos.tipoEntrega) tipoSel.value = datos.tipoEntrega;
 
-      if (datos.condicionVenta) {
-        const cobroSel = document.getElementById('gcal-cobro');
-        const mapeado = _mapearCobroDesdeCondicionVenta(datos.condicionVenta);
-        const cobroFinal1 = mapeado === 'efectivo' ? 'si' : mapeado === 'transferencia' ? 'transferencia' : mapeado === 'cuenta_corriente' ? 'cuenta_corriente' : 'espera';
-        if (cobroSel) {
-          cobroSel.value = cobroFinal1;
+      const cobroSel = document.getElementById('gcal-cobro');
+      if (cobroSel) {
+        // Primero se prueba con palabras clave en las observaciones (mismo sistema que ya
+        // usa el título del evento); si ahí no hay nada, se cae a "Condición de Vta".
+        const _cobroPorObs = datos.observaciones ? _detectarCobroEnTexto(datos.observaciones) : null;
+        const _mapaCobroGcal = { efectivo: 'si', dolares: 'dolares', transferencia: 'transferencia', cuenta_corriente: 'cuenta_corriente', solo_entregar: 'solo_entregar', en_espera: 'espera' };
+        let cobroFinal1 = '', montoAplicar1 = null, monedaAplicar1 = null;
+        if (_cobroPorObs) {
+          cobroFinal1 = _mapaCobroGcal[_cobroPorObs.cobro] || 'espera';
+          if (_cobroPorObs.montoEfectivo) { montoAplicar1 = _cobroPorObs.montoEfectivo; monedaAplicar1 = 'efectivo'; }
+          if (_cobroPorObs.montoDolares) { montoAplicar1 = _cobroPorObs.montoDolares; monedaAplicar1 = 'dolares'; }
+        } else if (datos.condicionVenta) {
+          const mapeado = _mapearCobroDesdeCondicionVenta(datos.condicionVenta);
+          cobroFinal1 = mapeado === 'efectivo' ? 'si' : mapeado === 'transferencia' ? 'transferencia' : mapeado === 'cuenta_corriente' ? 'cuenta_corriente' : 'espera';
           if (mapeado === 'efectivo' && datos.total) {
             const montoNum = Math.round(parseFloat(datos.total.replace(/\./g, '').replace(',', '.')));
-            const montoEl = document.getElementById('gcal-monto');
-            if (!isNaN(montoNum) && montoEl) montoEl.value = montoNum.toLocaleString('es-AR');
+            if (!isNaN(montoNum)) { montoAplicar1 = String(montoNum); monedaAplicar1 = 'efectivo'; }
           }
+        }
+        if (cobroFinal1) {
+          cobroSel.value = cobroFinal1;
+          if (montoAplicar1 && monedaAplicar1 === 'efectivo') { const montoEl = document.getElementById('gcal-monto'); if (montoEl) montoEl.value = Number(montoAplicar1).toLocaleString('es-AR'); }
+          if (montoAplicar1 && monedaAplicar1 === 'dolares') { const montoEl = document.getElementById('gcal-monto-usd'); if (montoEl) montoEl.value = Number(montoAplicar1).toLocaleString('es-AR'); }
         }
       }
       window._gcalUltimosDatosPdf = datos; // usado por "Guardar directo en Envíos Dentalab"
@@ -29848,17 +29860,27 @@ function openGCalModal(pedido) {
       const tipoSel = backdrop.querySelector('#gcal-tipo-entrega');
       if (tipoSel && datos.tipoEntrega) tipoSel.value = datos.tipoEntrega;
 
-      if (datos.condicionVenta) {
-        const cobroSel = backdrop.querySelector('#gcal-cobro');
-        const mapeado = _mapearCobroDesdeCondicionVenta(datos.condicionVenta);
-        const cobroFinal2 = mapeado === 'efectivo' ? 'si' : mapeado === 'transferencia' ? 'transferencia' : mapeado === 'cuenta_corriente' ? 'cuenta_corriente' : 'espera';
-        if (cobroSel) {
-          cobroSel.value = cobroFinal2;
+      const cobroSel = backdrop.querySelector('#gcal-cobro');
+      if (cobroSel) {
+        const _cobroPorObs = datos.observaciones ? _detectarCobroEnTexto(datos.observaciones) : null;
+        const _mapaCobroGcal2 = { efectivo: 'si', dolares: 'dolares', transferencia: 'transferencia', cuenta_corriente: 'cuenta_corriente', solo_entregar: 'solo_entregar', en_espera: 'espera' };
+        let cobroFinal2 = '', montoAplicar2 = null, monedaAplicar2 = null;
+        if (_cobroPorObs) {
+          cobroFinal2 = _mapaCobroGcal2[_cobroPorObs.cobro] || 'espera';
+          if (_cobroPorObs.montoEfectivo) { montoAplicar2 = _cobroPorObs.montoEfectivo; monedaAplicar2 = 'efectivo'; }
+          if (_cobroPorObs.montoDolares) { montoAplicar2 = _cobroPorObs.montoDolares; monedaAplicar2 = 'dolares'; }
+        } else if (datos.condicionVenta) {
+          const mapeado = _mapearCobroDesdeCondicionVenta(datos.condicionVenta);
+          cobroFinal2 = mapeado === 'efectivo' ? 'si' : mapeado === 'transferencia' ? 'transferencia' : mapeado === 'cuenta_corriente' ? 'cuenta_corriente' : 'espera';
           if (mapeado === 'efectivo' && datos.total) {
             const montoNum = Math.round(parseFloat(datos.total.replace(/\./g, '').replace(',', '.')));
-            const montoEl = backdrop.querySelector('#gcal-monto');
-            if (!isNaN(montoNum) && montoEl) montoEl.value = montoNum.toLocaleString('es-AR');
+            if (!isNaN(montoNum)) { montoAplicar2 = String(montoNum); monedaAplicar2 = 'efectivo'; }
           }
+        }
+        if (cobroFinal2) {
+          cobroSel.value = cobroFinal2;
+          if (montoAplicar2 && monedaAplicar2 === 'efectivo') { const montoEl = backdrop.querySelector('#gcal-monto'); if (montoEl) montoEl.value = Number(montoAplicar2).toLocaleString('es-AR'); }
+          if (montoAplicar2 && monedaAplicar2 === 'dolares') { const montoEl = backdrop.querySelector('#gcal-monto-usd'); if (montoEl) montoEl.value = Number(montoAplicar2).toLocaleString('es-AR'); }
         }
       }
       refreshTituloYPreview(false);
@@ -63565,17 +63587,29 @@ function edAplicarDatosPdfAlFormulario(datos, textLines) {
   if (datos.tipoEntrega && typeof edSetTipoEntrega === 'function') edSetTipoEntrega(datos.tipoEntrega);
   if (datos.vendedor) { const el = g('ed-f-vendedor'); if (el) el.value = datos.vendedor; }
 
-  if (datos.condicionVenta) {
-    const cobroSel = g('ed-f-cobro');
-    const mapeado = _mapearCobroDesdeCondicionVenta(datos.condicionVenta);
-    const cobroFinal = mapeado || 'en_espera';
-    if (cobroSel) {
-      cobroSel.value = cobroFinal;
-      cobroSel.dispatchEvent(new Event('change'));
+  const cobroSel = g('ed-f-cobro');
+  if (cobroSel) {
+    // Primero se prueba con palabras clave en las observaciones (mismo sistema que ya usa
+    // el título del evento de Calendar); si ahí no hay nada, se cae a "Condición de Vta".
+    const _cobroPorObs = datos.observaciones ? _detectarCobroEnTexto(datos.observaciones) : null;
+    let cobroFinal, montoAplicar = null, monedaAplicar = null;
+    if (_cobroPorObs) {
+      cobroFinal = _cobroPorObs.cobro;
+      if (_cobroPorObs.montoEfectivo) { montoAplicar = _cobroPorObs.montoEfectivo; monedaAplicar = 'efectivo'; }
+      if (_cobroPorObs.montoDolares) { montoAplicar = _cobroPorObs.montoDolares; monedaAplicar = 'dolares'; }
+    } else if (datos.condicionVenta) {
+      const mapeado = _mapearCobroDesdeCondicionVenta(datos.condicionVenta);
+      cobroFinal = mapeado || 'en_espera';
       if (mapeado === 'efectivo' && datos.total) {
         const montoNum = Math.round(parseFloat(datos.total.replace(/\./g, '').replace(',', '.')));
-        if (!isNaN(montoNum)) { const el = g('ed-f-monto'); if (el) el.value = montoNum; }
+        if (!isNaN(montoNum)) { montoAplicar = String(montoNum); monedaAplicar = 'efectivo'; }
       }
+    }
+    if (cobroFinal) {
+      cobroSel.value = cobroFinal;
+      cobroSel.dispatchEvent(new Event('change'));
+      if (montoAplicar && monedaAplicar === 'efectivo') { const el = g('ed-f-monto'); if (el) el.value = montoAplicar; }
+      if (montoAplicar && monedaAplicar === 'dolares') { const el = g('ed-f-monto-usd'); if (el) el.value = montoAplicar; }
     }
   }
 }
@@ -64632,6 +64666,75 @@ function _crearEnvioDentalabDesde(datos) {
   return envioObj;
 }
 
+// Detector de cobro por palabras clave — misma cadena de patrones que ya usa el sync de
+// Calendar para leer el título del evento (SOLO ENTREGAR, A CONFIRMAR, dólares, cuenta
+// corriente, transferencia, efectivo), copiada acá para poder aplicarla también sobre las
+// observaciones de un PDF. Devuelve null si no encuentra nada reconocible.
+function _detectarCobroEnTexto(texto) {
+  if (!texto) return null;
+  const textoLow = texto.toLowerCase();
+  let cobro = '', montoEfectivo = '', montoDolares = '';
+
+  const _RX_SOLO_ENTREGAR_PDF = [
+    /\bconfirmado\b/, /\bsolo\s+entregar\b/, /\bsin\s+cobro\b/, /\blisto\b/, /\bcobrado\b/,
+    /\bcobro\s+realizado\b/, /\bentregado\s+y\s+cobrado\b/, /\bentregar\s+sin\s+cobrar\b/,
+    /\bno\s+pedir\s+pago\b/, /\bno\s+cobrar?\b/, /\bno\s+cobrar\s+al\s+cliente\b/,
+    /\bcliente\s+ya\s+pag[oó]\b/, /\bcliente\s+ya\s+abon[oó]\b/, /\bpago\s+recibido\b/,
+    /\bpago\s+confirmado\b/, /\bpago\s+ok\b/, /\bpago\s+hecho\b/, /\babono\s+realizado\b/,
+    /\bya\s+est[aá]\s+pago\b/, /\bya\s+qued[oó]\s+pago\b/, /\btodo\s+pago\b/,
+    /\bcuenta\s+saldada\b/, /\bcancelado\b/, /\bsaldado\b/, /\bok\s+entregar\b/,
+    /\bentrega\s+autorizada\b/, /\bliberado\s+para\s+entrega\b/, /\bdespachar\s+sin\s+cobro\b/,
+    /\bcontra\s+entrega\s+no\b/, /\bsin\s+cobrar\s+env[ií]o\b/, /\bsin\s+pedir\s+dinero\b/,
+    /\bya\s+transferido\b/, /\btransferencia\s+recibida\b/, /\bmercado\s+pago\s+recibido\b/,
+    /\bse[ñn]a\s+abonada\b/, /\bpedido\s+pago\b/, /\borden\s+pagada\b/, /\bfactura\s+abonada\b/,
+    /\befectivo\s+recibido\b/, /\bcobrado\s+por\s+app\b/, /\bqr\s+pagado\b/, /\bya\s+se\s+cobr[oó]\b/,
+    /\bpagaron\b/, /\babonaron\b/, /\bpago\s+registrado\b/, /\bpago\s+aplicado\b/,
+    /\bpago\s+acreditado\b/, /\bya\s+pag[oó]\b/, /\bya\s+abon[oó]\b/, /\bya\s+pago\b/, /\bya\s+abono\b/,
+  ];
+  const _RX_EN_ESPERA_PDF = [
+    /\ba\s*confirmar\b/, /\ben\s*espera\b/, /\bpendiente\s+de\s+pago\b/, /\bpago\s+pendiente\b/,
+    /\bfalta\s+pagar\b/, /\bfalta\s+abonar\b/, /\b(debe|adeuda)\b/, /\bsin\s+pagar\b/, /\bsin\s+abonar\b/,
+    /\ba[uú]n\s+no\s+pag[oó]\b/, /\baun\s+no\s+pago\b/, /\btodav[ií]a\s+no\s+pag[oó]\b/,
+    /\btodavia\s+no\s+pago\b/, /\besperando\s+pago\b/, /\besperando\s+confirmaci[oó]n\b/,
+    /\bpago\s+no\s+confirmado\b/, /\bsin\s+confirmaci[oó]n\b/, /\bno\s+figura\s+pago\b/,
+    /\bpago\s+no\s+recibido\b/, /\btransferencia\s+pendiente\b/, /\btransferencia\s+no\s+acreditada\b/,
+    /\bpago\s+en\s+revisi[oó]n\b/, /\brevisard?\s+pago\b/, /\bverificar\s+pago\b/, /\bconfirmar\s+pago\b/,
+    /\bcobro\s+pendiente\b/, /\bcobrar\s+al\s+entregar\b/, /\bcobro\s+contra\s+entrega\b/,
+    /\bcontra\s+entrega\b/, /\bctra\s+entrega\b/, /\bpago\s+al\s+recibir\b/, /\bdebe\s+efectivo\b/,
+    /\bdebe\s+transferencia\b/, /\bcliente\s+debe\b/, /\bfalta\s+confirmaci[oó]n\b/,
+    /\ben\s+validaci[oó]n\b/, /\bpago\s+rechazado\b/, /\bpago\s+fallido\b/, /\boperaci[oó]n\s+pendiente\b/,
+    /\ba\s+cobrar\b/, /\bfalta\s+cobrar\b/, /\bno\s+se\s+cobr[oó]\b/, /\bsin\s+acreditar\b/,
+    /\bpendiente\s+validaci[oó]n\b/, /\bpend\s+pago\b/, /\bpago\s+pend\b/, /\bx\s+confirmar\b/,
+    /\bs\/pago\b/, /\bs\s+abono\b/, /\bno\s+pag[oó]\b/, /\bno\s+abon[oó]\b/, /\bno\s+abono\b/,
+    /\bno\s+pago\b/, /\bdebe\s+abonar\b/, /\bdebe\s+pagar\b/, /\bpendiente\b/,
+  ];
+
+  if (_RX_SOLO_ENTREGAR_PDF.some(rx => rx.test(textoLow))) cobro = 'solo_entregar';
+  else if (_RX_EN_ESPERA_PDF.some(rx => rx.test(textoLow))) cobro = 'en_espera';
+  else if (/\b(pag[oó]|pagado|acreditado|abonado|abon[oó])\b/i.test(textoLow) && !/\bno\s+(pag[oó]|pago|abon[oó]|abono)\b/i.test(textoLow)) cobro = 'solo_entregar';
+  else if (/\busdt?\b/i.test(textoLow) || /us\$/i.test(textoLow) || /u\$s/i.test(textoLow) || /\bd[oó]lar(?:es)?\b/i.test(textoLow)) {
+    cobro = 'dolares';
+    const amtMD = texto.match(/(?:usdt?|us\$|u\$s|d[oó]lares?)\s*\$?\s*([\d.,]+)/i) || texto.match(/([\d.,]+)\s*\$?\s*(?:usdt?|us\$|u\$s|d[oó]lares?)/i);
+    if (amtMD) { const n = parseFloat(amtMD[1].replace(/\./g,'').replace(',','.')); if (!isNaN(n) && n > 0) montoDolares = String(Math.round(n)); }
+  }
+  else if (/🏛\s*cta\.?\s*c(?:te\.?|orriente)/i.test(textoLow) || /\b(a\s+cuenta(\s+c(?:te\.?|orriente))?|a\s+cta\.?\s*c(?:te\.?|orriente)|cta\.?\s*c(?:te\.?|orriente)|cta\.?\s+corriente|cuenta\s+c(?:te\.?|orriente)|cuenta\s+corriente|\bcuenta\b|\bcta\.?\b)/i.test(textoLow)) cobro = 'cuenta_corriente';
+  else if (/\b(transf\w*renci\w*|transfer(encia|necia)?|transfier[eo]|tranfier[eo]|transfiri[oó]|transf\.?|tarjeta(\s+de\s+cr[eé]dito)?|d[eé]bito|link(\s+(de\s+)?pago)?|link\s+nave|link\s+payway|link\s+mercado\s*pago|link\s+m\.?\s*p\.?|payway|nave|m\.?\s*p\.?|mercado\s*pago)\b/i.test(textoLow)) cobro = 'transferencia';
+  else if (/\?{2,}/.test(texto)) cobro = 'en_espera';
+  else if (/\b(c(?:on)?tra\s+entrega|ctra\s+entrega)\b.*\$\s*\d|\$\s*\d.*\b(c(?:on)?tra\s+entrega|ctra\s+entrega)\b/i.test(texto)) {
+    cobro = 'efectivo';
+    const amtM = texto.match(/\$\s*([\d.,]+)/);
+    if (amtM) { const n = parseFloat(amtM[1].replace(/\./g,'').replace(',','.')); if (!isNaN(n) && n > 0) montoEfectivo = String(Math.round(n)); }
+  }
+  else if (/\b(cta\.?\s*c(?:te\.?|orriente)|cuenta\s+c(?:te\.?|orriente)|cta\.?\s+corriente|cuenta\s+corriente)\b/i.test(textoLow)) cobro = 'cuenta_corriente';
+  else if (/\b(cobrar?(\s+en\s+efectivo)?|efectivo|paga?\s+en\s+efectivo|abona?\s+en\s+efectivo|va\s+a\s+pagar\s+en\s+efectivo|cobra|abona|cobrar?\s+al?\s+entregar?|cobrar?\s+en\s+mano|en\s+mano|cash|billete[s]?|plata\s+en\s+mano|pago\s+en\s+mano|cobrar?\s+en\s+destino|cobro\s+en\s+mano|cobro\s+al?\s+entregar?)\b|\$\s*\d/i.test(textoLow)) {
+    cobro = 'efectivo';
+    const amtM = texto.match(/\$\s*([\d.,]+)/);
+    if (amtM) { const n = parseFloat(amtM[1].replace(/\./g,'').replace(',','.')); if (!isNaN(n) && n > 0) montoEfectivo = String(Math.round(n)); }
+  }
+  if (!cobro) return null;
+  return { cobro, montoEfectivo, montoDolares };
+}
+
 function _mapearCobroDesdeCondicionVenta(texto) {
   const t = (texto || '').toLowerCase();
   if (!t) return null;
@@ -65557,9 +65660,21 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
           if (!nroPedido && datosPdf.nroPedido) nroPedido = datosPdf.nroPedido;
           if (!telefonoGcal && datosPdf.telefono) telefonoGcal = datosPdf.telefono;
           // Cobro: solo si el título no detectó ningún cobro (para no pisar algo más
-          // específico, ej. "ya pagó" tipeado a mano). El monto solo se guarda cuando el
-          // cobro mapeado es efectivo — es lo que se usa para el total de cobros en efectivo.
-          if (!cobroGcal && datosPdf.condicionVenta) {
+          // específico, ej. "ya pagó" tipeado a mano). Primero se prueba con palabras clave
+          // en las observaciones (mismo sistema que el título — "solo entregar", "a
+          // confirmar", etc.), y si ahí no hay nada, se cae a "Condición de Vta". El monto
+          // solo se guarda cuando el cobro final es efectivo o dólares.
+          let _yaResueltoPorObs = false;
+          if (!cobroGcal && datosPdf.observaciones) {
+            const _cobroPorObs = _detectarCobroEnTexto(datosPdf.observaciones);
+            if (_cobroPorObs) {
+              cobroFinalGcal = _cobroPorObs.cobro;
+              if (_cobroPorObs.montoEfectivo) montoEfectivo = _cobroPorObs.montoEfectivo;
+              if (_cobroPorObs.montoDolares) montoDolares = _cobroPorObs.montoDolares;
+              _yaResueltoPorObs = true;
+            }
+          }
+          if (!cobroGcal && !_yaResueltoPorObs && datosPdf.condicionVenta) {
             const _cobroMapeado = _mapearCobroDesdeCondicionVenta(datosPdf.condicionVenta);
             if (_cobroMapeado) {
               cobroFinalGcal = _cobroMapeado;
