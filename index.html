@@ -29111,6 +29111,11 @@ function openEnvioGCalModal(env) {
       const dirEl = document.getElementById('gcal-direccion');
       if (dirEl && (datos.direccion || !_esEnviosDentalabPdf)) dirEl.value = _esEnviosDentalabPdf ? datos.direccion : 'Sucursal CABA';
 
+      if (datos.horario) {
+        const rangoEl = document.getElementById('gcal-rango');
+        if (rangoEl) { rangoEl.value = datos.horario; rangoEl.dataset.userEdited = '1'; }
+      }
+
       const telEl = document.getElementById('gcal-telefono');
       if (telEl && datos.telefono) telEl.value = datos.telefono;
 
@@ -29826,6 +29831,11 @@ function openGCalModal(pedido) {
       const _esEnviosDentalabPdf = !_transporteActual || /envíos?\s*dentalab/i.test(_transporteActual);
       const dirEl = backdrop.querySelector('#gcal-direccion');
       if (dirEl && (datos.direccion || !_esEnviosDentalabPdf)) dirEl.value = _esEnviosDentalabPdf ? datos.direccion : 'Sucursal CABA';
+
+      if (datos.horario) {
+        const rangoEl = backdrop.querySelector('#gcal-rango');
+        if (rangoEl) { rangoEl.value = datos.horario; rangoEl.dataset.userEdited = '1'; }
+      }
 
       const telEl = backdrop.querySelector('#gcal-telefono');
       if (telEl && datos.telefono) telEl.value = datos.telefono;
@@ -64459,6 +64469,11 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
   else if (/\bdomicilio\b/.test(obsLow)) resultado.tipoEntrega = 'domicilio';
   else resultado.tipoEntrega = '';
 
+  // Horario: mismo detector que ya usa el sync de Calendar para leer el título/descripción
+  // del evento, acá aplicado sobre las observaciones del PDF.
+  const _mHorarioPdf = resultado.observaciones.match(HORARIO_RX_PDF);
+  resultado.horario = _mHorarioPdf ? _mHorarioPdf[0].trim() : '';
+
   // Tipo de entrega también se busca en la sección "Servicios" del PDF (el servicio de
   // envío contratado, ej. "Estándar a domicilio" o "Retiro en una sucursal") — es un dato
   // más confiable que las observaciones libres, así que pisa lo que se haya detectado ahí.
@@ -64535,6 +64550,11 @@ const ALIAS_CORTOS_PDF = [
   [/\bMDP\b|\bMardel\b/i, 'Expreso Mar del Plata'], [/\bDHL\b/i, 'DHL'],
   [/\bFedEx\b|\bFed\s*Ex\b/i, 'FedEx'], [/\bUPS\b/i, 'UPS'], [/\bMoova\b/i, 'Moova'],
 ];
+// Detector de horario en texto libre — misma expresión que ya usa el sync de Calendar para
+// leer el horario del título/descripción del evento, copiada acá para que también la puedan
+// usar el modal de Nuevo Envío y los modales de Google Calendar al leer un PDF.
+const HORARIO_RX_PDF = /\b\d{1,2}\s+[aA]\s+\d{1,2}\s+[oO]\s+\d{1,2}\s+[aA]\s+\d{1,2}\b|\b\d{1,2}:\d{2}\s*[-–a]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|\b\d{1,2}\s*[aA]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?\b|\b\d{1,2}\s*[-–]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?\b|\d{1,2}:\d{2}\s*[-–a]\s*\d{1,2}:\d{2}(?:\s*[aApP][mM])?|\d{1,2}:\d{2}\s*[aA]\s*\d{1,2}(?::\d{2})?|\d{1,2}[Hh][Ss]?\s*[aA]\s*\d{1,2}[Hh][Ss]?|\b([01]?\d|2[0-3])\s+[aA]\s+([01]?\d|2[0-3])\b|>\s*\d{1,2}[Hh][Ss]?|hasta\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|a\s+partir\s+de\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|a\s+las?\s+\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|antes\s+de\s+las?\s+\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|despu[eé]s\s+de\s+las?\s+\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|entre\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?\s*y\s*\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|entre\s+(?:las?\s+)?([01]?\d|2[0-3])\s*y\s*([01]?\d|2[0-3])\b|de\s+\d{1,2}(?:[Hh][Ss]?)?\s*[aA]\s*\d{1,2}\s*[Hh][Ss]?|\d{1,2}\.\d{2}\s*[Hh][Ss]?\s*[aA]\s*\d{1,2}\.\d{2}\s*[Hh][Ss]?|\d{1,2}\/\d{1,2}\s*[Hh][Ss]?|~\s*\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|apr?o[xk]\.?\s*(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|alrededor\s+de\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|\d{1,2}\s*[aA][mMpP][mM](?:\s*[-–a]\s*\d{1,2}\s*[aApP][mM])?|por\s+la\s+(?:ma[ñn]ana|tarde|noche)|ma[ñn]ana\s+temprano|mediod[ií]a|al\s+cierre|al\s+abrir|primera\s+hora|[uú]ltima\s+hora/i;
+
 function _detectarTransporteEnTexto(texto) {
   if (!texto) return '';
   for (const t of TRANSPORTES_KNOWN_PDF) {
@@ -65510,10 +65530,9 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
             }
           }
           // Horario: si el título no trajo uno REAL (solo el valor por defecto según
-          // transporte), buscarlo en las observaciones del PDF y usarlo en su lugar.
-          if ((!horario || _horarioEsDefault) && datosPdf.observaciones) {
-            const _mHorario = datosPdf.observaciones.match(horarioRx);
-            if (_mHorario) horario = _mHorario[0].trim();
+          // transporte), usar el que ya detectó el parser compartido en las observaciones.
+          if ((!horario || _horarioEsDefault) && datosPdf.horario) {
+            horario = datosPdf.horario;
           }
 
           // Con el transporte ya actualizado (título u observaciones), recién ahora se decide
