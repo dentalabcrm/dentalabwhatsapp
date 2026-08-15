@@ -64523,7 +64523,7 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
       if (m && m[1].trim()) resultado.condicionVenta = m[1].trim();
     }
     if (!resultado.total) {
-      const m = linea.match(/^Total\s*\$?\s*([\d.,]+)/i);
+      const m = linea.match(/\bTotal\b\s*\$?\s*([\d.,]+)/i);
       if (m) resultado.total = m[1].trim();
     }
     if (!resultado.nroPedido) {
@@ -64556,6 +64556,17 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
       if (frag) obsFrags.push(frag);
     }
     resultado.observaciones = obsFrags.join(', ');
+
+    // Red de seguridad final: si el monto del Total (ya extraído aparte, de forma
+    // confiable) se coló dentro del texto de observaciones — puede pasar según cómo cada
+    // navegador agrupe las líneas del PDF — se saca de ahí explícitamente. Si no, ese
+    // "$195.400" suelto se puede confundir más adelante con "cobrar en efectivo".
+    if (resultado.total) {
+      const _totalEscapado = resultado.total.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      resultado.observaciones = resultado.observaciones
+        .replace(new RegExp('\\$?\\s*' + _totalEscapado, 'g'), '')
+        .replace(/,\s*,/g, ',').replace(/^\s*,\s*|\s*,\s*$/g, '').replace(/\s{2,}/g, ' ').trim();
+    }
   }
 
   // Pago en origen/destino y domicilio/sucursal — se buscan en el texto de observaciones
