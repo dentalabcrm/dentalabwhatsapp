@@ -19497,11 +19497,42 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
           font-family:'DM Sans',sans-serif;
         ">📋 Copiar</button>
       </div>
-      <iframe src="${pdfUrl}" style="flex:1;width:100%;border:none;background:#fff;" title="Vista previa PDF"></iframe>
+      <div id="pdf-preview-render" style="flex:1;width:100%;overflow-y:auto;background:#525659;padding:16px 0;display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <div style="color:#cbd5e1;font-size:13px;">Cargando vista previa…</div>
+      </div>
     </div>
   `;
 
   document.body.appendChild(backdrop);
+
+  // ── Dibujar el PDF nosotros mismos con pdf.js, en vez de pedirle al navegador que lo
+  // muestre con su visor nativo — así la vista previa funciona igual sin importar si el
+  // usuario tiene configurado "Descargar los PDF" en vez de "Mostrar en el navegador".
+  (async () => {
+    const contenedor = document.getElementById('pdf-preview-render');
+    if (!contenedor) return;
+    try {
+      if (typeof pdfjsLib === 'undefined') throw new Error('pdf.js no disponible');
+      const buf = await (await fetch(pdfUrl)).arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      contenedor.innerHTML = '';
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const viewport = page.getViewport({ scale: 1.4 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.style.cssText = 'box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:calc(100% - 32px);height:auto;';
+        contenedor.appendChild(canvas);
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      }
+    } catch (e) {
+      // Respaldo: si algo falla dibujando (PDF raro, pdf.js no cargó, etc.), se cae al
+      // visor nativo de siempre — en el peor caso queda como estaba antes.
+      console.warn('[Vista previa PDF] No se pudo dibujar con pdf.js, usando visor nativo:', e.message);
+      contenedor.outerHTML = `<iframe src="${pdfUrl}" style="flex:1;width:100%;border:none;background:#fff;" title="Vista previa PDF"></iframe>`;
+    }
+  })();
 
   const linkCopiarBtn = document.getElementById('pdf-link-copiar');
   if (linkCopiarBtn) {
