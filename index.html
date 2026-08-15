@@ -64553,9 +64553,28 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
         if (m && m.index < corte) corte = m.index;
       });
       const frag = linea.slice(0, corte).trim();
-      if (frag) obsFrags.push(frag);
+      // Si lo que queda es SOLO un monto suelto (sin ninguna otra palabra), es casi
+      // seguro un resto de la cajita de totales que quedó en su propia línea (pasa según
+      // cómo cada navegador agrupe el PDF) — se descarta, no es una observación real.
+      if (frag && !/^\$?\s*[\d.,]+$/.test(frag)) obsFrags.push(frag);
     }
     resultado.observaciones = obsFrags.join(', ');
+
+    // Respaldo: si no se pudo enganchar el Total con su etiqueta en la misma línea (mismo
+    // motivo de arriba — a veces "Total" y su monto quedan en líneas separadas), se toma
+    // el monto suelto más grande de toda la zona de observaciones — el Total siempre es el
+    // número más grande de la cajita (Neto, IVA, etc. son partes más chicas que él).
+    if (!resultado.total) {
+      let _mejorTexto = '', _mejorNum = 0;
+      for (let i = idxObs; i < fin; i++) {
+        const m = textLines[i].replace(/\t/g, ' ').trim().match(/^\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})\s*$/);
+        if (m) {
+          const n = parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
+          if (n > _mejorNum) { _mejorNum = n; _mejorTexto = m[1]; }
+        }
+      }
+      if (_mejorTexto) resultado.total = _mejorTexto;
+    }
 
     // Red de seguridad final: si el monto del Total (ya extraído aparte, de forma
     // confiable) se coló dentro del texto de observaciones — puede pasar según cómo cada
