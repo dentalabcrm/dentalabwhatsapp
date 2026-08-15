@@ -65753,18 +65753,12 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
           if (datosPdf.tipoEntrega) tipoEntregaGcal = datosPdf.tipoEntrega;
 
           // Transporte: si el título no dijo nada, buscar un nombre de transportista conocido
-          // en las observaciones del PDF (misma lista que ya se usa para el título). Si tampoco
-          // aparece ahí, no se toca — queda "" y más abajo ya cae solo en "Envíos Dentalab".
+          // en las observaciones del PDF — usa la misma función compartida que ya usan
+          // "+ Nuevo envío" y los modales de Calendar (con los renombrados y variantes con
+          // errores de tipeo ya resueltos: Punta Alta, Tomas Beraldi, Crucero Express, etc.).
+          // Si tampoco aparece ahí, no se toca — queda "" y más abajo ya cae en "Envíos Dentalab".
           if (!transporte && datosPdf.observaciones) {
-            for (const t of TRANSPORTES_KNOWN) {
-              const rx = new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\b', 'i');
-              if (rx.test(datosPdf.observaciones)) { transporte = t; break; }
-            }
-            if (!transporte) {
-              for (const [rx, nombre] of ALIAS_CORTOS) {
-                if (rx.test(datosPdf.observaciones)) { transporte = nombre; break; }
-              }
-            }
+            transporte = _detectarTransporteEnTexto(datosPdf.observaciones);
           }
           // Horario: si el título no trajo uno REAL (solo el valor por defecto según
           // transporte), usar el que ya detectó el parser compartido en las observaciones.
