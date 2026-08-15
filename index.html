@@ -63556,6 +63556,9 @@ window.edPdfFileSelected = async function(file) {
     const buf = await file.arrayBuffer();
     const textLines = await _extraerTextoPDFDesdeBuffer(buf);
     const datos = _parsearDatosEnvioDesdePDFTexto(textLines);
+    console.log('[PDF] Líneas extraídas del archivo:', textLines);
+    console.log('[PDF] Datos interpretados:', datos);
+    console.log('[PDF] Cobro final por observaciones:', datos.observaciones ? _detectarCobroEnTexto(datos.observaciones) : null);
     edAplicarDatosPdfAlFormulario(datos, textLines);
     if (textoEl) textoEl.textContent = '✓ Datos cargados — creando envío…';
     if (typeof showToast === 'function') showToast('✓ Formulario completado desde el PDF', 'ok');
