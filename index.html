@@ -9728,6 +9728,10 @@ async function publicarCatalogoWeb() {
       const cp = SKUS_SIN_PRECIO_PUBLICO.includes(sku) ? 1 : 0;
       const item = { s: sku, n: nombre, p1: cp ? 0 : p1, p2: cp ? 0 : p2, st, sb, of, m: marca, g: grupo, cp };
       if (subgrupo) item.sg = subgrupo;
+      // Stock real disponible (Depósito 1 + Depósito Central) — se publica solo para
+      // productos "En stock", para que el catálogo pueda topear la cantidad máxima
+      // seleccionable al stock real, en vez de dejar pedir una cantidad ilimitada.
+      if (st === 0) item.stk = Math.max(0, Math.floor(stockActual));
       const imgRaw = imagenesCache[claveImg(sku)];
       const img = Array.isArray(imgRaw) ? imgRaw[0] : imgRaw;
       if (img) item.img = img;
