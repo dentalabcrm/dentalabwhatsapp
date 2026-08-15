@@ -6022,6 +6022,10 @@ if (location.protocol === 'file:') {
     style="display:none;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);border-radius:8px;padding:6px 12px;color:#f59e0b;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;flex-shrink:0;">
     🔄 Refresh global
   </button>
+  <button id="btn-avisos-admin" title="Enviar aviso a usuarios" onclick="abrirModalAvisosAdmin()"
+    style="display:none;background:rgba(14,165,233,.15);border:1px solid rgba(14,165,233,.4);border-radius:8px;padding:6px 12px;color:#0ea5e9;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;flex-shrink:0;">
+    📢 Avisos
+  </button>
 
   <button id="gmail-api-btn" title="Conectar Gmail para envío directo" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;flex-shrink:0;">✉ Gmail</button>
   <button id="reglas-header-btn" title="Reglas automáticas de mail" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;color:var(--text2);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;flex-shrink:0;">⚡ Reglas</button>
@@ -23095,7 +23099,7 @@ function _costosOcaConstruirWorkbook() {
     const { precioConImp, diferencia, pct } = _costosOcaCalcular(f);
     return [
       f.dia || '', f.numEnvio || '', f.cliente || '',
-      parseFloat(f.precioCliente || 0) || 0, parseFloat(f.precioSinImp || 0) || 0,
+      _parsePrecioARS(f.precioCliente), _parsePrecioARS(f.precioSinImp),
       Math.round(precioConImp), Math.round(diferencia), (pct * 100).toFixed(2) + '%',
       f.origen || '', f.obs || ''
     ];
@@ -23396,9 +23400,30 @@ function _costosOcaIrAlUltimo() {
 }
 window._costosOcaIrAlUltimo = _costosOcaIrAlUltimo;
 
+// Interpreta un precio tipeado/pegado en formato argentino: saca "$" y espacios, entiende
+// el punto como separador de miles y la coma como decimal, y se queda con la parte entera
+// (sin los centavos) — ej: "$9.579,49" -> 9579. Si ya viene como número plano, lo respeta.
+function _parsePrecioARS(valor) {
+  if (valor === '' || valor === null || valor === undefined) return 0;
+  if (typeof valor === 'number') return Math.trunc(valor);
+  let s = String(valor).trim().replace(/\$/g, '').replace(/\s/g, '');
+  if (!s) return 0;
+  // Si tiene coma, es el separador decimal argentino: sacar los puntos de miles y
+  // truncar en la coma (nos quedamos solo con la parte entera).
+  if (s.includes(',')) {
+    s = s.split(',')[0].replace(/\./g, '');
+  } else {
+    // Sin coma: puede ser "9579" (entero) o "9.579" (con puntos de miles, sin decimales) —
+    // en ambos casos, sacar los puntos da el entero correcto.
+    s = s.replace(/\./g, '');
+  }
+  const n = parseInt(s, 10);
+  return isNaN(n) ? 0 : n;
+}
+
 function _costosOcaCalcular(fila) {
-  const precioCliente = parseFloat(fila.precioCliente || 0) || 0;
-  const precioSinImp = parseFloat(fila.precioSinImp || 0) || 0;
+  const precioCliente = _parsePrecioARS(fila.precioCliente);
+  const precioSinImp = _parsePrecioARS(fila.precioSinImp);
   const precioConImp = precioSinImp * COSTOS_OCA_FACTOR_IMPUESTOS;
   const diferencia = precioCliente - precioConImp;
   // Si no se le cobró nada al cliente (0), la división da un error matemático (/0). Si
@@ -23460,7 +23485,7 @@ function renderCostosOcaTabla() {
 
   // Resumen
   let sumaDif = 0, sumaCliente = 0;
-  filas.forEach(([id, f]) => { const c = _costosOcaCalcular(f); sumaDif += c.diferencia; sumaCliente += parseFloat(f.precioCliente || 0) || 0; });
+  filas.forEach(([id, f]) => { const c = _costosOcaCalcular(f); sumaDif += c.diferencia; sumaCliente += _parsePrecioARS(f.precioCliente); });
   const pctPromedio = sumaCliente !== 0 ? (sumaDif / sumaCliente) : 0;
   const resumenEl = document.getElementById('costosoca-resumen');
   if (resumenEl) {
@@ -23570,6 +23595,17 @@ function renderCostosOcaTabla() {
     // Recalcular en vivo las columnas derivadas mientras se tipea, sin esperar el guardado
     if (inp.dataset.campo === 'precioCliente' || inp.dataset.campo === 'precioSinImp') {
       inp.addEventListener('input', () => _costosOcaRecalcularFilaEnPantalla(inp.dataset.id));
+      // Al salir del campo, reemplazar lo tipeado/pegado (ej: "$9.579,49") por el número
+      // limpio que realmente se usa en el cálculo (9579) — así queda prolijo también en
+      // Firebase y en el Excel exportado, no solo en la cuenta.
+      inp.addEventListener('blur', () => {
+        const limpio = _parsePrecioARS(inp.value);
+        const valorLimpio = inp.value.trim() === '' ? '' : String(limpio);
+        if (inp.value !== valorLimpio) {
+          inp.value = valorLimpio;
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
     }
   });
 }
@@ -23590,8 +23626,8 @@ function _costosOcaDebounceGuardar(e) {
 function _costosOcaRecalcularFilaEnPantalla(id) {
   const tr = document.querySelector('#costosoca-tbody tr[data-id="' + id + '"]');
   if (!tr) return;
-  const precioCliente = parseFloat(tr.querySelector('[data-campo="precioCliente"]')?.value || 0) || 0;
-  const precioSinImp = parseFloat(tr.querySelector('[data-campo="precioSinImp"]')?.value || 0) || 0;
+  const precioCliente = _parsePrecioARS(tr.querySelector('[data-campo="precioCliente"]')?.value);
+  const precioSinImp = _parsePrecioARS(tr.querySelector('[data-campo="precioSinImp"]')?.value);
   const { precioConImp, diferencia, pct } = _costosOcaCalcular({ precioCliente, precioSinImp });
   const colorDif = diferencia >= 0 ? '#10b981' : '#ef4444';
   const bgDif = diferencia >= 0 ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)';
@@ -23731,7 +23767,7 @@ async function _costosOcaImportarExcel(file) {
     const updates = {};
     let agregadas = 0;
     let ordenBase = Date.now();
-    const _numOrVacio = (x) => { const n = parseFloat(x); return isNaN(n) ? '' : n; };
+    const _numOrVacio = (x) => { const n = _parsePrecioARS(x); return (x === '' || x == null) ? '' : n; };
     for (let r = 1; r < rows.length; r++) {
       const row = rows[r];
       if (!row || row.every(c => c === '' || c == null)) continue;
@@ -35478,6 +35514,8 @@ function authUpdateHeader() {
   if (navCustomBtn) navCustomBtn.style.display = authCurrentUser.role === 'admin' ? 'flex' : 'none';
   const refreshBtn = document.getElementById('admin-refresh-btn');
   if (refreshBtn) refreshBtn.style.display = (authCurrentUser.role === 'admin' || authCurrentUser.name === ADMIN_USER) ? 'inline-flex' : 'none';
+  const avisosBtn = document.getElementById('btn-avisos-admin');
+  if (avisosBtn) avisosBtn.style.display = (authCurrentUser.role === 'admin' || authCurrentUser.name === ADMIN_USER) ? 'inline-flex' : 'none';
   const resetCredYiqiBtn = document.getElementById('btn-reset-cred-yiqi');
   if (resetCredYiqiBtn) resetCredYiqiBtn.style.display = (authCurrentUser.role === 'admin' || authCurrentUser.name === ADMIN_USER) ? 'inline-flex' : 'none';
   // Botón flotante del Asistente IA local: desactivado por pedido (molestaba, tapaba controles).
@@ -68525,6 +68563,169 @@ setTimeout(function() {
     });
   } catch(e) { console.warn('[Refresh global] Firebase no disponible:', e); }
 }, 3000);
+
+// ══════════════════════════════════════════════════════
+//  AVISOS DE ADMINISTRADOR — cartelitos en tiempo real
+// ══════════════════════════════════════════════════════
+// El admin escribe un mensaje y elige a quién va dirigido (todos, o usuarios puntuales).
+// Se guarda en Firebase y aparece como un cartelito flotante en la pantalla de cada
+// destinatario, en tiempo real (sin que tengan que recargar), gracias a un listener .on().
+// Cada usuario guarda en su propio localStorage cuáles avisos ya cerró, para que no le
+// vuelvan a aparecer los que ya vio.
+
+window.abrirModalAvisosAdmin = function() {
+  document.getElementById('avisos-admin-bd')?.remove();
+  const usuarios = Object.keys(AUTH_USERS || {});
+  const bd = document.createElement('div');
+  bd.id = 'avisos-admin-bd';
+  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99998;display:flex;align-items:center;justify-content:center;padding:16px;';
+  bd.innerHTML = `
+    <div style="background:var(--panel,#1e293b);border:1px solid var(--border2,#334155);border-radius:16px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.4);">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border2,#334155);display:flex;align-items:center;justify-content:space-between;">
+        <b style="font-size:15px;color:var(--text,#e2e8f0);">📢 Avisos a usuarios</b>
+        <button onclick="document.getElementById('avisos-admin-bd')?.remove()" style="background:none;border:none;color:var(--text2,#94a3b8);font-size:16px;cursor:pointer;">✕</button>
+      </div>
+      <div style="padding:18px 20px;">
+        <label style="font-size:12px;font-weight:700;color:var(--text2,#94a3b8);display:block;margin-bottom:6px;">MENSAJE</label>
+        <textarea id="aviso-texto" rows="3" placeholder="Escribí el aviso..." style="width:100%;background:var(--surface2,#162032);border:1px solid var(--border2,#334155);border-radius:8px;padding:10px 12px;color:var(--text,#e2e8f0);font-size:13px;font-family:'DM Sans',sans-serif;resize:vertical;box-sizing:border-box;"></textarea>
+
+        <label style="font-size:12px;font-weight:700;color:var(--text2,#94a3b8);display:block;margin:14px 0 6px;">PARA</label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <label style="display:flex;align-items:center;gap:6px;background:var(--surface2,#162032);border:1px solid var(--border2,#334155);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12.5px;color:var(--text,#e2e8f0);">
+            <input type="checkbox" id="aviso-dest-todos" checked onchange="_avisoToggleTodos(this.checked)"> Todos
+          </label>
+          ${usuarios.map(u => `
+            <label class="aviso-dest-usuario" style="display:flex;align-items:center;gap:6px;background:var(--surface2,#162032);border:1px solid var(--border2,#334155);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12.5px;color:var(--text,#e2e8f0);opacity:.5;">
+              <input type="checkbox" class="aviso-dest-check" value="${escHtml(u)}" disabled> ${escHtml(u)}
+            </label>`).join('')}
+        </div>
+
+        <button onclick="_enviarAvisoAdmin()" style="width:100%;margin-top:16px;background:#0ea5e9;border:none;border-radius:10px;padding:11px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">📢 Enviar aviso</button>
+      </div>
+      <div style="padding:0 20px 18px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text2,#94a3b8);margin-bottom:8px;">AVISOS ACTIVOS</div>
+        <div id="avisos-admin-lista" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(bd);
+  bd.addEventListener('click', e => { if (e.target === bd) bd.remove(); });
+  _renderListaAvisosAdmin();
+};
+
+window._avisoToggleTodos = function(checked) {
+  document.querySelectorAll('.aviso-dest-check').forEach(chk => {
+    chk.disabled = checked;
+    chk.closest('.aviso-dest-usuario').style.opacity = checked ? '.5' : '1';
+    if (checked) chk.checked = false;
+  });
+};
+
+window._enviarAvisoAdmin = async function() {
+  const texto = document.getElementById('aviso-texto')?.value.trim();
+  if (!texto) { alert('Escribí un mensaje.'); return; }
+  const esTodos = document.getElementById('aviso-dest-todos')?.checked;
+  let destinatarios = ['todos'];
+  if (!esTodos) {
+    destinatarios = Array.from(document.querySelectorAll('.aviso-dest-check:checked')).map(c => c.value);
+    if (!destinatarios.length) { alert('Elegí al menos un destinatario, o tildá "Todos".'); return; }
+  }
+  const id = 'aviso_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  const autor = (typeof authCurrentUser !== 'undefined' && authCurrentUser?.name) || 'Admin';
+  try {
+    await db.ref('dentalab/avisos_admin/' + id).set({ id, texto, autor, creadoAt: Date.now(), destinatarios, activo: true });
+    _avisosVistosAdd(id); // el admin no necesita ver su propio cartelito
+    document.getElementById('aviso-texto').value = '';
+    if (typeof showToast === 'function') showToast('✅ Aviso enviado', 'ok');
+    _renderListaAvisosAdmin();
+  } catch (e) {
+    alert('No se pudo enviar: ' + e.message);
+  }
+};
+
+async function _renderListaAvisosAdmin() {
+  const cont = document.getElementById('avisos-admin-lista');
+  if (!cont) return;
+  cont.innerHTML = '<div style="font-size:12px;color:var(--text3,#64748b);">Cargando…</div>';
+  try {
+    const snap = await db.ref('dentalab/avisos_admin').limitToLast(20).once('value');
+    const data = snap.val() || {};
+    const avisos = Object.values(data).filter(a => a.activo !== false).sort((a, b) => b.creadoAt - a.creadoAt);
+    if (!avisos.length) { cont.innerHTML = '<div style="font-size:12px;color:var(--text3,#64748b);">No hay avisos activos.</div>'; return; }
+    cont.innerHTML = avisos.map(a => `
+      <div style="background:var(--surface2,#162032);border:1px solid var(--border2,#334155);border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+        <div style="flex:1;">
+          <div style="font-size:12.5px;color:var(--text,#e2e8f0);white-space:pre-wrap;">${escHtml(a.texto)}</div>
+          <div style="font-size:10.5px;color:var(--text3,#64748b);margin-top:4px;">Para: ${a.destinatarios.includes('todos') ? 'Todos' : a.destinatarios.map(escHtml).join(', ')} · ${new Date(a.creadoAt).toLocaleString('es-AR')}</div>
+        </div>
+        <button onclick="_borrarAvisoAdmin('${a.id}')" title="Retirar aviso" style="background:none;border:none;color:#ef4444;font-size:14px;cursor:pointer;flex-shrink:0;">🗑️</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    cont.innerHTML = '<div style="font-size:12px;color:#ef4444;">Error al cargar.</div>';
+  }
+}
+
+window._borrarAvisoAdmin = async function(id) {
+  if (!confirm('¿Retirar este aviso? Ya no se les va a mostrar a los usuarios que todavía no lo vieron.')) return;
+  await db.ref('dentalab/avisos_admin/' + id).update({ activo: false });
+  _renderListaAvisosAdmin();
+};
+
+// ── Recepción: cartelito flotante en pantalla, para el destinatario ──
+function _avisosVistosGet() {
+  try { return JSON.parse(localStorage.getItem('dentalab_avisos_vistos') || '[]'); } catch (e) { return []; }
+}
+function _avisosVistosAdd(id) {
+  try {
+    const vistos = _avisosVistosGet();
+    if (!vistos.includes(id)) { vistos.push(id); localStorage.setItem('dentalab_avisos_vistos', JSON.stringify(vistos)); }
+  } catch (e) {}
+}
+window._cerrarAvisoBanner = function(id) {
+  _avisosVistosAdd(id);
+  document.getElementById('aviso-banner-' + id)?.remove();
+};
+function _mostrarAvisoBanner(aviso) {
+  if (document.getElementById('aviso-banner-' + aviso.id)) return; // ya se está mostrando
+  let stack = document.getElementById('avisos-banner-stack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'avisos-banner-stack';
+    stack.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:999999;display:flex;flex-direction:column;gap:8px;align-items:center;max-width:92vw;pointer-events:none;';
+    document.body.appendChild(stack);
+  }
+  const el = document.createElement('div');
+  el.id = 'aviso-banner-' + aviso.id;
+  el.style.cssText = 'pointer-events:auto;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border-radius:12px;padding:12px 16px;box-shadow:0 8px 24px rgba(0,0,0,.35);display:flex;align-items:flex-start;gap:10px;max-width:480px;';
+  el.innerHTML = `
+    <span style="font-size:18px;flex-shrink:0;">📢</span>
+    <div style="flex:1;">
+      <div style="font-size:13px;font-weight:700;line-height:1.4;white-space:pre-wrap;">${String(aviso.texto || '').replace(/</g, '&lt;')}</div>
+      <div style="font-size:10.5px;opacity:.85;margin-top:4px;">— ${String(aviso.autor || 'Admin').replace(/</g, '&lt;')}</div>
+    </div>
+    <button onclick="_cerrarAvisoBanner('${aviso.id}')" style="background:rgba(255,255,255,.25);border:none;border-radius:6px;width:22px;height:22px;color:#fff;font-size:12px;cursor:pointer;flex-shrink:0;">✕</button>
+  `;
+  stack.appendChild(el);
+}
+
+setTimeout(function() {
+  try {
+    db.ref('dentalab/avisos_admin').on('value', function(snap) {
+      const data = snap.val() || {};
+      const vistos = _avisosVistosGet();
+      const nombre = typeof authCurrentUser !== 'undefined' && authCurrentUser?.name;
+      if (!nombre) return; // todavía no inició sesión — no sabemos a quién mostrarle
+      Object.values(data).forEach(aviso => {
+        if (aviso.activo === false) return;
+        const dest = aviso.destinatarios || [];
+        if (!dest.includes('todos') && !dest.includes(nombre)) return;
+        if (vistos.includes(aviso.id)) return;
+        _mostrarAvisoBanner(aviso);
+      });
+    });
+  } catch (e) { console.warn('[Avisos admin] Firebase no disponible:', e); }
+}, 3500);
 
 </script>
 </html>
