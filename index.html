@@ -68587,7 +68587,7 @@ window.abrirModalAvisosAdmin = function() {
       </div>
       <div style="padding:18px 20px;">
         <label style="font-size:12px;font-weight:700;color:var(--text2,#94a3b8);display:block;margin-bottom:6px;">MENSAJE</label>
-        <textarea id="aviso-texto" rows="3" placeholder="Escribí el aviso..." style="width:100%;background:var(--surface2,#162032);border:1px solid var(--border2,#334155);border-radius:8px;padding:10px 12px;color:var(--text,#e2e8f0);font-size:13px;font-family:'DM Sans',sans-serif;resize:vertical;box-sizing:border-box;"></textarea>
+        <textarea id="aviso-texto" rows="3" placeholder="Escribí el aviso..." oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';" style="width:100%;min-height:70px;background:var(--surface2,#162032);border:1px solid var(--border2,#334155);border-radius:8px;padding:10px 12px;color:var(--text,#e2e8f0);font-size:13px;font-family:'DM Sans',sans-serif;resize:vertical;box-sizing:border-box;overflow-y:hidden;"></textarea>
 
         <label style="font-size:12px;font-weight:700;color:var(--text2,#94a3b8);display:block;margin:14px 0 6px;">PARA</label>
         <div style="display:flex;flex-wrap:wrap;gap:8px;">
@@ -68609,7 +68609,7 @@ window.abrirModalAvisosAdmin = function() {
     </div>
   `;
   document.body.appendChild(bd);
-  bd.addEventListener('click', e => { if (e.target === bd) bd.remove(); });
+  // Click afuera no cierra (para no perder el mensaje a medio escribir por accidente)
   _renderListaAvisosAdmin();
 };
 
@@ -68635,7 +68635,7 @@ window._enviarAvisoAdmin = async function() {
   try {
     await db.ref('dentalab/avisos_admin/' + id).set({ id, texto, autor, creadoAt: Date.now(), destinatarios, activo: true });
     _avisosVistosAdd(id); // el admin no necesita ver su propio cartelito
-    document.getElementById('aviso-texto').value = '';
+    { const _ta = document.getElementById('aviso-texto'); _ta.value = ''; _ta.style.height = 'auto'; }
     if (typeof showToast === 'function') showToast('✅ Aviso enviado', 'ok');
     _renderListaAvisosAdmin();
   } catch (e) {
