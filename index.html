@@ -68651,18 +68651,24 @@ async function _renderListaAvisosAdmin() {
   const cont = document.getElementById('avisos-admin-lista');
   if (!cont) return;
   cont.innerHTML = '<div style="font-size:12px;color:var(--text3,#64748b);">Cargando…</div>';
+  const nombre = (typeof authCurrentUser !== 'undefined' && authCurrentUser?.name) || '';
   try {
     const snap = await db.ref('dentalab/avisos_admin').limitToLast(20).once('value');
     const data = snap.val() || {};
-    const avisos = Object.values(data).filter(a => a.activo !== false).sort((a, b) => b.creadoAt - a.creadoAt);
+    const avisos = Object.values(data)
+      .filter(a => a.activo !== false)
+      // Cada uno ve solo lo que mandó, o lo que le mandaron a él — nunca lo que se le
+      // mandó a otro usuario en particular.
+      .filter(a => a.autor === nombre || (a.destinatarios || []).includes('todos') || (a.destinatarios || []).includes(nombre))
+      .sort((a, b) => b.creadoAt - a.creadoAt);
     if (!avisos.length) { cont.innerHTML = '<div style="font-size:12px;color:var(--text3,#64748b);">No hay avisos activos.</div>'; return; }
     cont.innerHTML = avisos.map(a => `
       <div style="background:var(--surface2,#162032);border:1px solid var(--border2,#334155);border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
         <div style="flex:1;">
           <div style="font-size:12.5px;color:var(--text,#e2e8f0);white-space:pre-wrap;">${escHtml(a.texto)}</div>
-          <div style="font-size:10.5px;color:var(--text3,#64748b);margin-top:4px;">Para: ${a.destinatarios.includes('todos') ? 'Todos' : a.destinatarios.map(escHtml).join(', ')} · ${new Date(a.creadoAt).toLocaleString('es-AR')}</div>
+          <div style="font-size:10.5px;color:var(--text3,#64748b);margin-top:4px;">De: ${escHtml(a.autor || '—')} · Para: ${a.destinatarios.includes('todos') ? 'Todos' : a.destinatarios.map(escHtml).join(', ')} · ${new Date(a.creadoAt).toLocaleString('es-AR')}</div>
         </div>
-        <button onclick="_borrarAvisoAdmin('${a.id}')" title="Retirar aviso" style="background:none;border:none;color:#ef4444;font-size:14px;cursor:pointer;flex-shrink:0;">🗑️</button>
+        ${a.autor === nombre ? `<button onclick="_borrarAvisoAdmin('${a.id}')" title="Retirar aviso" style="background:none;border:none;color:#ef4444;font-size:14px;cursor:pointer;flex-shrink:0;">🗑️</button>` : ''}
       </div>
     `).join('');
   } catch (e) {
