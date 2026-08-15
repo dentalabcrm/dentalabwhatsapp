@@ -35515,7 +35515,7 @@ function authUpdateHeader() {
   const refreshBtn = document.getElementById('admin-refresh-btn');
   if (refreshBtn) refreshBtn.style.display = (authCurrentUser.role === 'admin' || authCurrentUser.name === ADMIN_USER) ? 'inline-flex' : 'none';
   const avisosBtn = document.getElementById('btn-avisos-admin');
-  if (avisosBtn) avisosBtn.style.display = (authCurrentUser.role === 'admin' || authCurrentUser.name === ADMIN_USER) ? 'inline-flex' : 'none';
+  if (avisosBtn) avisosBtn.style.display = 'inline-flex';
   const resetCredYiqiBtn = document.getElementById('btn-reset-cred-yiqi');
   if (resetCredYiqiBtn) resetCredYiqiBtn.style.display = (authCurrentUser.role === 'admin' || authCurrentUser.name === ADMIN_USER) ? 'inline-flex' : 'none';
   // Botón flotante del Asistente IA local: desactivado por pedido (molestaba, tapaba controles).
@@ -35997,6 +35997,10 @@ function authGrantAccess(user) {
     chatSetPresence(user.name);
   } catch(e) {}
   showToast(`✓ Bienvenido, ${user.name.split(' ')[0]}`, 'ok');
+
+  // Si había algún aviso de administrador esperando (mandado mientras este usuario estaba
+  // desconectado), mostrarlo ahora que ya sabemos quién es.
+  setTimeout(() => { if (typeof _chequearAvisosAdminPendientes === 'function') _chequearAvisosAdminPendientes(); }, 300);
 
   // Intentar reconexión silenciosa de Gmail al entrar (para roles que lo usan)
   if (!AUTH_NO_PASSWORD_USERS.includes(user.name)) {
@@ -68709,20 +68713,31 @@ function _mostrarAvisoBanner(aviso) {
   stack.appendChild(el);
 }
 
+// Se guarda el último dato recibido de Firebase para poder re-chequear los avisos apenas
+// alguien inicia sesión, sin depender de que llegue un cambio NUEVO — si el usuario todavía
+// no había iniciado sesión cuando se conectó este oyente (ej: recién cargó la página y está
+// parado en la pantalla de login), el aviso ya estaba ahí pero no se le podía mostrar sin
+// saber a quién. Esto evita que se le "pierda" el aviso para siempre.
+let _avisosAdminUltimoSnapshot = null;
+function _chequearAvisosAdminPendientes() {
+  if (!_avisosAdminUltimoSnapshot) return;
+  const vistos = _avisosVistosGet();
+  const nombre = typeof authCurrentUser !== 'undefined' && authCurrentUser?.name;
+  if (!nombre) return; // todavía no inició sesión — no sabemos a quién mostrarle
+  Object.values(_avisosAdminUltimoSnapshot).forEach(aviso => {
+    if (aviso.activo === false) return;
+    const dest = aviso.destinatarios || [];
+    if (!dest.includes('todos') && !dest.includes(nombre)) return;
+    if (vistos.includes(aviso.id)) return;
+    _mostrarAvisoBanner(aviso);
+  });
+}
+
 setTimeout(function() {
   try {
     db.ref('dentalab/avisos_admin').on('value', function(snap) {
-      const data = snap.val() || {};
-      const vistos = _avisosVistosGet();
-      const nombre = typeof authCurrentUser !== 'undefined' && authCurrentUser?.name;
-      if (!nombre) return; // todavía no inició sesión — no sabemos a quién mostrarle
-      Object.values(data).forEach(aviso => {
-        if (aviso.activo === false) return;
-        const dest = aviso.destinatarios || [];
-        if (!dest.includes('todos') && !dest.includes(nombre)) return;
-        if (vistos.includes(aviso.id)) return;
-        _mostrarAvisoBanner(aviso);
-      });
+      _avisosAdminUltimoSnapshot = snap.val() || {};
+      _chequearAvisosAdminPendientes();
     });
   } catch (e) { console.warn('[Avisos admin] Firebase no disponible:', e); }
 }, 3500);
