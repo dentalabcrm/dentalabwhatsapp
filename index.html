@@ -64685,7 +64685,7 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
   const obsLow = resultado.observaciones.toLowerCase();
   if (/\bpago\s+en\s+origen\b/.test(obsLow)) resultado.pagoEnvio = 'origen';
   else if (/\bpago\s+en\s+destino\b/.test(obsLow)) resultado.pagoEnvio = 'destino';
-  else resultado.pagoEnvio = '';
+  else resultado.pagoEnvio = 'destino'; // sin aclarar en el PDF → por defecto, pago en destino
   if (/\bdep[oó]sito\b/.test(obsLow) || /\bsucursal\b/.test(obsLow) || /\bterminal\b/.test(obsLow)) resultado.tipoEntrega = 'sucursal';
   else if (/\bdomicilio\b/.test(obsLow)) resultado.tipoEntrega = 'domicilio';
   else resultado.tipoEntrega = '';
