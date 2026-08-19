@@ -29513,11 +29513,25 @@ const GCAL_TRANSPORT_DEFAULT = [
 ];
 
 function gcalLoadTransportes() {
+  // Se sincroniza con la lista compartida de "+Nuevo envío" (la misma que se guarda en
+  // Firebase bajo dentalab/ed_transportes y que usa también el detector de transportes
+  // en PDFs) en vez de mantener una lista propia y separada acá. Si por algún motivo esa
+  // lista todavía no cargó, se usa como respaldo la copia vieja guardada en localStorage.
+  if (typeof _edTransportes !== 'undefined' && Array.isArray(_edTransportes) && _edTransportes.length) {
+    return _edTransportes.slice();
+  }
   try { return JSON.parse(localStorage.getItem(GCAL_TRANSPORT_LS) || 'null') || GCAL_TRANSPORT_DEFAULT.slice(); }
   catch(e) { return GCAL_TRANSPORT_DEFAULT.slice(); }
 }
 function gcalSaveTransportes(list) {
-  try { localStorage.setItem(GCAL_TRANSPORT_LS, JSON.stringify(list)); } catch(e) {}
+  // Guarda en la lista compartida (Firebase) cuando está disponible, para que "+Nuevo
+  // envío" y el detector de transportes en PDFs vean el cambio al instante también.
+  if (typeof _edTransportes !== 'undefined' && Array.isArray(_edTransportes)) {
+    _edTransportes.length = 0;
+    _edTransportes.push(...list);
+    if (typeof edSaveTransportes === 'function') edSaveTransportes();
+  }
+  try { localStorage.setItem(GCAL_TRANSPORT_LS, JSON.stringify(list)); } catch(e) {} // respaldo/compat
 }
 
 function gcalFillDatalist(defaultVal) {
@@ -60728,7 +60742,7 @@ function edFmtDolar(val) {
   if (!n || isNaN(n)) return '';
   return 'US$ ' + Math.round(n).toLocaleString('es-AR');
 }
-let _edTransportes  = ['Envíos Dentalab','OCA','Correo Argentino','Via Cargo','Andreani','Transporte Nicolas Gorgone S.R.L','Expreso Lider','Expreso Mar del Plata','Buspack','Oro Negro','Cruz del Sur','Alta Cordoba','Camionera Mendocina','Jet Smart','Integral Pack','Crucero del Norte','Crucero Express','Flecha Bus','JetPaq','CREDIFIN','Chevallier','Tres Hermanos','Rodriguez Hnos','3 Hnos','Tomas Beraldi','Expreso Demonte','Central Argentino','Transporte Orion','Expreso Landaburu','Transporte El Padrino','Balut Encomienda','Tascar S.r.l','Expreso Fueguino','Expreso Lancioni','Micro'];
+let _edTransportes  = ['Envíos Dentalab','OCA','Correo Argentino','Via Cargo','Andreani','Transporte Nicolas Gorgone S.R.L','Expreso Lider','Expreso Mar del Plata','Buspack','Oro Negro','Cruz del Sur','Alta Cordoba','Camionera Mendocina','Jet Smart','Integral Pack','Crucero del Norte','Crucero Express','Flecha Bus','JetPaq','CREDIFIN','Chevallier','Tres Hermanos','Rodriguez Hnos','3 Hnos','Tomas Beraldi','Expreso Demonte','Central Argentino','Transporte Orion','Expreso Landaburu','Transporte El Padrino','Balut Encomienda','Tascar S.r.l','Expreso Fueguino','Expreso Lancioni','Micro','Expreso Heral'];
 function edGetTransportesKey() { return 'dentalab_ed_transportes'; }
 function edLoadTransportes() {
   try { const r = localStorage.getItem(edGetTransportesKey()); if (r) _edTransportes = JSON.parse(r); } catch(e) {}
@@ -60744,7 +60758,7 @@ fbListen('dentalab/ed_transportes', data => {
     _edTransportes = data;
     // Migración puntual: agregar transportes nuevos si la lista compartida ya existía de antes
     // (se sembró en Firebase antes de que estos transportes se agregaran al default).
-    const _faltantesMigracion = ['Tascar S.r.l', 'Expreso Fueguino', 'Expreso Lancioni', 'Micro'].filter(t => !_edTransportes.includes(t));
+    const _faltantesMigracion = ['Tascar S.r.l', 'Expreso Fueguino', 'Expreso Lancioni', 'Micro', 'Expreso Heral'].filter(t => !_edTransportes.includes(t));
     if (_faltantesMigracion.length) {
       _edTransportes = [..._edTransportes, ..._faltantesMigracion];
       fbWrite('dentalab/ed_transportes', _edTransportes);
@@ -64756,6 +64770,7 @@ const ALIAS_CORTOS_PDF = [
   [/\bVia\s*Cargo\b|\bV[ií]a\s*Cargo\b/i, 'Via Cargo'], [/\bCorreo\s*Argentino\b/i, 'Correo Argentino'],
   [/\bMDP\b|\bMardel\b/i, 'Expreso Mar del Plata'], [/\bDHL\b/i, 'DHL'],
   [/\bFedEx\b|\bFed\s*Ex\b/i, 'FedEx'], [/\bUPS\b/i, 'UPS'], [/\bMoova\b/i, 'Moova'],
+  [/\bHeral\b/i, 'Expreso Heral'],
 ];
 // Detector de horario en texto libre — misma expresión que ya usa el sync de Calendar para
 // leer el horario del título/descripción del evento, copiada acá para que también la puedan
