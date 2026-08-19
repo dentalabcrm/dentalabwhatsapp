@@ -65297,10 +65297,17 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
         'MD Cargas','Expreso Singer','Expreso El Rápido','Expreso El Rapido',
         'La Sevillanita','Fast Mail','Urbano','Ocasa','DHL','FedEx','UPS',
         'Shipnow','Moova','Paq.ar','Envíopack','Enviopack','EPick','Treggo','Cargo Postal',
+        'Expreso Heral',
       ];
       let transporte = '';
       if (/[-–\s]V\s?C[-–\s]/i.test(summary) || /\bV\s?C\b/i.test(summary)) transporte = 'Via Cargo';
       if (!transporte && /express?o\s+(mar\s+del\s+plata|ma\s+del\s+plata|mdp|mardel)/i.test(summary)) transporte = 'Expreso Mar del Plata';
+      // Se combina con la lista compartida de "Editar envío" (sincronizada por Firebase),
+      // igual que ya hace el detector de PDFs — así cualquier transporte agregado con
+      // "+ Agregar" también se reconoce acá, en el título del evento de Calendar.
+      const TRANSPORTES_KNOWN_MERGED = (typeof _edTransportes !== 'undefined' && Array.isArray(_edTransportes) && _edTransportes.length)
+        ? [...new Set([..._edTransportes, ...TRANSPORTES_KNOWN])]
+        : TRANSPORTES_KNOWN;
       const ALIAS_CORTOS = [
         // Nombres parciales
         [/\bOrion\b/i,                        'Transporte Orion'],
@@ -65308,6 +65315,7 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
         [/\bBalut\b/i,                         'Balut Encomienda'],
         [/\bGorgone\b/i,                       'Transporte Nicolas Gorgone S.R.L'],
         [/\bLandaburu\b/i,                     'Expreso Landaburu'],
+        [/\bHeral\b/i,                          'Expreso Heral'],
         [/\bDemonte\b/i,                       'Expreso Demonte'],
         [/\bBeraldi\b/i,                       'Tomas Beraldi'],
         [/\bChevallier\b/i,                    'Chevallier'],
@@ -65391,7 +65399,7 @@ async function edEjecutarImportGCal(silencioso = false, _desdeOverride = null, _
         [/\burb\b/i,                            'Urbano'],
       ];
       if (!transporte) {
-        for (const t of TRANSPORTES_KNOWN) {
+        for (const t of TRANSPORTES_KNOWN_MERGED) {
           const rx = new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\b', 'i');
           if (rx.test(summary)) { transporte = t; break; }
         }
