@@ -23412,10 +23412,24 @@ function _parsePrecioARS(valor) {
   if (typeof valor === 'number') return Math.trunc(valor);
   let s = String(valor).trim().replace(/\$/g, '').replace(/\s/g, '');
   if (!s) return 0;
-  // Si tiene coma, es el separador decimal argentino: sacar los puntos de miles y
-  // truncar en la coma (nos quedamos solo con la parte entera).
-  if (s.includes(',')) {
-    s = s.split(',')[0].replace(/\./g, '');
+  const lastComa = s.lastIndexOf(',');
+  const lastPunto = s.lastIndexOf('.');
+  if (lastComa !== -1 && lastPunto !== -1) {
+    // Aparecen los dos separadores: el que está más a la derecha es el decimal, y se
+    // descarta todo lo que venga después (nos quedamos con la parte entera). El otro
+    // separador es de miles, se saca. Cubre tanto "17,038.01" (EE.UU./intl, coma de
+    // miles) como "17.038,01" (Argentina, punto de miles).
+    if (lastPunto > lastComa) {
+      s = s.replace(/,/g, '').split('.')[0]; // ej: "17,038.01" → "17038"
+    } else {
+      s = s.replace(/\./g, '').split(',')[0]; // ej: "17.038,01" → "17038"
+    }
+  } else if (lastComa !== -1) {
+    // Solo coma. Si tiene exactamente 3 dígitos después, es separador de miles sin
+    // decimales (ej: "17,038" → 17038); si tiene 1 o 2, es el decimal argentino
+    // (ej: "9,58" → 9). Los centavos siempre son 2 dígitos, así que no se pisan.
+    const digitsAfter = s.length - lastComa - 1;
+    s = digitsAfter === 3 ? s.replace(/,/g, '') : s.split(',')[0].replace(/\./g, '');
   } else {
     // Sin coma: puede ser "9579" (entero) o "9.579" (con puntos de miles, sin decimales) —
     // en ambos casos, sacar los puntos da el entero correcto.
@@ -23593,9 +23607,43 @@ function renderCostosOcaTabla() {
     }
   }
 
+  const CAMPOS_ORDEN_TAB = ['dia', 'numEnvio', 'cliente', 'precioCliente', 'precioSinImp', 'origen', 'obs'];
+  function _costosOcaFocoCampo(tr, campo) {
+    const el = tr?.querySelector(`[data-campo="${campo}"]`);
+    if (!el) return false;
+    el.focus();
+    if (el.select && el.type !== 'date') el.select(); // como en una planilla: seleccionar todo el texto al entrar
+    return true;
+  }
   tbody.querySelectorAll('.costosoca-inp').forEach(inp => {
     const ev = (inp.tagName === 'SELECT' || inp.type === 'date') ? 'change' : 'input';
     inp.addEventListener(ev, _costosOcaDebounceGuardar);
+    // Navegación con Tab / Shift+Tab, celda por celda, en el mismo orden en que se ven
+    // las columnas — explícita en vez de depender del orden natural del navegador, porque
+    // la tabla se vuelve a dibujar en cada guardado y eso puede romper el tabulado normal.
+    inp.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      e.preventDefault();
+      const tr = inp.closest('tr');
+      const campoActual = inp.dataset.campo;
+      const idx = CAMPOS_ORDEN_TAB.indexOf(campoActual);
+      if (idx === -1) return;
+      if (!e.shiftKey) {
+        if (idx < CAMPOS_ORDEN_TAB.length - 1) {
+          _costosOcaFocoCampo(tr, CAMPOS_ORDEN_TAB[idx + 1]);
+        } else {
+          const trSiguiente = tr?.nextElementSibling;
+          if (trSiguiente) _costosOcaFocoCampo(trSiguiente, CAMPOS_ORDEN_TAB[0]);
+        }
+      } else {
+        if (idx > 0) {
+          _costosOcaFocoCampo(tr, CAMPOS_ORDEN_TAB[idx - 1]);
+        } else {
+          const trAnterior = tr?.previousElementSibling;
+          if (trAnterior) _costosOcaFocoCampo(trAnterior, CAMPOS_ORDEN_TAB[CAMPOS_ORDEN_TAB.length - 1]);
+        }
+      }
+    });
     // Recalcular en vivo las columnas derivadas mientras se tipea, sin esperar el guardado
     if (inp.dataset.campo === 'precioCliente' || inp.dataset.campo === 'precioSinImp') {
       inp.addEventListener('input', () => _costosOcaRecalcularFilaEnPantalla(inp.dataset.id));
