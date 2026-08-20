@@ -19505,6 +19505,35 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
           font-family:'DM Sans',sans-serif;
         ">📋 Copiar</button>
       </div>
+      <div id="pdf-anot-toolbar" style="
+        border-bottom:1px solid #334155;padding:8px 20px;flex-shrink:0;
+        background:#0f1929;display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+      ">
+        <span style="font-size:12px;color:#94a3b8;font-weight:600;margin-right:4px;">✏️ Anotar:</span>
+        <button class="pdf-anot-tool" data-tool="lapiz" title="Lápiz">✏️</button>
+        <button class="pdf-anot-tool" data-tool="marcador" title="Resaltador">🖍️</button>
+        <button class="pdf-anot-tool" data-tool="flecha" title="Flecha">➡️</button>
+        <button class="pdf-anot-tool" data-tool="subrayar" title="Subrayar / línea recta">➖</button>
+        <span style="width:1px;height:20px;background:#334155;margin:0 4px;"></span>
+        <button class="pdf-anot-color" data-color="#ef4444" style="background:#ef4444;" title="Rojo"></button>
+        <button class="pdf-anot-color" data-color="#3b82f6" style="background:#3b82f6;" title="Azul"></button>
+        <button class="pdf-anot-color" data-color="#22c55e" style="background:#22c55e;" title="Verde"></button>
+        <button class="pdf-anot-color" data-color="#eab308" style="background:#eab308;" title="Amarillo"></button>
+        <button class="pdf-anot-color" data-color="#111827" style="background:#111827;" title="Negro"></button>
+        <span style="width:1px;height:20px;background:#334155;margin:0 4px;"></span>
+        <button id="pdf-anot-undo" title="Deshacer">↩️ Deshacer</button>
+        <button id="pdf-anot-clear" title="Borrar todo lo anotado">🧹 Borrar todo</button>
+        <button id="pdf-anot-copy" style="
+          background:#0ea5e9;border:none;border-radius:9px;padding:6px 14px;
+          color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;
+          font-family:'DM Sans',sans-serif;margin-left:auto;
+        ">📋 Copiar imagen</button>
+        <button id="pdf-anot-download" style="
+          background:#7c3aed;border:none;border-radius:9px;padding:6px 14px;
+          color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;
+          font-family:'DM Sans',sans-serif;
+        ">💾 Descargar con anotaciones</button>
+      </div>
       <div id="pdf-preview-render" style="flex:1;width:100%;overflow-y:auto;background:#525659;padding:16px 0;display:flex;flex-direction:column;align-items:center;gap:12px;">
         <div style="color:#cbd5e1;font-size:13px;">Cargando vista previa…</div>
       </div>
@@ -19513,9 +19542,104 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
 
   document.body.appendChild(backdrop);
 
+  // Estilo suelto de los botones de la barra de anotación (para no repetir en cada uno)
+  const _anotStyleTag = document.createElement('style');
+  _anotStyleTag.textContent = `
+    #pdf-anot-toolbar button.pdf-anot-tool, #pdf-anot-toolbar button#pdf-anot-undo, #pdf-anot-toolbar button#pdf-anot-clear{
+      background:#1e293b;border:1px solid #475569;border-radius:8px;color:#e2e8f0;
+      font-size:14px;padding:6px 10px;cursor:pointer;font-family:'DM Sans',sans-serif;
+      transition:all .12s;
+    }
+    #pdf-anot-toolbar button.pdf-anot-tool.activa{background:#7c3aed;border-color:#7c3aed;}
+    #pdf-anot-toolbar button.pdf-anot-tool:hover, #pdf-anot-toolbar button#pdf-anot-undo:hover, #pdf-anot-toolbar button#pdf-anot-clear:hover{border-color:#7c3aed;}
+    #pdf-anot-toolbar button.pdf-anot-color{
+      width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;
+    }
+    #pdf-anot-toolbar button.pdf-anot-color.activa{border-color:#fff;box-shadow:0 0 0 2px #7c3aed;}
+  `;
+  backdrop.appendChild(_anotStyleTag);
+
   // ── Dibujar el PDF nosotros mismos con pdf.js, en vez de pedirle al navegador que lo
   // muestre con su visor nativo — así la vista previa funciona igual sin importar si el
   // usuario tiene configurado "Descargar los PDF" en vez de "Mostrar en el navegador".
+  //
+  // Encima de cada página se pone un segundo canvas transparente donde se dibujan las
+  // anotaciones (lápiz, resaltador, flechas, subrayado) — igual que Herramienta Recortes
+  // de Windows — sin tocar el canvas del PDF original, para poder deshacer sin perder
+  // calidad ni tener que releer el PDF de nuevo.
+  const _anotPaginas = []; // [{ pdfCanvas, overlay, ctx, strokes: [...] }, ...]
+  let _anotHerramienta = null;
+  let _anotColor = '#ef4444';
+
+  function _anotDibujarTrazo(ctx, t) {
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.globalCompositeOperation = 'source-over';
+    if (t.tool === 'imagen') {
+      ctx.drawImage(t.img, t.x, t.y, t.w, t.h);
+    } else if (t.tool === 'lapiz' || t.tool === 'marcador') {
+      if (t.tool === 'marcador') { ctx.globalCompositeOperation = 'multiply'; ctx.lineWidth = 16; ctx.globalAlpha = 0.55; }
+      else { ctx.lineWidth = 3; ctx.globalAlpha = 1; }
+      ctx.strokeStyle = t.color;
+      ctx.beginPath();
+      t.points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (t.tool === 'subrayar') {
+      ctx.strokeStyle = t.color; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(t.points[0].x, t.points[0].y); ctx.lineTo(t.points[1].x, t.points[1].y); ctx.stroke();
+    } else if (t.tool === 'flecha') {
+      const [p1, p2] = t.points;
+      const headlen = 16;
+      const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+      ctx.strokeStyle = t.color; ctx.fillStyle = t.color; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(p2.x, p2.y);
+      ctx.lineTo(p2.x - headlen * Math.cos(angle - Math.PI / 6), p2.y - headlen * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(p2.x - headlen * Math.cos(angle + Math.PI / 6), p2.y - headlen * Math.sin(angle + Math.PI / 6));
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  function _anotRedibujar(pagina) {
+    pagina.ctx.clearRect(0, 0, pagina.overlay.width, pagina.overlay.height);
+    pagina.strokes.forEach(t => _anotDibujarTrazo(pagina.ctx, t));
+  }
+  function _anotCoords(pagina, evt) {
+    const rect = pagina.overlay.getBoundingClientRect();
+    return {
+      x: (evt.clientX - rect.left) * (pagina.overlay.width / rect.width),
+      y: (evt.clientY - rect.top) * (pagina.overlay.height / rect.height),
+    };
+  }
+  function _anotActivarPagina(pagina) {
+    let dibujando = false;
+    let actual = null;
+    pagina.overlay.addEventListener('pointerdown', (e) => {
+      if (!_anotHerramienta) return;
+      pagina.overlay.setPointerCapture(e.pointerId);
+      dibujando = true;
+      const p = _anotCoords(pagina, e);
+      actual = { tool: _anotHerramienta, color: _anotColor, points: [p] };
+    });
+    pagina.overlay.addEventListener('pointermove', (e) => {
+      if (!dibujando || !actual) return;
+      const p = _anotCoords(pagina, e);
+      if (actual.tool === 'lapiz' || actual.tool === 'marcador') actual.points.push(p);
+      else actual.points[1] = p; // flecha / subrayar: solo importa el punto final mientras se arrastra
+      _anotRedibujar(pagina);
+      _anotDibujarTrazo(pagina.ctx, actual);
+    });
+    const _terminar = () => {
+      if (!dibujando || !actual) return;
+      dibujando = false;
+      if (actual.points.length > 1) pagina.strokes.push(actual);
+      actual = null;
+      _anotRedibujar(pagina);
+    };
+    pagina.overlay.addEventListener('pointerup', _terminar);
+    pagina.overlay.addEventListener('pointerleave', _terminar);
+  }
+
   (async () => {
     const contenedor = document.getElementById('pdf-preview-render');
     if (!contenedor) return;
@@ -19527,12 +19651,28 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
       for (let p = 1; p <= pdf.numPages; p++) {
         const page = await pdf.getPage(p);
         const viewport = page.getViewport({ scale: 1.4 });
+
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative;max-width:calc(100% - 32px);box-shadow:0 4px 16px rgba(0,0,0,.4);';
+
         const canvas = document.createElement('canvas');
         canvas.width = viewport.width;
         canvas.height = viewport.height;
-        canvas.style.cssText = 'box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:calc(100% - 32px);height:auto;';
-        contenedor.appendChild(canvas);
+        canvas.style.cssText = 'display:block;width:100%;height:auto;';
+        wrap.appendChild(canvas);
         await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+        const overlay = document.createElement('canvas');
+        overlay.width = viewport.width;
+        overlay.height = viewport.height;
+        overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none;cursor:crosshair;';
+        wrap.appendChild(overlay);
+
+        contenedor.appendChild(wrap);
+
+        const pagina = { pdfCanvas: canvas, overlay, ctx: overlay.getContext('2d'), strokes: [] };
+        _anotPaginas.push(pagina);
+        _anotActivarPagina(pagina);
       }
     } catch (e) {
       // Respaldo: si algo falla dibujando (PDF raro, pdf.js no cargó, etc.), se cae al
@@ -19541,6 +19681,119 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
       contenedor.outerHTML = `<iframe src="${pdfUrl}" style="flex:1;width:100%;border:none;background:#fff;" title="Vista previa PDF"></iframe>`;
     }
   })();
+
+  // ── Botones de la barra de anotación ──
+  backdrop.querySelectorAll('.pdf-anot-tool').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const esLaMisma = btn.classList.contains('activa');
+      backdrop.querySelectorAll('.pdf-anot-tool').forEach(b => b.classList.remove('activa'));
+      if (esLaMisma) { _anotHerramienta = null; }
+      else { btn.classList.add('activa'); _anotHerramienta = btn.dataset.tool; }
+      _anotPaginas.forEach(pg => pg.overlay.style.cursor = _anotHerramienta ? 'crosshair' : 'default');
+    });
+  });
+  backdrop.querySelectorAll('.pdf-anot-color').forEach((btn, i) => {
+    if (i === 0) btn.classList.add('activa');
+    btn.addEventListener('click', () => {
+      backdrop.querySelectorAll('.pdf-anot-color').forEach(b => b.classList.remove('activa'));
+      btn.classList.add('activa');
+      _anotColor = btn.dataset.color;
+    });
+  });
+  document.getElementById('pdf-anot-undo')?.addEventListener('click', () => {
+    // Deshace el último trazo de la última página que tenga algo dibujado.
+    for (let i = _anotPaginas.length - 1; i >= 0; i--) {
+      if (_anotPaginas[i].strokes.length) { _anotPaginas[i].strokes.pop(); _anotRedibujar(_anotPaginas[i]); break; }
+    }
+  });
+  document.getElementById('pdf-anot-clear')?.addEventListener('click', () => {
+    if (!confirm('¿Borrar todas las anotaciones de este PDF?')) return;
+    _anotPaginas.forEach(pg => { pg.strokes = []; _anotRedibujar(pg); });
+  });
+  // Combina el canvas del PDF + el de anotaciones de una página en un solo canvas nuevo
+  // (se usa tanto para "Copiar imagen" como para "Descargar con anotaciones").
+  function _anotMergearPagina(pagina) {
+    const merge = document.createElement('canvas');
+    merge.width = pagina.pdfCanvas.width;
+    merge.height = pagina.pdfCanvas.height;
+    const mctx = merge.getContext('2d');
+    mctx.drawImage(pagina.pdfCanvas, 0, 0);
+    mctx.drawImage(pagina.overlay, 0, 0);
+    return merge;
+  }
+
+  document.getElementById('pdf-anot-copy')?.addEventListener('click', async () => {
+    const btn = document.getElementById('pdf-anot-copy');
+    const original = btn.textContent;
+    btn.textContent = 'Copiando…'; btn.disabled = true;
+    try {
+      if (!navigator.clipboard || !window.ClipboardItem) throw new Error('Este navegador no admite copiar imágenes al portapapeles');
+      if (!_anotPaginas.length) throw new Error('Todavía no cargó la vista previa');
+
+      let finalCanvas;
+      if (_anotPaginas.length === 1) {
+        finalCanvas = _anotMergearPagina(_anotPaginas[0]);
+      } else {
+        // Varias hojas: se apilan una debajo de la otra en una sola imagen, para no perder
+        // ninguna página al copiar (en vez de copiar solo la primera).
+        const anchoMax = Math.max(..._anotPaginas.map(p => p.pdfCanvas.width));
+        const separacion = 20;
+        const altoTotal = _anotPaginas.reduce((a, p) => a + p.pdfCanvas.height, 0) + separacion * (_anotPaginas.length - 1);
+        finalCanvas = document.createElement('canvas');
+        finalCanvas.width = anchoMax;
+        finalCanvas.height = altoTotal;
+        const ctx = finalCanvas.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+        let y = 0;
+        _anotPaginas.forEach(pagina => {
+          const merge = _anotMergearPagina(pagina);
+          ctx.drawImage(merge, 0, y);
+          y += merge.height + separacion;
+        });
+      }
+
+      const blob = await new Promise(res => finalCanvas.toBlob(res, 'image/png'));
+      if (!blob) throw new Error('No se pudo generar la imagen');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      btn.textContent = '✓ Copiado';
+      setTimeout(() => { btn.textContent = original; }, 1500);
+    } catch (e) {
+      console.error('[Anotar PDF] Error copiando imagen:', e);
+      if (typeof showToast === 'function') showToast('⚠ No se pudo copiar la imagen: ' + (e.message || e), 'warn');
+      else alert('No se pudo copiar la imagen: ' + (e.message || e));
+      btn.textContent = original;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('pdf-anot-download')?.addEventListener('click', async () => {
+    const btn = document.getElementById('pdf-anot-download');
+    const original = btn.textContent;
+    btn.textContent = 'Generando…'; btn.disabled = true;
+    try {
+      const { jsPDF } = window.jspdf;
+      let doc = null;
+      for (const pagina of _anotPaginas) {
+        const merge = _anotMergearPagina(pagina);
+        const dataUrl = merge.toDataURL('image/jpeg', 0.92);
+        const orient = merge.width > merge.height ? 'landscape' : 'portrait';
+        if (!doc) doc = new jsPDF({ orientation: orient, unit: 'mm', format: 'a4' });
+        else doc.addPage('a4', orient);
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const ratio = Math.min(pageW / merge.width, pageH / merge.height);
+        const w = merge.width * ratio, h = merge.height * ratio;
+        doc.addImage(dataUrl, 'JPEG', (pageW - w) / 2, (pageH - h) / 2, w, h);
+      }
+      if (doc) doc.save((fileName || 'documento').replace(/\.pdf$/i, '') + '_anotado.pdf');
+    } catch (e) {
+      console.error('[Anotar PDF] Error generando el PDF:', e);
+      if (typeof showToast === 'function') showToast('⚠ No se pudo generar el PDF con anotaciones', 'warn');
+    } finally {
+      btn.textContent = original; btn.disabled = false;
+    }
+  });
 
   const linkCopiarBtn = document.getElementById('pdf-link-copiar');
   if (linkCopiarBtn) {
@@ -19642,6 +19895,40 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
   backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
   document.addEventListener('keydown', function onEsc(e) {
     if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+  });
+
+  // ── Ctrl+C / Ctrl+V mientras el modal está abierto ──
+  // Ctrl+C: copia la imagen anotada (igual que tocar "📋 Copiar imagen").
+  // Ctrl+V: pega una imagen del portapapeles ENCIMA de la primera página, como una
+  // anotación más (por ejemplo, pegar una captura de pantalla sobre el PDF).
+  // Si el foco está en un campo de texto (como el link para el cliente), se deja el
+  // copiar/pegar normal del navegador y no se pisa con esto.
+  document.addEventListener('keydown', function onCtrlCV(e) {
+    if (!document.body.contains(backdrop)) { document.removeEventListener('keydown', onCtrlCV); return; }
+    const enCampoDeTexto = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+    if (enCampoDeTexto) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      document.getElementById('pdf-anot-copy')?.click();
+    }
+  });
+  document.addEventListener('paste', async function onPegarImagen(e) {
+    if (!document.body.contains(backdrop)) { document.removeEventListener('paste', onPegarImagen); return; }
+    const enCampoDeTexto = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+    if (enCampoDeTexto) return;
+    const item = [...(e.clipboardData?.items || [])].find(it => it.type.startsWith('image/'));
+    if (!item || !_anotPaginas.length) return;
+    e.preventDefault();
+    const blob = item.getAsFile();
+    const imgBitmap = await createImageBitmap(blob);
+    const pagina = _anotPaginas[0]; // se pega sobre la primera página
+    // Se escala para que entre en la hoja, y se centra.
+    const escala = Math.min(pagina.overlay.width / imgBitmap.width, pagina.overlay.height / imgBitmap.height, 1) * 0.6;
+    const w = imgBitmap.width * escala, h = imgBitmap.height * escala;
+    const x = (pagina.overlay.width - w) / 2, y = (pagina.overlay.height - h) / 2;
+    pagina.strokes.push({ tool: 'imagen', img: imgBitmap, x, y, w, h });
+    _anotRedibujar(pagina);
+    if (typeof showToast === 'function') showToast('🖼️ Imagen pegada sobre el PDF', 'ok');
   });
 
   showToast('✓ Vista previa lista — descargá cuando quieras', 'ok');
