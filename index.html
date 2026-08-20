@@ -9732,6 +9732,11 @@ async function publicarCatalogoWeb() {
       // productos "En stock", para que el catálogo pueda topear la cantidad máxima
       // seleccionable al stock real, en vez de dejar pedir una cantidad ilimitada.
       if (st === 0) item.stk = Math.max(0, Math.floor(stockActual));
+      // Stock real POR depósito (Depósito 1 - Local / Depósito Central) — siempre, sin
+      // importar el estado — solo para uso interno del admin en el catálogo web (nunca se
+      // le muestra al cliente, ver esAdminCatalogo() del lado del catálogo).
+      item.d1 = Math.max(0, Math.floor(parseFloat(row['Deposito 1 - Local'] || 0)));
+      item.dc = Math.max(0, Math.floor(parseFloat(row['Deposito Central'] || 0)));
       const imgRaw = imagenesCache[claveImg(sku)];
       const img = Array.isArray(imgRaw) ? imgRaw[0] : imgRaw;
       if (img) item.img = img;
