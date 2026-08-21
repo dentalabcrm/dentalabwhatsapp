@@ -19519,6 +19519,7 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
         <button class="pdf-anot-tool" data-tool="marcador" title="Resaltador">🖍️</button>
         <button class="pdf-anot-tool" data-tool="flecha" title="Flecha">➡️</button>
         <button class="pdf-anot-tool" data-tool="subrayar" title="Subrayar / línea recta">➖</button>
+        <button class="pdf-anot-tool activa" data-tool="recortar" title="Recortar una parte y copiarla (como Herramienta Recortes)">✂️</button>
         <span style="width:1px;height:20px;background:#334155;margin:0 4px;"></span>
         <button class="pdf-anot-color" data-color="#ef4444" style="background:#ef4444;" title="Rojo"></button>
         <button class="pdf-anot-color" data-color="#3b82f6" style="background:#3b82f6;" title="Azul"></button>
@@ -19573,7 +19574,7 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
   // de Windows — sin tocar el canvas del PDF original, para poder deshacer sin perder
   // calidad ni tener que releer el PDF de nuevo.
   const _anotPaginas = []; // [{ pdfCanvas, overlay, ctx, strokes: [...] }, ...]
-  let _anotHerramienta = null;
+  let _anotHerramienta = 'recortar'; // arranca activada, para poder recortar sin tener que tocarla primero
   let _anotColor = '#ef4444';
 
   function _anotDibujarTrazo(ctx, t) {
@@ -19581,6 +19582,18 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
     ctx.globalCompositeOperation = 'source-over';
     if (t.tool === 'imagen') {
       ctx.drawImage(t.img, t.x, t.y, t.w, t.h);
+    } else if (t.tool === 'recortar') {
+      // Solo es una previsualización mientras se arrastra el mouse — nunca queda "pintado"
+      // de verdad (no se guarda en pagina.strokes), se borra apenas se suelta el botón.
+      const [p1, p2] = t.points;
+      const x = Math.min(p1.x, p2.x), y = Math.min(p1.y, p2.y);
+      const w = Math.abs(p2.x - p1.x), h = Math.abs(p2.y - p1.y);
+      ctx.save();
+      ctx.fillStyle = 'rgba(124,58,237,0.15)';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.restore();
     } else if (t.tool === 'lapiz' || t.tool === 'marcador') {
       if (t.tool === 'marcador') { ctx.globalCompositeOperation = 'multiply'; ctx.lineWidth = 16; ctx.globalAlpha = 0.55; }
       else { ctx.lineWidth = 3; ctx.globalAlpha = 1; }
@@ -19616,6 +19629,31 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
       y: (evt.clientY - rect.top) * (pagina.overlay.height / rect.height),
     };
   }
+  // Recorta un rectángulo de la página (mezclando el PDF + lo anotado hasta ahora) y lo
+  // copia directo al portapapeles — igual que soltar el mouse en Herramienta Recortes.
+  async function _anotRecortarYCopiar(pagina, p1, p2){
+    const left = Math.round(Math.min(p1.x, p2.x));
+    const top = Math.round(Math.min(p1.y, p2.y));
+    const w = Math.round(Math.abs(p2.x - p1.x));
+    const h = Math.round(Math.abs(p2.y - p1.y));
+    if (w < 6 || h < 6) return; // selección casi nula (click accidental) — no hacer nada
+    try {
+      if (!navigator.clipboard || !window.ClipboardItem) throw new Error('Este navegador no admite copiar imágenes al portapapeles');
+      const merge = _anotMergearPagina(pagina);
+      const recorte = document.createElement('canvas');
+      recorte.width = w; recorte.height = h;
+      recorte.getContext('2d').drawImage(merge, left, top, w, h, 0, 0, w, h);
+      const blob = await new Promise(res => recorte.toBlob(res, 'image/png'));
+      if (!blob) throw new Error('No se pudo generar el recorte');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      if (typeof showToast === 'function') showToast('✂️ Recorte copiado al portapapeles', 'ok');
+    } catch (e) {
+      console.error('[Recortar PDF] Error:', e);
+      if (typeof showToast === 'function') showToast('⚠ No se pudo copiar el recorte: ' + (e.message || e), 'warn');
+      else alert('No se pudo copiar el recorte: ' + (e.message || e));
+    }
+  }
+
   function _anotActivarPagina(pagina) {
     let dibujando = false;
     let actual = null;
@@ -19637,6 +19675,12 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
     const _terminar = () => {
       if (!dibujando || !actual) return;
       dibujando = false;
+      if (actual.tool === 'recortar') {
+        if (actual.points.length > 1) _anotRecortarYCopiar(pagina, actual.points[0], actual.points[1]);
+        actual = null;
+        _anotRedibujar(pagina); // borra el recuadro de selección (nunca se guardó en strokes)
+        return;
+      }
       if (actual.points.length > 1) pagina.strokes.push(actual);
       actual = null;
       _anotRedibujar(pagina);
