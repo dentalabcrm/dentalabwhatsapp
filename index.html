@@ -19676,9 +19676,10 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
       if (!dibujando || !actual) return;
       dibujando = false;
       if (actual.tool === 'recortar') {
-        if (actual.points.length > 1) _anotRecortarYCopiar(pagina, actual.points[0], actual.points[1]);
+        const p1 = actual.points[0], p2 = actual.points[1];
         actual = null;
-        _anotRedibujar(pagina); // borra el recuadro de selección (nunca se guardó en strokes)
+        _anotRedibujar(pagina); // primero borrar el recuadro de selección…
+        if (p2) _anotRecortarYCopiar(pagina, p1, p2); // …y RECIÉN AHÍ recortar, para que no salga el recuadro dentro de la imagen copiada
         return;
       }
       if (actual.points.length > 1) pagina.strokes.push(actual);
