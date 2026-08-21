@@ -36838,6 +36838,9 @@ async function authOpenSession(username) {
   if (AUTH_NO_PASSWORD_USERS.includes(username)) {
     await sessRef.set({ sessionId: newSessionId, expiresAt, username, startedAt: Date.now() });
     authGrantAccess({ name: username, role, sessionId: newSessionId, expiresAt });
+    // Guardar el nombre automáticamente para que la próxima vez entre directo,
+    // sin depender de que toque el botón "Guardar mi nombre en este dispositivo".
+    try { localStorage.setItem(AUTH_REPARTIDOR_SAVED_KEY, username); } catch(e) {}
     return;
   }
 
