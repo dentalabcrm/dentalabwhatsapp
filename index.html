@@ -9544,6 +9544,8 @@ async function publicarCatalogoWeb() {
     const listasResueltas = resolveListasKeys(allData);
     const l1 = listasResueltas.find(l => l.label === 'Lista 1 Contado');
     const l2 = listasResueltas.find(l => l.label === 'Lista 2 General');
+    const l3 = listasResueltas.find(l => l.label === 'Reventa');
+    const l4 = listasResueltas.find(l => l.label === 'Mayorista');
     if (!l1 || !l2) return;
 
     // Caché de fotos ya resueltas (se va llenando sola con el hover 📷 del CRM)
@@ -9696,6 +9698,10 @@ async function publicarCatalogoWeb() {
       const p2raw = (ofertaEntry && ofertaEntry[l2.key] != null) ? ofertaEntry[l2.key] : row[l2.key];
       const p1 = parseFloat(p1raw || 0) || 0;
       const p2 = parseFloat(p2raw || 0) || 0;
+      // Reventa / Mayorista: sin la lógica de "oferta" (esas promos son solo para
+      // Contado/General) — se toman directo de la lista, tal cual están cargadas.
+      const p3 = l3 ? (parseFloat(row[l3.key] || 0) || 0) : 0;
+      const p4 = l4 ? (parseFloat(row[l4.key] || 0) || 0) : 0;
       if (!p1 && !p2) return; // sin precio en ninguna lista: no sirve para el pedido web
       const stockActual = (typeof stockTotal === 'function') ? stockTotal(row) : 0;
       const forzarAConfirmar = SKUS_STOCK_SIEMPRE_A_CONFIRMAR.includes(sku);
@@ -9726,7 +9732,7 @@ async function publicarCatalogoWeb() {
       const of = (ofertaEntry && (ofertaEntry[l1.key] != null || ofertaEntry[l2.key] != null) && !SKUS_OFERTA_SIN_BADGE.includes(sku)) ? 1 : 0;
       const marca = (typeof MARCA_MAP !== 'undefined') ? (MARCA_MAP[sku] || '') : '';
       const cp = SKUS_SIN_PRECIO_PUBLICO.includes(sku) ? 1 : 0;
-      const item = { s: sku, n: nombre, p1: cp ? 0 : p1, p2: cp ? 0 : p2, st, sb, of, m: marca, g: grupo, cp };
+      const item = { s: sku, n: nombre, p1: cp ? 0 : p1, p2: cp ? 0 : p2, p3: cp ? 0 : p3, p4: cp ? 0 : p4, st, sb, of, m: marca, g: grupo, cp };
       if (subgrupo) item.sg = subgrupo;
       // Stock real disponible (Depósito 1 + Depósito Central) — se publica solo para
       // productos "En stock", para que el catálogo pueda topear la cantidad máxima
