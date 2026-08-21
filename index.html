@@ -19525,6 +19525,7 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
         <button class="pdf-anot-tool" data-tool="marcador" title="Resaltador">🖍️</button>
         <button class="pdf-anot-tool" data-tool="flecha" title="Flecha">➡️</button>
         <button class="pdf-anot-tool" data-tool="subrayar" title="Subrayar / línea recta">➖</button>
+        <button class="pdf-anot-tool" data-tool="texto" title="Escribir texto o número">🔤</button>
         <button class="pdf-anot-tool activa" data-tool="recortar" title="Recortar una parte y copiarla (como Herramienta Recortes)">✂️</button>
         <span style="width:1px;height:20px;background:#334155;margin:0 4px;"></span>
         <button class="pdf-anot-color" data-color="#ef4444" style="background:#ef4444;" title="Rojo"></button>
@@ -19588,6 +19589,11 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
     ctx.globalCompositeOperation = 'source-over';
     if (t.tool === 'imagen') {
       ctx.drawImage(t.img, t.x, t.y, t.w, t.h);
+    } else if (t.tool === 'texto') {
+      ctx.fillStyle = t.color;
+      ctx.font = `700 ${t.size || 20}px 'DM Sans', Arial, sans-serif`;
+      ctx.textBaseline = 'top';
+      ctx.fillText(t.texto, t.x, t.y);
     } else if (t.tool === 'recortar') {
       // Solo es una previsualización mientras se arrastra el mouse — nunca queda "pintado"
       // de verdad (no se guarda en pagina.strokes), se borra apenas se suelta el botón.
@@ -19660,11 +19666,44 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
     }
   }
 
+  // "Escribir texto o número": a diferencia del resto (que se arrastran), esta herramienta
+  // es de un solo clic — abre un campito justo ahí, se tipea y con Enter queda puesto.
+  function _anotAbrirCampoTexto(pagina, e){
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Escribí y Enter…';
+    input.style.cssText = `
+      position:fixed;left:${e.clientX}px;top:${e.clientY - 4}px;z-index:100000;
+      font:700 18px 'DM Sans', Arial, sans-serif;color:${_anotColor};background:#fff;
+      border:2px solid ${_anotColor};border-radius:5px;padding:3px 8px;min-width:160px;
+      box-shadow:0 4px 12px rgba(0,0,0,.25);
+    `;
+    document.body.appendChild(input);
+    input.focus();
+    let yaResuelto = false;
+    const _commit = () => {
+      if (yaResuelto) return;
+      yaResuelto = true;
+      const texto = input.value.trim();
+      input.remove();
+      if (!texto) return;
+      const p = _anotCoords(pagina, e);
+      pagina.strokes.push({ tool: 'texto', color: _anotColor, x: p.x, y: p.y, texto, size: 22 });
+      _anotRedibujar(pagina);
+    };
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); _commit(); }
+      else if (ev.key === 'Escape') { yaResuelto = true; input.remove(); }
+    });
+    input.addEventListener('blur', _commit);
+  }
+
   function _anotActivarPagina(pagina) {
     let dibujando = false;
     let actual = null;
     pagina.overlay.addEventListener('pointerdown', (e) => {
       if (!_anotHerramienta) return;
+      if (_anotHerramienta === 'texto') { _anotAbrirCampoTexto(pagina, e); return; }
       pagina.overlay.setPointerCapture(e.pointerId);
       dibujando = true;
       const p = _anotCoords(pagina, e);
