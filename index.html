@@ -19534,6 +19534,11 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
         <button class="pdf-anot-color" data-color="#eab308" style="background:#eab308;" title="Amarillo"></button>
         <button class="pdf-anot-color" data-color="#111827" style="background:#111827;" title="Negro"></button>
         <span style="width:1px;height:20px;background:#334155;margin:0 4px;"></span>
+        <span style="font-size:11px;color:#94a3b8;font-weight:600;">Letra:</span>
+        <button id="pdf-anot-texto-menos" title="Achicar la letra">A-</button>
+        <span id="pdf-anot-texto-size" style="font-size:11px;color:#94a3b8;min-width:22px;text-align:center;">22</span>
+        <button id="pdf-anot-texto-mas" title="Agrandar la letra">A+</button>
+        <span style="width:1px;height:20px;background:#334155;margin:0 4px;"></span>
         <button id="pdf-anot-undo" title="Deshacer">↩️ Deshacer</button>
         <button id="pdf-anot-clear" title="Borrar todo lo anotado">🧹 Borrar todo</button>
         <button id="pdf-anot-copy" style="
@@ -19558,13 +19563,15 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
   // Estilo suelto de los botones de la barra de anotación (para no repetir en cada uno)
   const _anotStyleTag = document.createElement('style');
   _anotStyleTag.textContent = `
-    #pdf-anot-toolbar button.pdf-anot-tool, #pdf-anot-toolbar button#pdf-anot-undo, #pdf-anot-toolbar button#pdf-anot-clear{
+    #pdf-anot-toolbar button.pdf-anot-tool, #pdf-anot-toolbar button#pdf-anot-undo, #pdf-anot-toolbar button#pdf-anot-clear,
+    #pdf-anot-toolbar button#pdf-anot-texto-menos, #pdf-anot-toolbar button#pdf-anot-texto-mas{
       background:#1e293b;border:1px solid #475569;border-radius:8px;color:#e2e8f0;
       font-size:14px;padding:6px 10px;cursor:pointer;font-family:'DM Sans',sans-serif;
       transition:all .12s;
     }
     #pdf-anot-toolbar button.pdf-anot-tool.activa{background:#7c3aed;border-color:#7c3aed;}
-    #pdf-anot-toolbar button.pdf-anot-tool:hover, #pdf-anot-toolbar button#pdf-anot-undo:hover, #pdf-anot-toolbar button#pdf-anot-clear:hover{border-color:#7c3aed;}
+    #pdf-anot-toolbar button.pdf-anot-tool:hover, #pdf-anot-toolbar button#pdf-anot-undo:hover, #pdf-anot-toolbar button#pdf-anot-clear:hover,
+    #pdf-anot-toolbar button#pdf-anot-texto-menos:hover, #pdf-anot-toolbar button#pdf-anot-texto-mas:hover{border-color:#7c3aed;}
     #pdf-anot-toolbar button.pdf-anot-color{
       width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;
     }
@@ -19583,6 +19590,8 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
   const _anotPaginas = []; // [{ pdfCanvas, overlay, ctx, strokes: [...] }, ...]
   let _anotHerramienta = 'recortar'; // arranca activada, para poder recortar sin tener que tocarla primero
   let _anotColor = '#ef4444';
+  let _anotTextoSize = 22; // tamaño de letra para la herramienta de texto (px)
+  let _anotInputTextoActivo = null; // el campito de texto que está abierto ahora mismo, si hay uno
 
   function _anotDibujarTrazo(ctx, t) {
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -19674,26 +19683,28 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
     input.placeholder = 'Escribí y Enter…';
     input.style.cssText = `
       position:fixed;left:${e.clientX}px;top:${e.clientY - 4}px;z-index:100000;
-      font:700 18px 'DM Sans', Arial, sans-serif;color:${_anotColor};background:#fff;
+      font:700 ${_anotTextoSize}px 'DM Sans', Arial, sans-serif;color:${_anotColor};background:#fff;
       border:2px solid ${_anotColor};border-radius:5px;padding:3px 8px;min-width:160px;
       box-shadow:0 4px 12px rgba(0,0,0,.25);
     `;
     document.body.appendChild(input);
     input.focus();
+    _anotInputTextoActivo = input; // así los botones A-/A+ pueden agrandar/achicar en vivo mientras se escribe
     let yaResuelto = false;
     const _commit = () => {
       if (yaResuelto) return;
       yaResuelto = true;
+      _anotInputTextoActivo = null;
       const texto = input.value.trim();
       input.remove();
       if (!texto) return;
       const p = _anotCoords(pagina, e);
-      pagina.strokes.push({ tool: 'texto', color: _anotColor, x: p.x, y: p.y, texto, size: 22 });
+      pagina.strokes.push({ tool: 'texto', color: _anotColor, x: p.x, y: p.y, texto, size: _anotTextoSize });
       _anotRedibujar(pagina);
     };
     input.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter') { ev.preventDefault(); _commit(); }
-      else if (ev.key === 'Escape') { yaResuelto = true; input.remove(); }
+      else if (ev.key === 'Escape') { yaResuelto = true; _anotInputTextoActivo = null; input.remove(); }
     });
     input.addEventListener('blur', _commit);
   }
@@ -19703,7 +19714,11 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
     let actual = null;
     pagina.overlay.addEventListener('pointerdown', (e) => {
       if (!_anotHerramienta) return;
-      if (_anotHerramienta === 'texto') { _anotAbrirCampoTexto(pagina, e); return; }
+      if (_anotHerramienta === 'texto') {
+        e.preventDefault(); // si no, el navegador le saca el foco al campito apenas se crea, y se cierra solo
+        _anotAbrirCampoTexto(pagina, e);
+        return;
+      }
       pagina.overlay.setPointerCapture(e.pointerId);
       dibujando = true;
       const p = _anotCoords(pagina, e);
@@ -19794,6 +19809,21 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
       btn.classList.add('activa');
       _anotColor = btn.dataset.color;
     });
+  });
+  const _anotAjustarTamano = (delta) => {
+    _anotTextoSize = Math.max(10, Math.min(72, _anotTextoSize + delta));
+    const label = document.getElementById('pdf-anot-texto-size');
+    if (label) label.textContent = _anotTextoSize;
+    if (_anotInputTextoActivo) _anotInputTextoActivo.style.fontSize = _anotTextoSize + 'px'; // se ve el cambio en vivo si hay un campo abierto
+  };
+  ['pdf-anot-texto-menos', 'pdf-anot-texto-mas'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    // "mousedown" con preventDefault (en vez de solo "click") para que, si hay un campito
+    // de texto abierto, no se le saque el foco al tocar el botón — si no, se cerraría solo
+    // antes de aplicar el cambio de tamaño.
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', () => _anotAjustarTamano(id === 'pdf-anot-texto-mas' ? 4 : -4));
   });
   document.getElementById('pdf-anot-undo')?.addEventListener('click', () => {
     // Deshace el último trazo de la última página que tenga algo dibujado.
