@@ -18850,6 +18850,27 @@ async function marcarPropuestaRevisada(id, btn) {
 }
 window.marcarPropuestaRevisada = marcarPropuestaRevisada;
 
+// Reduce el tamaño de letra de un texto (dentro de un doc jsPDF ya abierto) hasta que
+// entre en el ancho disponible; si ni con el tamaño mínimo entra, lo recorta con "…".
+// Se usa para que textos largos (como "Envio (Transporte Nicolas Gorgone S.R.L)") no se
+// superpongan con el valor de al lado en columnas angostas de la caja de totales.
+function _fitTextToWidth(doc, text, maxWidthMm, baseFontSize, minFontSize) {
+  let fs = baseFontSize;
+  doc.setFontSize(fs);
+  while (fs > minFontSize && doc.getTextWidth(text) > maxWidthMm) {
+    fs -= 0.5;
+    doc.setFontSize(fs);
+  }
+  if (doc.getTextWidth(text) > maxWidthMm) {
+    let recortado = text;
+    while (recortado.length > 3 && doc.getTextWidth(recortado + '…') > maxWidthMm) {
+      recortado = recortado.slice(0, -1);
+    }
+    text = recortado + '…';
+  }
+  return { text, fontSize: fs };
+}
+
 async function exportPDF(sinTotal = false, sinLista = false, sinAhorro = false, sinFoto = !_budgetMostrarFoto()){
   const{subtotal,globalDescuento,total,envCosto}=calcTotals();
   const numStr=String(budgetNum).padStart(4,'0');
@@ -19325,8 +19346,15 @@ async function exportPDF(sinTotal = false, sinLista = false, sinAhorro = false, 
     doc.setDrawColor(200, 200, 200);
     doc.rect(totalsX, y, totalsW, 8, 'FD');
     doc.setTextColor(60, 60, 60);
-    doc.text(`Envio (${env.transportista}${env.metodoPago?' · '+env.metodoPago:''})`, totalsX+3, y+5.5);
-    doc.text(`+ ${fmtARS(cfTot)}`, totalsX+totalsW-3, y+5.5, {align:'right'});
+    const envioValorTxt = `+ ${fmtARS(cfTot)}`;
+    const envioLabelTxt = `Envio (${env.transportista}${env.metodoPago?' · '+env.metodoPago:''})`;
+    doc.setFontSize(9);
+    const _valorW1 = doc.getTextWidth(envioValorTxt);
+    const _label1 = _fitTextToWidth(doc, envioLabelTxt, totalsW - 6 - _valorW1 - 3, 9, 6);
+    doc.setFontSize(_label1.fontSize);
+    doc.text(_label1.text, totalsX+3, y+5.5);
+    doc.setFontSize(9);
+    doc.text(envioValorTxt, totalsX+totalsW-3, y+5.5, {align:'right'});
     y += 8;
 
   } else if(env.activo&&env.costMode==='destino'){
@@ -19334,8 +19362,15 @@ async function exportPDF(sinTotal = false, sinLista = false, sinAhorro = false, 
     doc.setDrawColor(200, 200, 200);
     doc.rect(totalsX, y, totalsW, 8, 'FD');
     doc.setTextColor(80, 80, 80);
-    doc.text(`Envio (${env.transportista})`, totalsX+3, y+5.5);
-    doc.text('Pago en destino', totalsX+totalsW-3, y+5.5, {align:'right'});
+    const envioValorTxt2 = 'Pago en destino';
+    const envioLabelTxt2 = `Envio (${env.transportista})`;
+    doc.setFontSize(9);
+    const _valorW2 = doc.getTextWidth(envioValorTxt2);
+    const _label2 = _fitTextToWidth(doc, envioLabelTxt2, totalsW - 6 - _valorW2 - 3, 9, 6);
+    doc.setFontSize(_label2.fontSize);
+    doc.text(_label2.text, totalsX+3, y+5.5);
+    doc.setFontSize(9);
+    doc.text(envioValorTxt2, totalsX+totalsW-3, y+5.5, {align:'right'});
     y += 8;
   }
 
