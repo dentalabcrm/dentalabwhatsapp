@@ -14276,6 +14276,27 @@ function loadDefaultTransportista(){
 function saveDefaultTransportista(v){try{localStorage.setItem(TRANSP_DEFAULT_LS_KEY, v);}catch(e){}}
 
 let transportistas=loadTransportistas();
+// Catálogo de servicios de envío de Yiqi (SEYI_ID_SEYI) — nombre exacto tal como aparece
+// en la tabla "Servicios" al pie del PDF de Yiqi, mapeado a su ID numérico. Se usa tanto
+// para cargar el servicio al sistema de Yiqi como para detectarlo al importar un PDF.
+const SEYI_SERVICIOS_MAP = {
+  'Normal a domicilio':                2,
+  'Retiro en Correo Argentino':        3,
+  'Envío rápido a domicilio (CABA)':   4,
+  'Retiro en una sucursal':            5,
+  'Retiro en Andreani':                6,
+  'Estándar a domicilio':              7,
+  'Estándar a sucursal de correo':     8,
+  'Express a domicilio':               9,
+  'Retiro en sucursal OCA Prioritario':10,
+  'Prioritario a domicilio':           11,
+  'Express a sucursal de correo':      12,
+  'Prioritario a sucursal de correo':  13,
+  'Prioritário':                       14,
+  'Prioritario':                       15,
+  'Financiamiento':                    16,
+  'domicilio': 2, 'sucursal': 5,
+};
 let budgetEnvio={activo:false,tipo:'Estándar a domicilio',transportista:transportistas[0]||'',costMode:'precio',costo:'',metodoPago:''};
 // Helper: detecta si el tipo de envío es a domicilio (vs sucursal)
 // Helper: detecta si el tipo de envío es a domicilio
@@ -20508,9 +20529,18 @@ async function importarPresupuestoPDF(input) {
       try {
         if (typeof _parsearDatosEnvioDesdePDFTexto === 'function') {
           const datosEnvio = _parsearDatosEnvioDesdePDFTexto(textLines);
+          // Si el pedido es un retiro (dice "Retira"/"Retiro" en las observaciones) y no
+          // aclara en ningún lado que también hay que enviarlo, no se anota nada de
+          // dirección/día/horario — esa info es de envío, y acá no aplica.
+          const _obsLow = (datosEnvio.observaciones || '').toLowerCase();
+          const _diceRetira = /\bretir\w*/.test(_obsLow);
+          const _diceEnviar = /\benv[ií]\w*/.test(_obsLow);
           const partesCondiciones = [];
-          if (datosEnvio.direccion) partesCondiciones.push(`Dirección de envío: ${datosEnvio.direccion}`);
-          if (datosEnvio.horario) partesCondiciones.push(`Horario: ${datosEnvio.horario}`);
+          if (!(_diceRetira && !_diceEnviar)) {
+            if (datosEnvio.direccion) partesCondiciones.push(`Dirección de envío: ${datosEnvio.direccion}`);
+            if (datosEnvio.fechaEntregaTexto) partesCondiciones.push(`Día de entrega: ${datosEnvio.fechaEntregaTexto}`);
+            if (datosEnvio.horario) partesCondiciones.push(`Horario: ${datosEnvio.horario}`);
+          }
           if (partesCondiciones.length) {
             const elCondiciones = document.getElementById('cl-condiciones');
             if (elCondiciones) {
@@ -20527,6 +20557,42 @@ async function importarPresupuestoPDF(input) {
           }
         }
       } catch (eEnvio) { console.warn('[Presupuestos] No se pudo extraer dirección/horario del PDF:', eEnvio.message); }
+
+      // Servicio de envío (tabla "Servicios" al pie del PDF de Yiqi, con su "Tipo de
+      // Servicio" y su precio final "Neto c/dto"). Si se detecta, se activa el toggle de
+      // Envío del presupuesto con ese tipo y ese monto ya cargados.
+      try {
+        const _textoCompleto = textLines.join('\n').replace(/\t/g, ' ');
+        const _idxServicios = _textoCompleto.search(/\bServicios\b/i);
+        if (_idxServicios >= 0) {
+          const _blobServicios = _textoCompleto.slice(_idxServicios, _idxServicios + 1500);
+          // Nombres más largos primero, para no matchear "Prioritario" cuando en realidad
+          // dice "Prioritario a domicilio" (evita quedarse con el nombre parcial).
+          const _serviciosConocidos = Object.keys(SEYI_SERVICIOS_MAP)
+            .filter(k => k !== 'domicilio' && k !== 'sucursal')
+            .sort((a, b) => b.length - a.length);
+          let _tipoDetectado = null, _posMatch = -1;
+          for (const nombre of _serviciosConocidos) {
+            const idx = _blobServicios.toLowerCase().indexOf(nombre.toLowerCase());
+            if (idx >= 0) { _tipoDetectado = nombre; _posMatch = idx; break; }
+          }
+          if (_tipoDetectado) {
+            // El precio final ("Neto c/dto") es el último monto con formato $X.XXX,XX
+            // que aparece en esa misma fila de la tabla, después del nombre del servicio.
+            const _resto = _blobServicios.slice(_posMatch, _posMatch + 300);
+            const _montos = _resto.match(/\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}/g) || [];
+            const _montoTexto = _montos.length ? _montos[_montos.length - 1] : null;
+            const _montoNum = _montoTexto ? parseFloat(_montoTexto.replace(/[$\s]/g, '').replace(/\./g, '').replace(',', '.')) : null;
+
+            budgetEnvio.activo = true;
+            budgetEnvio.tipo = _tipoDetectado;
+            budgetEnvio.costMode = 'precio';
+            if (_montoNum) budgetEnvio.costo = String(Math.round(_montoNum));
+            if (typeof renderBudgetPanel === 'function') renderBudgetPanel();
+            if (typeof showToast === 'function') showToast(`🚚 Envío detectado: ${_tipoDetectado}${_montoNum ? ' — ' + fmtARS(Math.round(_montoNum)) : ''}`, 'ok');
+          }
+        }
+      } catch (eServ) { console.warn('[Presupuestos] No se pudo detectar el servicio de envío del PDF:', eServ.message); }
     } catch(e) { showToast('\u26a0 Error al leer PDF: ' + e.message, 'warn'); }
     return;
   }
@@ -20923,24 +20989,7 @@ async function sincronizarPresupuestoYiqi(btnEl) {
       var envCostoFin  = parseFloat((envCostoBase * (esTarjeta ? 1.10 : 1)).toFixed(4));
 
             // SEYI_ID_SEYI: ID numérico del catálogo de servicios de Yiqi
-      var seyiMap = {
-        'Normal a domicilio':                2,
-        'Retiro en Correo Argentino':        3,
-        'Envío rápido a domicilio (CABA)': 4,
-        'Retiro en una sucursal':            5,
-        'Retiro en Andreani':                6,
-        'Estándar a domicilio':              7,
-        'Estándar a sucursal de correo':     8,
-        'Express a domicilio':               9,
-        'Retiro en sucursal OCA Prioritario':10,
-        'Prioritario a domicilio':           11,
-        'Express a sucursal de correo':      12,
-        'Prioritario a sucursal de correo':  13,
-        'Prioritário':                       14,
-        'Prioritario':                       15,
-        'Financiamiento':                    16,
-        'domicilio': 2, 'sucursal': 5,
-      };
+      var seyiMap = SEYI_SERVICIOS_MAP;
       var _tipoEnvio = budgetEnvio.tipo || 'Normal a domicilio';
       if(_tipoEnvio==='domicilio')_tipoEnvio='Estándar a domicilio';
       if(_tipoEnvio==='sucursal')_tipoEnvio='Retiro en una sucursal';
@@ -65108,7 +65157,7 @@ async function _extraerTextoPDFDesdeBuffer(buf) {
 // Extrae Vendedor, Lugar de Entrega y Observaciones del presupuesto en PDF (formato Yiqi).
 // Diseñado y probado contra el formato real de "PRESUPUESTO" que emite el sistema.
 function _parsearDatosEnvioDesdePDFTexto(textLines) {
-  const resultado = { vendedor: '', direccion: '', observaciones: '', pagoEnvio: '', tipoEntrega: '', cliente: '', condicionVenta: '', total: '', nroPedido: '', telefono: '' };
+  const resultado = { vendedor: '', direccion: '', observaciones: '', pagoEnvio: '', tipoEntrega: '', cliente: '', condicionVenta: '', total: '', nroPedido: '', telefono: '', fechaEntregaTexto: '' };
   const ETIQUETAS_TOTALES = [/\bNeto\b/i, /\bIVA\b/i, /%\s*Dto/i, /Desc\s*gral/i, /Percep\.?/i, /\bTotal\b/i];
 
   let idxObs = -1, idxLugar = -1;
@@ -65214,6 +65263,10 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
   const _mHorarioPdf = resultado.observaciones.match(HORARIO_RX_PDF);
   resultado.horario = _mHorarioPdf ? _mHorarioPdf[0].trim() : '';
 
+  // Día/fecha de entrega: mismo criterio (se busca en las observaciones libres).
+  const _mFechaPdf = resultado.observaciones.match(FECHA_RX_PDF);
+  resultado.fechaEntregaTexto = _mFechaPdf ? _mFechaPdf[0].trim() : '';
+
   // Tipo de entrega también se busca en la sección "Servicios" del PDF (el servicio de
   // envío contratado, ej. "Estándar a domicilio" o "Retiro en una sucursal") — es un dato
   // más confiable que las observaciones libres, así que pisa lo que se haya detectado ahí.
@@ -65295,6 +65348,11 @@ const ALIAS_CORTOS_PDF = [
 // leer el horario del título/descripción del evento, copiada acá para que también la puedan
 // usar el modal de Nuevo Envío y los modales de Google Calendar al leer un PDF.
 const HORARIO_RX_PDF = /\b\d{1,2}\s+[aA]\s+\d{1,2}\s+[oO]\s+\d{1,2}\s+[aA]\s+\d{1,2}\b|\b\d{1,2}:\d{2}\s*[-–a]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?|\b\d{1,2}\s*[aA]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?\b|\b\d{1,2}\s*[-–]\s*\d{1,2}(?::\d{2})?\s*[Hh][Ss]?\b|\d{1,2}:\d{2}\s*[-–a]\s*\d{1,2}:\d{2}(?:\s*(?:[aA][mM]|[pP][mM]))?|\d{1,2}:\d{2}\s*[aA]\s*\d{1,2}(?::\d{2})?|\d{1,2}[Hh][Ss]?\s*[aA]\s*\d{1,2}[Hh][Ss]?|\b([01]?\d|2[0-3])\s+[aA]\s+([01]?\d|2[0-3])\b|>\s*\d{1,2}[Hh][Ss]?|hasta\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*(?:[Hh][Ss]?)?|a\s+partir\s+de\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*(?:[Hh][Ss]?)?|a\s+las?\s+\d{1,2}(?::\d{2}|\.\d{2})?\s*(?:[Hh][Ss]?)?|antes\s+de\s+las?\s+\d{1,2}(?::\d{2})?\s*(?:[Hh][Ss]?)?|despu[eé]s\s+de\s+las?\s+\d{1,2}(?::\d{2})?\s*(?:[Hh][Ss]?)?|entre\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?\s*y\s*(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|entre\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*y\s*(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*(?:[Hh][Ss]?)?|entre\s+(?:las?\s+)?([01]?\d|2[0-3])\s*y\s*(?:las?\s+)?([01]?\d|2[0-3])\b|de\s+\d{1,2}(?:[Hh][Ss]?)?\s*[aA]\s*\d{1,2}\s*[Hh][Ss]?|\d{1,2}\.\d{2}\s*[Hh][Ss]?\s*[aA]\s*\d{1,2}\.\d{2}\s*[Hh][Ss]?|\d{1,2}\/\d{1,2}\s*[Hh][Ss]?|~\s*\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|apr?o[xk]\.?\s*(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|alrededor\s+de\s+(?:las?\s+)?\d{1,2}(?::\d{2}|\.\d{2})?\s*[Hh][Ss]?|\d{1,2}\s*(?:[aA][mM]|[pP][mM])(?:\s*[-–a]\s*\d{1,2}\s*(?:[aA][mM]|[pP][mM]))?|por\s+la\s+(?:ma[ñn]ana|tarde|noche)|ma[ñn]ana\s+temprano|mediod[ií]a|al\s+cierre|al\s+abrir|primera\s+hora|[uú]ltima\s+hora/i;
+
+// Detector de día/fecha de entrega en texto libre (observaciones del PDF) — cubre fechas
+// numéricas (12/08, 12-08-26), "12 de agosto (de 2026)" y nombres de día ("el lunes",
+// "para el martes 12/08"), con o sin la palabra "el/para el" adelante.
+const FECHA_RX_PDF = /(?:(?:para\s+el|el)\s+)?(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)(?:\s+\d{1,2}(?:[\/\-]\d{1,2})?)?|\d{1,2}\s+de\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)(?:\s+de\s+\d{2,4})?|\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?/i;
 
 function _detectarTransporteEnTexto(texto) {
   if (!texto) return '';
