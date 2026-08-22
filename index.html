@@ -20562,35 +20562,44 @@ async function importarPresupuestoPDF(input) {
       // Servicio" y su precio final "Neto c/dto"). Si se detecta, se activa el toggle de
       // Envío del presupuesto con ese tipo y ese monto ya cargados.
       try {
-        const _textoCompleto = textLines.join('\n').replace(/\t/g, ' ');
-        const _idxServicios = _textoCompleto.search(/\bServicios\b/i);
-        if (_idxServicios >= 0) {
-          const _blobServicios = _textoCompleto.slice(_idxServicios, _idxServicios + 1500);
-          // Nombres más largos primero, para no matchear "Prioritario" cuando en realidad
-          // dice "Prioritario a domicilio" (evita quedarse con el nombre parcial).
-          const _serviciosConocidos = Object.keys(SEYI_SERVICIOS_MAP)
-            .filter(k => k !== 'domicilio' && k !== 'sucursal')
-            .sort((a, b) => b.length - a.length);
-          let _tipoDetectado = null, _posMatch = -1;
+        // Nombres más largos primero, para no matchear "Prioritario" cuando en realidad
+        // dice "Prioritario a domicilio" (evita quedarse con el nombre parcial).
+        const _serviciosConocidos = Object.keys(SEYI_SERVICIOS_MAP)
+          .filter(k => k !== 'domicilio' && k !== 'sucursal')
+          .sort((a, b) => b.length - a.length);
+        // Se busca línea por línea (no en un bloque de texto amplio) para no terminar
+        // agarrando montos de otra tabla más abajo (como el "Total" general del PDF, que
+        // cae bastante después y por eso se colaba con una ventana de texto más grande).
+        let _pasoServicios = false, _tipoDetectado = null, _lineaServicio = null;
+        for (const raw of textLines) {
+          const linea = raw.replace(/\t/g, ' ');
+          if (!_pasoServicios) { if (/\bServicios\b/i.test(linea)) _pasoServicios = true; continue; }
+          if (/\bObservaciones\s*:/i.test(linea)) break; // ya se pasó de la tabla de Servicios
           for (const nombre of _serviciosConocidos) {
-            const idx = _blobServicios.toLowerCase().indexOf(nombre.toLowerCase());
-            if (idx >= 0) { _tipoDetectado = nombre; _posMatch = idx; break; }
+            if (linea.toLowerCase().includes(nombre.toLowerCase())) { _tipoDetectado = nombre; _lineaServicio = linea; break; }
           }
-          if (_tipoDetectado) {
-            // El precio final ("Neto c/dto") es el último monto con formato $X.XXX,XX
-            // que aparece en esa misma fila de la tabla, después del nombre del servicio.
-            const _resto = _blobServicios.slice(_posMatch, _posMatch + 300);
-            const _montos = _resto.match(/\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}/g) || [];
-            const _montoTexto = _montos.length ? _montos[_montos.length - 1] : null;
-            const _montoNum = _montoTexto ? parseFloat(_montoTexto.replace(/[$\s]/g, '').replace(/\./g, '').replace(',', '.')) : null;
+          if (_tipoDetectado) break;
+        }
+        if (_tipoDetectado && _lineaServicio) {
+          // El precio final ("Neto c/dto") es el último monto con formato $X.XXX,XX que
+          // aparece en esa misma línea de la tabla.
+          const _montos = _lineaServicio.match(/\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}/g) || [];
+          const _montoTexto = _montos.length ? _montos[_montos.length - 1] : null;
+          let _montoNum = _montoTexto ? parseFloat(_montoTexto.replace(/[$\s]/g, '').replace(/\./g, '').replace(',', '.')) : null;
 
-            budgetEnvio.activo = true;
-            budgetEnvio.tipo = _tipoDetectado;
-            budgetEnvio.costMode = 'precio';
-            if (_montoNum) budgetEnvio.costo = String(Math.round(_montoNum));
-            if (typeof renderBudgetPanel === 'function') renderBudgetPanel();
-            if (typeof showToast === 'function') showToast(`🚚 Envío detectado: ${_tipoDetectado}${_montoNum ? ' — ' + fmtARS(Math.round(_montoNum)) : ''}`, 'ok');
-          }
+          // Ese "Neto c/dto" es sin IVA. Si el PDF tiene un renglón de "IVA" con su
+          // importe (la cajita de totales del presupuesto), quiere decir que el pedido
+          // lleva IVA, y hay que sumárselo también al envío (21%) antes de cargarlo.
+          const _textoCompleto = textLines.join(' ').replace(/\t/g, ' ');
+          const _tieneIVA = /\bIVA\b[^\d\n]{0,15}\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}/i.test(_textoCompleto);
+          if (_montoNum && _tieneIVA) _montoNum = _montoNum * 1.21;
+
+          budgetEnvio.activo = true;
+          budgetEnvio.tipo = _tipoDetectado;
+          budgetEnvio.costMode = 'precio';
+          if (_montoNum) budgetEnvio.costo = String(Math.round(_montoNum));
+          if (typeof renderBudgetPanel === 'function') renderBudgetPanel();
+          if (typeof showToast === 'function') showToast(`🚚 Envío detectado: ${_tipoDetectado}${_montoNum ? ' — ' + fmtARS(Math.round(_montoNum)) + (_tieneIVA ? ' (con IVA)' : '') : ''}`, 'ok');
         }
       } catch (eServ) { console.warn('[Presupuestos] No se pudo detectar el servicio de envío del PDF:', eServ.message); }
     } catch(e) { showToast('\u26a0 Error al leer PDF: ' + e.message, 'warn'); }
