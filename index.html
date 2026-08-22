@@ -20616,17 +20616,35 @@ async function importarPresupuestoPDF(input) {
           budgetEnvio.tipo = _tipoDetectado;
           budgetEnvio.costMode = 'precio';
           if (_montoNum) budgetEnvio.costo = String(Math.round(_montoNum));
+        }
 
-          // Transportista: mismo detector que ya usa Envíos Dentalab (lista de OCA,
-          // Correo Argentino, Andreani, etc. + los que se hayan agregado a mano ahí).
-          if (typeof _detectarTransporteEnTexto === 'function') {
-            const _obsParaTransporte = (_datosEnvioPdf && _datosEnvioPdf.observaciones) || '';
-            const _transporteDetectado = _detectarTransporteEnTexto(_obsParaTransporte) || _detectarTransporteEnTexto(textLines.join(' '));
-            if (_transporteDetectado) budgetEnvio.transportista = _transporteDetectado;
-          }
+        // Transportista: mismo detector que ya usa Envíos Dentalab (lista de OCA,
+        // Correo Argentino, Andreani, etc. + los que se hayan agregado a mano ahí). Se
+        // busca SIEMPRE, no solo cuando hay tabla de "Servicios" — muchos PDF traen el
+        // transporte aclarado en observaciones sin que el envío se haya cobrado aparte
+        // como línea de servicio.
+        let _transporteDetectado = '';
+        if (typeof _detectarTransporteEnTexto === 'function') {
+          const _obsParaTransporte = (_datosEnvioPdf && _datosEnvioPdf.observaciones) || '';
+          _transporteDetectado = _detectarTransporteEnTexto(_obsParaTransporte) || _detectarTransporteEnTexto(textLines.join(' '));
+          if (_transporteDetectado) budgetEnvio.transportista = _transporteDetectado;
+        }
 
+        // Si no había tabla de "Servicios" pero sí se sabe el transportista y/o si es a
+        // domicilio o a sucursal (por las observaciones), igual conviene activar el
+        // toggle de Envío con esos datos — sin monto, en "Pago en destino", para que el
+        // vendedor solo tenga que completar el precio (en vez de cargar todo de cero).
+        if (!_tipoDetectado && (_transporteDetectado || (_datosEnvioPdf && _datosEnvioPdf.tipoEntrega))) {
+          budgetEnvio.activo = true;
+          if (_datosEnvioPdf && _datosEnvioPdf.tipoEntrega === 'sucursal') budgetEnvio.tipo = 'Retiro en una sucursal';
+          else if (_datosEnvioPdf && _datosEnvioPdf.tipoEntrega === 'domicilio') budgetEnvio.tipo = 'Estándar a domicilio';
+          budgetEnvio.costMode = 'destino';
+        }
+
+        if (budgetEnvio.activo) {
           if (typeof renderBudgetPanel === 'function') renderBudgetPanel();
-          if (typeof showToast === 'function') showToast(`🚚 Envío detectado: ${_tipoDetectado}${budgetEnvio.transportista ? ' · ' + budgetEnvio.transportista : ''}${_montoNum ? ' — ' + fmtARS(Math.round(_montoNum)) : ''}`, 'ok');
+          const _montoActual = budgetEnvio.costMode === 'precio' ? parseFloat(budgetEnvio.costo || 0) : null;
+          if (typeof showToast === 'function') showToast(`🚚 Envío detectado: ${budgetEnvio.tipo}${budgetEnvio.transportista ? ' · ' + budgetEnvio.transportista : ''}${_montoActual ? ' — ' + fmtARS(Math.round(_montoActual)) : ' — precio a completar'}`, 'ok');
         }
       } catch (eServ) { console.warn('[Presupuestos] No se pudo detectar el servicio de envío del PDF:', eServ.message); }
     } catch(e) { showToast('\u26a0 Error al leer PDF: ' + e.message, 'warn'); }
