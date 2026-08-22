@@ -20539,15 +20539,15 @@ async function importarPresupuestoPDF(input) {
           const _diceEnviar = /\benv[ií]\w*/.test(_obsLow);
           const partesCondiciones = [];
           if (!(_diceRetira && !_diceEnviar)) {
-            if (datosEnvio.direccion) partesCondiciones.push(`Dirección de envío: ${datosEnvio.direccion}`);
             if (datosEnvio.fechaEntregaTexto) partesCondiciones.push(`Día de entrega: ${datosEnvio.fechaEntregaTexto}`);
             if (datosEnvio.horario) partesCondiciones.push(`Horario: ${datosEnvio.horario}`);
+            if (datosEnvio.direccion) partesCondiciones.push(`Dirección de envío: ${datosEnvio.direccion}`);
           }
           if (partesCondiciones.length) {
             const elCondiciones = document.getElementById('cl-condiciones');
             if (elCondiciones) {
               const previo = elCondiciones.value.trim();
-              const nuevo = partesCondiciones.join(' · ');
+              const nuevo = partesCondiciones.join('\n');
               // No duplicar si ya estaba cargado (por ejemplo, al reimportar el mismo PDF).
               if (!previo.includes(nuevo)) {
                 elCondiciones.value = previo ? `${previo}\n${nuevo}` : nuevo;
