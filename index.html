@@ -20541,7 +20541,23 @@ async function importarPresupuestoPDF(input) {
           if (!(_diceRetira && !_diceEnviar)) {
             if (datosEnvio.fechaEntregaTexto) partesCondiciones.push(`Día de entrega: ${datosEnvio.fechaEntregaTexto}`);
             if (datosEnvio.horario) partesCondiciones.push(`Horario: ${datosEnvio.horario}`);
-            if (datosEnvio.direccion) partesCondiciones.push(`Dirección de envío: ${datosEnvio.direccion}`);
+            // Cuando el envío es "a sucursal", "Lugar de Entrega" es el domicilio del
+            // CLIENTE (no sirve acá) — la dirección real de la sucursal, si el vendedor
+            // la aclaró, está en observaciones ("SUCURSAL: ..."); si no la aclaró, se deja
+            // "Sucursal" a secas con Provincia/Localidad como referencia general.
+            let _direccionFinal = datosEnvio.direccion;
+            if (datosEnvio.tipoEntrega === 'sucursal') {
+              const _capitalizar = s => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
+              if (datosEnvio.sucursalDireccion) {
+                _direccionFinal = `Sucursal, ${datosEnvio.sucursalDireccion}`;
+              } else {
+                const _partesSucursal = ['Sucursal'];
+                if (datosEnvio.provincia) _partesSucursal.push(datosEnvio.provincia);
+                if (datosEnvio.localidad) _partesSucursal.push(_capitalizar(datosEnvio.localidad));
+                _direccionFinal = _partesSucursal.join(', ');
+              }
+            }
+            if (_direccionFinal) partesCondiciones.push(`Dirección de envío: ${_direccionFinal}`);
           }
           if (partesCondiciones.length) {
             const elCondiciones = document.getElementById('cl-condiciones');
@@ -65177,7 +65193,7 @@ async function _extraerTextoPDFDesdeBuffer(buf) {
 // Extrae Vendedor, Lugar de Entrega y Observaciones del presupuesto en PDF (formato Yiqi).
 // Diseñado y probado contra el formato real de "PRESUPUESTO" que emite el sistema.
 function _parsearDatosEnvioDesdePDFTexto(textLines) {
-  const resultado = { vendedor: '', direccion: '', observaciones: '', pagoEnvio: '', tipoEntrega: '', cliente: '', condicionVenta: '', total: '', nroPedido: '', telefono: '', fechaEntregaTexto: '' };
+  const resultado = { vendedor: '', direccion: '', observaciones: '', pagoEnvio: '', tipoEntrega: '', cliente: '', condicionVenta: '', total: '', nroPedido: '', telefono: '', fechaEntregaTexto: '', provincia: '', localidad: '', sucursalDireccion: '' };
   const ETIQUETAS_TOTALES = [/\bNeto\b/i, /\bIVA\b/i, /%\s*Dto/i, /Desc\s*gral/i, /Percep\.?/i, /\bTotal\b/i];
 
   let idxObs = -1, idxLugar = -1;
@@ -65215,6 +65231,17 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
       // "/", se toma el primero.
       const m = linea.match(/Domicilio\s+Comercial\s*:.*?\(([+\d][\d\s\-+/]{5,})\)/i);
       if (m) resultado.telefono = m[1].split('/')[0].trim();
+    }
+    // Provincia/Localidad del cliente (encabezado del PDF) — distinto de "Lugar de
+    // Entrega": se usan como respaldo para armar la dirección cuando el envío es a
+    // sucursal y no hay ninguna dirección puntual de la sucursal en las observaciones.
+    if (!resultado.provincia) {
+      const m = linea.match(/\bProvincia\s*:\s*(.+)$/i);
+      if (m && m[1].trim()) resultado.provincia = m[1].trim();
+    }
+    if (!resultado.localidad) {
+      const m = linea.match(/\bLocalidad\s*:\s*(.+)$/i);
+      if (m && m[1].trim()) resultado.localidad = m[1].trim();
     }
   });
 
@@ -65286,6 +65313,13 @@ function _parsearDatosEnvioDesdePDFTexto(textLines) {
   // Día/fecha de entrega: mismo criterio (se busca en las observaciones libres).
   const _mFechaPdf = resultado.observaciones.match(FECHA_RX_PDF);
   resultado.fechaEntregaTexto = _mFechaPdf ? _mFechaPdf[0].trim() : '';
+
+  // Dirección puntual de la sucursal (cuando el envío es "a sucursal"), si el vendedor la
+  // aclaró en observaciones — típicamente "(SUCURSAL: GALINA 819, TRELEW)". Importante:
+  // "Lugar de Entrega" en un envío a sucursal es el domicilio del CLIENTE, no la sucursal
+  // en sí — por eso esto se busca aparte, en vez de reusar resultado.direccion.
+  const _mSucursalPdf = resultado.observaciones.match(/sucursal\s*:\s*([^)\n]+)/i);
+  resultado.sucursalDireccion = _mSucursalPdf ? _mSucursalPdf[1].trim() : '';
 
   // Tipo de entrega también se busca en la sección "Servicios" del PDF (el servicio de
   // envío contratado, ej. "Estándar a domicilio" o "Retiro en una sucursal") — es un dato
