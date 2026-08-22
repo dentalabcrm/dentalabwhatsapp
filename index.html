@@ -20571,6 +20571,18 @@ async function importarPresupuestoPDF(input) {
               }
             }
           }
+
+          // Nombre / Razón Social del cliente ("Apellido y Nombre / Razón Social:" en el
+          // encabezado del PDF) — solo se completa si el campo está vacío, para no pisar
+          // un nombre que el vendedor ya haya cargado a mano.
+          if (datosEnvio.cliente) {
+            const elNombre = document.getElementById('cl-nombre');
+            if (elNombre && !elNombre.value.trim()) {
+              elNombre.value = datosEnvio.cliente;
+              if (typeof budgetClientData === 'object' && budgetClientData) budgetClientData.nombre = datosEnvio.cliente;
+              if (typeof edSyncPresupuestoBorrador === 'function') edSyncPresupuestoBorrador();
+            }
+          }
         }
       } catch (eEnvio) { console.warn('[Presupuestos] No se pudo extraer dirección/horario del PDF:', eEnvio.message); }
 
@@ -20630,13 +20642,18 @@ async function importarPresupuestoPDF(input) {
 
         // Si no había tabla de "Servicios" pero sí se sabe el transportista y/o si es a
         // domicilio o a sucursal (por las observaciones), igual conviene activar el
-        // toggle de Envío con esos datos — sin monto, en "Pago en destino", para que el
-        // vendedor solo tenga que completar el precio (en vez de cargar todo de cero).
+        // toggle de Envío con esos datos, aunque no haya monto. El modo "Pago en destino"
+        // solo se marca si el PDF lo dice explícitamente ("pago en destino") — si dice
+        // "pago en origen" (o no dice nada) NO se marca como destino ni se transcribe esa
+        // frase a ningún lado; se deja en blanco para que el vendedor complete el precio.
         if (!_tipoDetectado && (_transporteDetectado || (_datosEnvioPdf && _datosEnvioPdf.tipoEntrega))) {
           budgetEnvio.activo = true;
           if (_datosEnvioPdf && _datosEnvioPdf.tipoEntrega === 'sucursal') budgetEnvio.tipo = 'Retiro en una sucursal';
           else if (_datosEnvioPdf && _datosEnvioPdf.tipoEntrega === 'domicilio') budgetEnvio.tipo = 'Estándar a domicilio';
-          budgetEnvio.costMode = 'destino';
+          const _textoPago = ((_datosEnvioPdf && _datosEnvioPdf.observaciones) || '') + ' ' + textLines.join(' ');
+          const _diceDestino = /pago\s+en\s+destino/i.test(_textoPago);
+          const _diceOrigen = /pago\s+en\s+origen/i.test(_textoPago);
+          if (_diceDestino && !_diceOrigen) budgetEnvio.costMode = 'destino';
         }
 
         if (budgetEnvio.activo) {
