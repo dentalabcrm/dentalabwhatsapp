@@ -16755,7 +16755,7 @@ function bindBudgetEvents(){
   }
   ['cl-nombre','cl-cuit','cl-fecha','cl-notas','cl-email','cl-num'].forEach(id=>{const el=$(id);if(el)el.addEventListener('input',syncClientDataFromForm);});
   const clrBtn=$('btn-clear-budget');
-  if(clrBtn)clrBtn.addEventListener('click',()=>{if(!confirm('¿Vaciar el presupuesto actual?'))return;budgetItems=[];budgetGlobalDisc=0;selectedRows.clear();budgetClientData={nombre:'',cuit:'',fecha:todayISO(),notas:'',email:'',validez:'',condiciones:''};const _n=$('cl-nombre'),_c=$('cl-cuit'),_f=$('cl-fecha'),_no=$('cl-notas'),_em=$('cl-email'),_vl=$('cl-validez'),_cond=$('cl-condiciones');if(_n)_n.value='';if(_c)_c.value='';if(_f)_f.value=todayISO();if(_no)_no.value='';if(_em)_em.value='';if(_vl)_vl.value='';if(_cond)_cond.value='';updateBudgetBadge();borrarPresupuestoBorrador();renderBudgetPanel();renderTable();});
+  if(clrBtn)clrBtn.addEventListener('click',()=>{if(!confirm('¿Vaciar el presupuesto actual?'))return;budgetItems=[];budgetGlobalDisc=0;selectedRows.clear();budgetClientData={nombre:'',cuit:'',fecha:todayISO(),notas:'',email:'',validez:'',condiciones:''};budgetEnvio={activo:false,tipo:'Estándar a domicilio',transportista:transportistas[0]||'',costMode:'precio',costo:'',metodoPago:''};budgetFinancing={activo:false};const _n=$('cl-nombre'),_c=$('cl-cuit'),_f=$('cl-fecha'),_no=$('cl-notas'),_em=$('cl-email'),_vl=$('cl-validez'),_cond=$('cl-condiciones');if(_n)_n.value='';if(_c)_c.value='';if(_f)_f.value=todayISO();if(_no)_no.value='';if(_em)_em.value='';if(_vl)_vl.value='';if(_cond)_cond.value='';updateBudgetBadge();borrarPresupuestoBorrador();renderBudgetPanel();renderTable();});
   const saveBtn=$('btn-save-budget');
   if(saveBtn)saveBtn.addEventListener('click',()=>{syncClientDataFromForm();if(!budgetClientData.nombre.trim()){showToast('⚠ Ingresá el nombre del cliente','warn');$('cl-nombre').focus();return;}if(budgetItems.length===0){showToast('⚠ El presupuesto está vacío','warn');return;}saveBudgetToHistory();});
   const pdfBtn=$('btn-export-pdf');
@@ -20059,11 +20059,9 @@ function openPDFPreviewModal(pdfUrl, fileName, gmailCtx) {
   function close() {
     backdrop.remove();
     URL.revokeObjectURL(pdfUrl);
-    // Apagar Envío y Financiamiento al cerrar el PDF
-    const shToggle  = document.getElementById('sh-toggle');
-    const finToggle = document.getElementById('fin-toggle');
-    if (shToggle  && shToggle.checked)  { shToggle.checked  = false; shToggle.dispatchEvent(new Event('change')); }
-    if (finToggle && finToggle.checked) { finToggle.checked = false; finToggle.dispatchEvent(new Event('change')); }
+    // Ni el envío ni el financiamiento se apagan acá — se mantienen cargados hasta que se
+    // vacíe el presupuesto a propósito (con "Vaciar"), en vez de perderse solo por cerrar
+    // la vista previa.
   }
 
   closeBtn.addEventListener('click', close);
@@ -42933,6 +42931,8 @@ function fltEliminar(id) {
         budgetItems = []; budgetGlobalDisc = 0;
         if (typeof selectedRows !== 'undefined') selectedRows.clear();
         if (typeof budgetClientData !== 'undefined') budgetClientData = {nombre:'',cuit:'',fecha:(typeof todayISO==='function'?todayISO():''),notas:'',email:'',validez:'',condiciones:''};
+        if (typeof budgetEnvio !== 'undefined') budgetEnvio = {activo:false,tipo:'Estándar a domicilio',transportista:(typeof transportistas!=='undefined'&&transportistas[0])||'',costMode:'precio',costo:'',metodoPago:''};
+        if (typeof budgetFinancing !== 'undefined') budgetFinancing = {activo:false};
         const fields = ['cl-nombre','cl-cuit','cl-fecha','cl-notas','cl-email','cl-validez','cl-condiciones'];
         fields.forEach(id => { const el = document.getElementById(id); if(el) el.value = id==='cl-fecha'?(typeof todayISO==='function'?todayISO():''):''; });
         if (typeof updateBudgetBadge==='function') updateBudgetBadge();
