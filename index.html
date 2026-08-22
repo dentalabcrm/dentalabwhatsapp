@@ -20500,6 +20500,33 @@ async function importarPresupuestoPDF(input) {
       lines2.sort((a, b) => a.page !== b.page ? a.page - b.page : a.y - b.y);
       const textLines = lines2.map(l => l.items.sort((a, b) => a.x - b.x).map(i => i.str).join('\t'));
       _parseAndAddSKUs(textLines, _rows);
+
+      // Además de los SKUs, si el PDF trae "Lugar de Entrega" / "Observaciones" (formato
+      // Yiqi), reutilizamos el mismo detector que ya usa Envíos Dentalab para sacar de ahí
+      // la dirección de envío y el horario, y los volcamos en "Condiciones Comerciales"
+      // (aparece al pie del PDF del presupuesto).
+      try {
+        if (typeof _parsearDatosEnvioDesdePDFTexto === 'function') {
+          const datosEnvio = _parsearDatosEnvioDesdePDFTexto(textLines);
+          const partesCondiciones = [];
+          if (datosEnvio.direccion) partesCondiciones.push(`Dirección de envío: ${datosEnvio.direccion}`);
+          if (datosEnvio.horario) partesCondiciones.push(`Horario: ${datosEnvio.horario}`);
+          if (partesCondiciones.length) {
+            const elCondiciones = document.getElementById('cl-condiciones');
+            if (elCondiciones) {
+              const previo = elCondiciones.value.trim();
+              const nuevo = partesCondiciones.join(' · ');
+              // No duplicar si ya estaba cargado (por ejemplo, al reimportar el mismo PDF).
+              if (!previo.includes(nuevo)) {
+                elCondiciones.value = previo ? `${previo}\n${nuevo}` : nuevo;
+                if (typeof budgetClientData === 'object' && budgetClientData) budgetClientData.condiciones = elCondiciones.value;
+                if (typeof edSyncPresupuestoBorrador === 'function') edSyncPresupuestoBorrador();
+                if (typeof showToast === 'function') showToast('📍 Dirección y horario agregados a Condiciones Comerciales', 'ok');
+              }
+            }
+          }
+        }
+      } catch (eEnvio) { console.warn('[Presupuestos] No se pudo extraer dirección/horario del PDF:', eEnvio.message); }
     } catch(e) { showToast('\u26a0 Error al leer PDF: ' + e.message, 'warn'); }
     return;
   }
