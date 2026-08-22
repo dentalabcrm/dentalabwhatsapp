@@ -20526,9 +20526,11 @@ async function importarPresupuestoPDF(input) {
       // Yiqi), reutilizamos el mismo detector que ya usa Envíos Dentalab para sacar de ahí
       // la dirección de envío y el horario, y los volcamos en "Condiciones Comerciales"
       // (aparece al pie del PDF del presupuesto).
+      let _datosEnvioPdf = null;
       try {
         if (typeof _parsearDatosEnvioDesdePDFTexto === 'function') {
-          const datosEnvio = _parsearDatosEnvioDesdePDFTexto(textLines);
+          _datosEnvioPdf = _parsearDatosEnvioDesdePDFTexto(textLines);
+          const datosEnvio = _datosEnvioPdf;
           // Si el pedido es un retiro (dice "Retira"/"Retiro" en las observaciones) y no
           // aclara en ningún lado que también hay que enviarlo, no se anota nada de
           // dirección/día/horario — esa info es de envío, y acá no aplica.
@@ -20598,8 +20600,17 @@ async function importarPresupuestoPDF(input) {
           budgetEnvio.tipo = _tipoDetectado;
           budgetEnvio.costMode = 'precio';
           if (_montoNum) budgetEnvio.costo = String(Math.round(_montoNum));
+
+          // Transportista: mismo detector que ya usa Envíos Dentalab (lista de OCA,
+          // Correo Argentino, Andreani, etc. + los que se hayan agregado a mano ahí).
+          if (typeof _detectarTransporteEnTexto === 'function') {
+            const _obsParaTransporte = (_datosEnvioPdf && _datosEnvioPdf.observaciones) || '';
+            const _transporteDetectado = _detectarTransporteEnTexto(_obsParaTransporte) || _detectarTransporteEnTexto(textLines.join(' '));
+            if (_transporteDetectado) budgetEnvio.transportista = _transporteDetectado;
+          }
+
           if (typeof renderBudgetPanel === 'function') renderBudgetPanel();
-          if (typeof showToast === 'function') showToast(`🚚 Envío detectado: ${_tipoDetectado}${_montoNum ? ' — ' + fmtARS(Math.round(_montoNum)) + (_tieneIVA ? ' (con IVA)' : '') : ''}`, 'ok');
+          if (typeof showToast === 'function') showToast(`🚚 Envío detectado: ${_tipoDetectado}${budgetEnvio.transportista ? ' · ' + budgetEnvio.transportista : ''}${_montoNum ? ' — ' + fmtARS(Math.round(_montoNum)) : ''}`, 'ok');
         }
       } catch (eServ) { console.warn('[Presupuestos] No se pudo detectar el servicio de envío del PDF:', eServ.message); }
     } catch(e) { showToast('\u26a0 Error al leer PDF: ' + e.message, 'warn'); }
