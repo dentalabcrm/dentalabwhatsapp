@@ -20553,7 +20553,23 @@ async function importarPresupuestoPDF(input) {
       });
       lines2.sort((a, b) => a.page !== b.page ? a.page - b.page : a.y - b.y);
       const textLines = lines2.map(l => l.items.sort((a, b) => a.x - b.x).map(i => i.str).join('\t'));
-      _parseAndAddSKUs(textLines, _rows);
+
+      // Si el PDF es de un "Pedido Web", la lista de precios a usar depende de la forma de
+      // pago que eligió el cliente: MercadoPago, Mobbex, o "a convenir" van a Lista 2
+      // General; cualquier otra forma de pago (transferencia, efectivo, etc.) va a Lista 1
+      // Contado, que es lo normal.
+      let _listaWebOverride = null;
+      const _textoPdfCompleto = textLines.join(' ');
+      if (/Pedido\s+Web/i.test(_textoPdfCompleto)) {
+        const _pagoRequiereLista2 = /Mercado\s*Pago/i.test(_textoPdfCompleto) || /\bMobbex\b/i.test(_textoPdfCompleto) || /Forma\s+de\s+pago\s+a\s+convenir/i.test(_textoPdfCompleto);
+        const _listaWebInfo = LISTAS.find(l => l.label === (_pagoRequiereLista2 ? 'Lista 2 General' : 'Lista 1 Contado'));
+        if (_listaWebInfo) {
+          _listaWebOverride = _listaWebInfo.key;
+          if (typeof showToast === 'function') showToast(`🌐 Pedido Web detectado — usando ${_listaWebInfo.label}`, 'ok');
+        }
+      }
+
+      _parseAndAddSKUs(textLines, _rows, _listaWebOverride);
 
       // Además de los SKUs, si el PDF trae "Lugar de Entrega" / "Observaciones" (formato
       // Yiqi), reutilizamos el mismo detector que ya usa Envíos Dentalab para sacar de ahí
@@ -20704,7 +20720,7 @@ async function importarPresupuestoPDF(input) {
   showToast('\u26a0 Formato no soportado', 'warn');
 }
 
-function _parseAndAddSKUs(lines, _rows) {
+function _parseAndAddSKUs(lines, _rows, listaKeyOverride) {
   const skuIndex = {};
   _rows.forEach(r => {
     const k = String(r.SKU || '').trim().toUpperCase();
@@ -20712,7 +20728,8 @@ function _parseAndAddSKUs(lines, _rows) {
   });
 
   let listaKey = 'Lista 1 Contado';
-  if (budgetItems.length > 0 && budgetItems[0].lista) listaKey = budgetItems[0].lista;
+  if (listaKeyOverride) listaKey = listaKeyOverride;
+  else if (budgetItems.length > 0 && budgetItems[0].lista) listaKey = budgetItems[0].lista;
   const listaInfo = LISTAS.find(l => l.key === listaKey) || LISTAS[0];
 
   const skipSet = new Set(['SKU','PRODUCTO','LISTA','CANT','SUBTOTAL','TOTAL','DESC','CLIENTE','CUIT']);
@@ -42856,7 +42873,7 @@ function fltEliminar(id) {
     { id:'foco-buscador-precios', desc:'🔍 Foco en buscador (Lista de Precios)', ctrl:false, key:'b',      editable:true,  group:'actions' },
     { id:'foco-cantidad',     desc:'Foco en cantidad (fila hover, Lista de Precios)', ctrl:false, shift:true, key:'q',      editable:true,  group:'actions' },
     { id:'foco-nota',         desc:'Foco en texto adicional (fila hover, Lista de Precios)', ctrl:false, shift:true, key:'w',      editable:true,  group:'actions' },
-    { id:'vaciar-budget',     desc:'🗑 Vaciar presupuesto',                ctrl:false, key:'_none_',  editable:true,  group:'actions' },
+    { id:'vaciar-budget',     desc:'🗑 Vaciar presupuesto',                ctrl:true,  key:'Backspace',  editable:true,  group:'actions' },
     { id:'cargarcliexls',     desc:'Cargar Cliente — Excel alta cliente',  ctrl:false, key:'_none_',  editable:true,  group:'actions' },
     { id:'cargarpedidoxls',   desc:'Cargar Pedido — Excel alta pedido',    ctrl:false, key:'_none_',  editable:true,  group:'actions' },
     { id:'enter_newpedido',  desc:'Enter → ir a Pedidos + nuevo pedido', ctrl:false, key:'Enter',  editable:true,  group:'actions' },
