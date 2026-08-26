@@ -16043,7 +16043,7 @@ function abrirPlfinPanel(precio, nombre, sku) {
           <div class="plfin-prod-name">${escHtml(nombre)}</div>
         </div>
         <div class="plfin-section-lbl">Opciones de pago en cuotas</div>
-        ${cuotas.map(c => `
+        ${_finRenderCuotasAgrupadas(cuotas, c => `
           <div class="plfin-cuota-row${c.sinInteres ? ' plfin-cuota-row-noint' : ''}">
             <div>
               <div class="plfin-cuota-n">${c.n}x</div>
@@ -16054,7 +16054,7 @@ function abrirPlfinPanel(precio, nombre, sku) {
               <div class="plfin-cuota-valor">${fmt(c.cuotaValor)} / cuota</div>
               <div class="plfin-cuota-total">Total: ${fmt(c.totalFinal)}</div>
             </div>
-          </div>`).join('')}
+          </div>`)}
         <div style="margin-top:14px;padding:10px 14px;background:rgba(139,92,246,.07);border:1px solid rgba(139,92,246,.2);border-radius:10px;font-size:11px;color:var(--text3);line-height:1.6;">
           💡 Las tasas se configuran en <strong style="color:var(--text2);">Presupuestos → 💳 Financiamiento</strong>
         </div>
@@ -16094,16 +16094,16 @@ function abrirPlfinPanel(precio, nombre, sku) {
 
 function _plfinExportarPDF(precio, nombre, sku, cuotas, fmt, fecha) {
   const skuTxt   = sku ? ` \u00b7 SKU ${sku}` : '';
-  const cuotasHtml = cuotas.map((c, i) => {
+  const cuotasHtml = _finRenderCuotasAgrupadas(cuotas, c => {
     const metaTxt = c.sinInteres
       ? `<span class='cuota-recargo cuota-recargo-noint'>sin interés</span>${(c.dias||c.condicion) ? `<span class='cuota-meta'>${escHtml([c.dias,c.condicion].filter(Boolean).join(' · '))}</span>` : ''}`
       : `<span class='cuota-recargo'>recargo ${c.rate}%</span>`;
     return `
-    <div class='cuota-block ${i % 2 === 0 ? "alt" : "base"}'>
+    <div class='cuota-block base'>
       <div class='cuota-left'><span class='cuota-n'>${c.n}x</span>${metaTxt}</div>
       <div class='cuota-right'><span class='cuota-val'>${fmt(c.cuotaValor)} / cuota</span><span class='cuota-total'>Total: ${fmt(c.totalFinal)}</span></div>
     </div>`;
-  }).join('');
+  });
 
   const previewHTML = `<!DOCTYPE html><html><head><meta charset='UTF-8'>
     <title>Financiamiento \u2014 ${escHtml(nombre)}</title>
