@@ -15883,18 +15883,19 @@ function _finGroupBadgeHtml(tipo, primero) {
   if (tipo === 'mp') {
     return `<div style='display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:6px 12px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin:${mt} 0 8px;'>
       <img src='${_FIN_MP_CARD_B64}' style='height:38px;display:block;border-radius:5px;' alt='Mercado Pago'>
-      <span style='font-size:10px;font-weight:700;color:#1e293b;line-height:1.25;'>Mercado Pago<br>Tarjeta F&iacute;sica</span>
+      <span style='font-size:10px;font-weight:700;color:#1e293b;line-height:1.25;'>Mercado Pago<br><span style='font-weight:400;color:#64748b;'>(Tarjeta F&iacute;sica)</span></span>
     </div>`;
   }
   if (tipo === 'terminal') {
     return `<div style='display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:6px 12px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin:${mt} 0 8px;'>
       <img src='${_FIN_MP_WORDMARK_B64}' style='height:26px;display:block;' alt='Mercado Pago'>
-      <span style='font-size:10px;font-weight:700;color:#1e293b;'>Terminal de Mercado Pago</span>
+      <span style='font-size:10px;font-weight:700;color:#1e293b;line-height:1.25;'>Terminal de Mercado Pago<br><span style='font-weight:400;color:#64748b;'>(Tarjeta F&iacute;sica o Link de pago)</span></span>
     </div>`;
   }
   return `<div style='margin:${mt} 0 8px;'>
-    <div style='display:inline-flex;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:6px 12px;box-shadow:0 1px 3px rgba(0,0,0,.08);'>
+    <div style='display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:6px 12px;box-shadow:0 1px 3px rgba(0,0,0,.08);'>
       <img src='${_FIN_NAVE_LOGO_B64}' style='height:14px;display:block;' alt='Nave'>
+      <span style='font-size:10px;font-weight:400;color:#64748b;'>(Link de pago)</span>
     </div>
     <div style='font-size:10px;color:#94a3b8;margin-top:5px;line-height:1.4;'>Estas cuotas las gestiona y factura Nave, no Dentalab.</div>
   </div>`;
@@ -15908,8 +15909,8 @@ function _finRenderCuotasAgrupadas(cuotas, filaFn) {
   const nave = cuotas.filter(c => !c.sinInteres);
   let html = '';
   let primero = true;
-  if (tarjetaMP.length) { html += _finGroupBadgeHtml('mp', primero); primero = false; html += tarjetaMP.map(filaFn).join(''); }
   if (terminalMP.length) { html += _finGroupBadgeHtml('terminal', primero); primero = false; html += terminalMP.map(filaFn).join(''); }
+  if (tarjetaMP.length) { html += _finGroupBadgeHtml('mp', primero); primero = false; html += tarjetaMP.map(filaFn).join(''); }
   if (nave.length) { html += _finGroupBadgeHtml('nave', primero); primero = false; html += nave.map(filaFn).join(''); }
   return html;
 }
