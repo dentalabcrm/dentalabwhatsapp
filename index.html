@@ -62681,6 +62681,11 @@ function edRenderCardMobile(e, color) {
     var _dcEntregado = (e.estadoLog || []).some(function(s){ return s.estado === 'entregado'; }) || e.estado === 'entregado';
     var _dcEnCamino  = (e.estadoLog || []).some(function(s){ return s.estado === 'en_camino'; }) || e.estado === 'en_camino';
     var _dcFilteredMob = ED_ESTADOS.filter(function(s){
+      // Facturado y Cancelado: Depósito Central los puede marcar en cualquier momento,
+      // igual que un admin — no dependen de tener transportista asignado ni de que el
+      // envío ya esté "listo" (son justamente las acciones que lo dejan listo, o que
+      // evitan que llegue a estarlo).
+      if (s.id === 'facturado' || s.id === 'cancelado') return true;
       if (!_dcFacturado || !_dcTieneRep) return false;
       if (_dcEntregado) return false;
       if (!_dcEnCamino) return s.id === 'en_camino';
@@ -62689,6 +62694,12 @@ function edRenderCardMobile(e, color) {
         ? ((e.estadoLog || []).some(function(l){ return l.estado === s.id && !l.esReprogramado; }) || e.estado === s.id)
         : ((e.estadoLog || []).some(function(l){ return l.estado === s.id; }) || e.estado === s.id);
       return !yaUsado;
+    }).filter(function(s){
+      // Mismos filtros genéricos que ve un admin: ocultar Facturado si ya está
+      // facturado, y ocultar Cancelado si el envío ya fue entregado.
+      if (s.id === 'facturado') return !_dcFacturado;
+      if (s.id === 'cancelado') return !_dcEntregado;
+      return true;
     });
     estadoOptions = _dcFilteredMob.map(function(s){
       return '<option value="' + s.id + '">' + s.icon + ' ' + s.label + '</option>';
@@ -63519,6 +63530,12 @@ function edRenderCard(e, color) {
 
   function _edPuedeVerEstado(sid) {
     if (_esDeposito) {
+      // Facturado y Cancelado: Depósito Central los puede marcar igual que un admin,
+      // en cualquier momento — no dependen de tener transportista asignado ni de que
+      // el envío ya esté "listo" (son justamente las acciones que lo dejan listo, o
+      // que evitan que llegue a estarlo). El resto de los filtros genéricos de más
+      // abajo (ocultar si ya está facturado, si ya fue entregado, etc.) siguen aplicando.
+      if (sid === 'facturado' || sid === 'cancelado') return true;
       const yaFacturado     = (e.estadoLog || []).some(s => s.estado === 'facturado');
       const fueReprogramado = (e.estadoLog || []).some(s => s.estado === 'reprogramado');
       const tieneRepartidor = !!e.repartidorId;
