@@ -14297,7 +14297,7 @@ const SEYI_SERVICIOS_MAP = {
   'Financiamiento':                    16,
   'domicilio': 2, 'sucursal': 5,
 };
-let budgetEnvio={activo:false,tipo:'Estándar a domicilio',transportista:transportistas[0]||'',costMode:'precio',costo:'',metodoPago:''};
+let budgetEnvio={activo:false,tipo:'Estándar a domicilio',transportista:loadDefaultTransportista(),costMode:'precio',costo:'',metodoPago:''};
 // Helper: detecta si el tipo de envío es a domicilio (vs sucursal)
 // Helper: detecta si el tipo de envío es a domicilio
 function _esDomicilio(tipo) {
@@ -16805,7 +16805,7 @@ function bindBudgetEvents(){
   }
   ['cl-nombre','cl-cuit','cl-fecha','cl-notas','cl-email','cl-num'].forEach(id=>{const el=$(id);if(el)el.addEventListener('input',syncClientDataFromForm);});
   const clrBtn=$('btn-clear-budget');
-  if(clrBtn)clrBtn.addEventListener('click',()=>{if(!confirm('¿Vaciar el presupuesto actual?'))return;budgetItems=[];budgetGlobalDisc=0;selectedRows.clear();budgetClientData={nombre:'',cuit:'',fecha:todayISO(),notas:'',email:'',validez:'',condiciones:''};budgetEnvio={activo:false,tipo:'Estándar a domicilio',transportista:transportistas[0]||'',costMode:'precio',costo:'',metodoPago:''};budgetFinancing={activo:false};const _n=$('cl-nombre'),_c=$('cl-cuit'),_f=$('cl-fecha'),_no=$('cl-notas'),_em=$('cl-email'),_vl=$('cl-validez'),_cond=$('cl-condiciones');if(_n)_n.value='';if(_c)_c.value='';if(_f)_f.value=todayISO();if(_no)_no.value='';if(_em)_em.value='';if(_vl)_vl.value='';if(_cond)_cond.value='';updateBudgetBadge();borrarPresupuestoBorrador();renderBudgetPanel();renderTable();});
+  if(clrBtn)clrBtn.addEventListener('click',()=>{if(!confirm('¿Vaciar el presupuesto actual?'))return;budgetItems=[];budgetGlobalDisc=0;selectedRows.clear();budgetClientData={nombre:'',cuit:'',fecha:todayISO(),notas:'',email:'',validez:'',condiciones:''};budgetEnvio={activo:false,tipo:'Estándar a domicilio',transportista:loadDefaultTransportista(),costMode:'precio',costo:'',metodoPago:''};budgetFinancing={activo:false};const _n=$('cl-nombre'),_c=$('cl-cuit'),_f=$('cl-fecha'),_no=$('cl-notas'),_em=$('cl-email'),_vl=$('cl-validez'),_cond=$('cl-condiciones');if(_n)_n.value='';if(_c)_c.value='';if(_f)_f.value=todayISO();if(_no)_no.value='';if(_em)_em.value='';if(_vl)_vl.value='';if(_cond)_cond.value='';updateBudgetBadge();borrarPresupuestoBorrador();renderBudgetPanel();renderTable();});
   const saveBtn=$('btn-save-budget');
   if(saveBtn)saveBtn.addEventListener('click',()=>{syncClientDataFromForm();if(!budgetClientData.nombre.trim()){showToast('⚠ Ingresá el nombre del cliente','warn');$('cl-nombre').focus();return;}if(budgetItems.length===0){showToast('⚠ El presupuesto está vacío','warn');return;}saveBudgetToHistory();});
   const pdfBtn=$('btn-export-pdf');
@@ -17163,7 +17163,7 @@ function saveBudgetToHistory(){
   saveHistory(history);
   budgetNum++;saveNextBudgetNum(budgetNum);
   budgetItems=[];budgetGlobalDisc=0;budgetGlobalDiscMonto=0;budgetDiscMode="pct";budgetItemDiscMode="pct";budgetClientData={nombre:'',cuit:'',fecha:todayISO(),notas:'',email:'',validez:'',condiciones:''};
-  budgetEnvio={activo:false,tipo:'Estándar a domicilio',transportista:transportistas[0]||'',costMode:'precio',costo:'',metodoPago:''};
+  budgetEnvio={activo:false,tipo:'Estándar a domicilio',transportista:loadDefaultTransportista(),costMode:'precio',costo:'',metodoPago:''};
   // Limpiar inputs del cliente en el DOM directamente
   const _clNombre=$('cl-nombre'),_clCuit=$('cl-cuit'),_clFecha=$('cl-fecha'),_clNotas=$('cl-notas'),_clEmail=$('cl-email');
   if(_clNombre)_clNombre.value='';
@@ -17233,7 +17233,7 @@ function renderHistory(){
       const id=parseInt(item.dataset.id);const budget=history.find(b=>b.id===id);if(!budget)return;
       if(budgetItems.length>0){if(!confirm('¿Reemplazar el presupuesto actual con este?'))return;}
       budgetItems=JSON.parse(JSON.stringify(budget.items)).map(it=>({...it,nota:it.nota||''}));budgetGlobalDisc=budget.globalDisc||0;budgetClientData={...budget.cliente,validez:budget.cliente.validez||'',condiciones:budget.cliente.condiciones||''};budgetNum=budget.num;
-      budgetEnvio=budget.envio?{metodoPago:'',...budget.envio}:{activo:false,tipo:'Estándar a domicilio',transportista:transportistas[0]||'',costMode:'precio',costo:'',metodoPago:''};
+      budgetEnvio=budget.envio?{metodoPago:'',...budget.envio}:{activo:false,tipo:'Estándar a domicilio',transportista:loadDefaultTransportista(),costMode:'precio',costo:'',metodoPago:''};
       if(budgetEnvio.tipo==='domicilio')budgetEnvio.tipo='Estándar a domicilio';
       if(budgetEnvio.tipo==='sucursal')budgetEnvio.tipo='Retiro en una sucursal';
       updateBudgetBadge();
@@ -17309,7 +17309,7 @@ function descargarPropuestaPDF(id) {
   budgetGlobalDisc = prop.globalDisc || 0;
   budgetGlobalDiscMonto = 0;
   budgetNum = p.num || 0;
-  budgetEnvio = { activo: false, tipo: 'Estándar a domicilio', transportista: (typeof transportistas !== 'undefined' && transportistas[0]) || '', costMode: 'precio', costo: '', metodoPago: '' };
+  budgetEnvio = { activo: false, tipo: 'Estándar a domicilio', transportista: (typeof loadDefaultTransportista === 'function' ? loadDefaultTransportista() : ''), costMode: 'precio', costo: '', metodoPago: '' };
 
   try {
     exportPDF();
@@ -18624,7 +18624,7 @@ function descargarPedidoWebPDF(id) {
   budgetGlobalDisc = 0;
   budgetGlobalDiscMonto = 0;
   budgetNum = 0;
-  budgetEnvio = { activo: false, tipo: 'Estándar a domicilio', transportista: (typeof transportistas !== 'undefined' && transportistas[0]) || '', costMode: 'precio', costo: '', metodoPago: '' };
+  budgetEnvio = { activo: false, tipo: 'Estándar a domicilio', transportista: (typeof loadDefaultTransportista === 'function' ? loadDefaultTransportista() : ''), costMode: 'precio', costo: '', metodoPago: '' };
 
   try {
     exportPDF();
@@ -20431,7 +20431,7 @@ function exportXLS(){
 
   // ── Limpiar datos del cliente, envío y financiamiento ──
   budgetClientData = { nombre:'', cuit:'', fecha:todayISO(), notas:'', email:'', validez:'', condiciones:'' };
-  budgetEnvio = { activo:false, transportista:'', tipo:'Estándar a domicilio', costMode:'precio', costo:'', metodoPago:'', sucursal:'' };
+  budgetEnvio = { activo:false, transportista:(typeof loadDefaultTransportista === 'function' ? loadDefaultTransportista() : ''), tipo:'Estándar a domicilio', costMode:'precio', costo:'', metodoPago:'', sucursal:'' };
   if (typeof budgetFinancing !== 'undefined') budgetFinancing.activo = false;
 
   // Resetear campos visibles del formulario
@@ -43050,7 +43050,7 @@ function fltEliminar(id) {
         budgetItems = []; budgetGlobalDisc = 0;
         if (typeof selectedRows !== 'undefined') selectedRows.clear();
         if (typeof budgetClientData !== 'undefined') budgetClientData = {nombre:'',cuit:'',fecha:(typeof todayISO==='function'?todayISO():''),notas:'',email:'',validez:'',condiciones:''};
-        if (typeof budgetEnvio !== 'undefined') budgetEnvio = {activo:false,tipo:'Estándar a domicilio',transportista:(typeof transportistas!=='undefined'&&transportistas[0])||'',costMode:'precio',costo:'',metodoPago:''};
+        if (typeof budgetEnvio !== 'undefined') budgetEnvio = {activo:false,tipo:'Estándar a domicilio',transportista:(typeof loadDefaultTransportista==='function'?loadDefaultTransportista():''),costMode:'precio',costo:'',metodoPago:''};
         if (typeof budgetFinancing !== 'undefined') budgetFinancing = {activo:false};
         const fields = ['cl-nombre','cl-cuit','cl-fecha','cl-notas','cl-email','cl-validez','cl-condiciones'];
         fields.forEach(id => { const el = document.getElementById(id); if(el) el.value = id==='cl-fecha'?(typeof todayISO==='function'?todayISO():''):''; });
