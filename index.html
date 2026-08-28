@@ -9698,10 +9698,15 @@ async function publicarCatalogoWeb() {
       const p2raw = (ofertaEntry && ofertaEntry[l2.key] != null) ? ofertaEntry[l2.key] : row[l2.key];
       const p1 = parseFloat(p1raw || 0) || 0;
       const p2 = parseFloat(p2raw || 0) || 0;
-      // Reventa / Mayorista: sin la lógica de "oferta" (esas promos son solo para
-      // Contado/General) — se toman directo de la lista, tal cual están cargadas.
-      const p3 = l3 ? (parseFloat(row[l3.key] || 0) || 0) : 0;
-      const p4 = l4 ? (parseFloat(row[l4.key] || 0) || 0) : 0;
+      // Reventa / Mayorista: si el producto tiene oferta cargada Y esa oferta puntual
+      // trae un precio propio para Reventa/Mayorista (el panel de Ofertas permite
+      // cargarlo por separado), se respeta ese valor — igual que ya se hace con Lista 1
+      // y Lista 2. Si la oferta no trae un precio para esa lista puntual, se sigue
+      // tomando el de la lista tal cual está cargada (sin descuento).
+      const p3raw = l3 ? ((ofertaEntry && ofertaEntry[l3.key] != null) ? ofertaEntry[l3.key] : row[l3.key]) : 0;
+      const p4raw = l4 ? ((ofertaEntry && ofertaEntry[l4.key] != null) ? ofertaEntry[l4.key] : row[l4.key]) : 0;
+      const p3 = parseFloat(p3raw || 0) || 0;
+      const p4 = parseFloat(p4raw || 0) || 0;
       if (!p1 && !p2) return; // sin precio en ninguna lista: no sirve para el pedido web
       const stockActual = (typeof stockTotal === 'function') ? stockTotal(row) : 0;
       const forzarAConfirmar = SKUS_STOCK_SIEMPRE_A_CONFIRMAR.includes(sku);
