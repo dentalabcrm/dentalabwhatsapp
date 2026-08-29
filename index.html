@@ -15893,8 +15893,14 @@ function _finGroupBadgeHtml(tipo, primero) {
   }
   if (tipo === 'terminal') {
     return `<div style='display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:6px 12px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin:${mt} 0 8px;'>
-      <img src='${_FIN_MP_WORDMARK_B64}' style='height:26px;display:block;' alt='Mercado Pago'>
-      <span style='font-size:10px;font-weight:700;color:#1e293b;line-height:1.25;'>Mercado Pago<br><span style='font-weight:400;color:#64748b;'>(Tarjeta F&iacute;sica o Link de pago)</span></span>
+      <svg style='height:26px;width:auto;display:block;' viewBox='0 0 72 26' xmlns='http://www.w3.org/2000/svg'>
+        <rect x='0' y='1' width='34' height='24' rx='4' fill='#1434CB'></rect>
+        <text x='17' y='17' font-family='Arial, sans-serif' font-size='10' font-weight='800' font-style='italic' fill='#fff' text-anchor='middle'>VISA</text>
+        <circle cx='50' cy='13' r='10' fill='#EB001B'></circle>
+        <circle cx='60' cy='13' r='10' fill='#F79E1B'></circle>
+        <path d='M55 5.5a10 10 0 0 1 0 15 10 10 0 0 1 0-15z' fill='#FF5F00'></path>
+      </svg>
+      <span style='font-size:10px;font-weight:700;color:#1e293b;line-height:1.25;'>(Tarjeta F&iacute;sica o Link de pago)</span>
     </div>`;
   }
   return `<div style='margin:${mt} 0 8px;'>
