@@ -24129,10 +24129,15 @@ function _parsePrecioARS(valor) {
     // (ej: "9,58" → 9). Los centavos siempre son 2 dígitos, así que no se pisan.
     const digitsAfter = s.length - lastComa - 1;
     s = digitsAfter === 3 ? s.replace(/,/g, '') : s.split(',')[0].replace(/\./g, '');
+  } else if (lastPunto !== -1) {
+    // Solo punto, sin coma. Si tiene exactamente 3 dígitos después, es separador de
+    // miles sin decimales (ej: "9.579" → 9579); si tiene 1 o 2, es el decimal en
+    // formato con punto — típico de planillas de OCA o de otros países (ej:
+    // "17247.59" → 17247, igual que "17247,59" en formato argentino).
+    const digitsAfter = s.length - lastPunto - 1;
+    s = digitsAfter === 3 ? s.replace(/\./g, '') : s.split('.')[0];
   } else {
-    // Sin coma: puede ser "9579" (entero) o "9.579" (con puntos de miles, sin decimales) —
-    // en ambos casos, sacar los puntos da el entero correcto.
-    s = s.replace(/\./g, '');
+    // Sin separadores: es un entero (ej: "9579").
   }
   const n = parseInt(s, 10);
   return isNaN(n) ? 0 : n;
