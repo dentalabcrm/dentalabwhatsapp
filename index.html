@@ -62860,15 +62860,13 @@ function edRenderCardMobile(e, color) {
     var _etaValActual = _etaActual ? String(_etaActual.valor) : '';
     etaHtml = '<div style="margin-top:8px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:10px;padding:10px 12px;">'
       + '<div style="font-size:10px;font-weight:700;color:#60a5fa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">📍 ¿A cuánto estás?</div>'
-      + '<select onchange="if(this.value!==\'\')edSetETA(\'' + e.id + '\',this.value)" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid rgba(59,130,246,.4);border-radius:8px;color:var(--text);font-size:13px;font-weight:600;font-family:\'DM Sans\',sans-serif;">'
-      + '<option value="" disabled ' + (_etaValActual ? '' : 'selected') + ' style="color:#94a3b8;">'
-      + (_etaActual ? '✓ ' + escHtml(_etaActual.label) : '— Actualizar ETA —')
-      + '</option>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
       + ED_ETA_OPCIONES.map(function(o){
-          return '<option value="' + o.valor + '"' + (String(o.valor) === _etaValActual ? ' selected' : '') + '>' + o.label + '</option>';
+          var _activo = String(o.valor) === _etaValActual;
+          return '<button onclick="edSetETA(\'' + e.id + '\',' + o.valor + ')" style="padding:7px 12px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;border:1.5px solid ' + (_activo ? '#3b82f6' : 'rgba(59,130,246,.35)') + ';background:' + (_activo ? '#3b82f6' : 'var(--surface2)') + ';color:' + (_activo ? '#fff' : 'var(--text)') + ';">' + o.label + '</button>';
         }).join('')
-      + '</select>'
-      + (_etaActual ? '<div style="font-size:10px;color:#60a5fa;margin-top:5px;opacity:.8;">Último: ' + escHtml(_etaActual.label) + ' · ' + (function(ts){ var m=Math.round((Date.now()-ts)/60000); return m===0?'ahora mismo':'hace '+m+' min'; })(_etaActual.ts) + '</div>' : '')
+      + '</div>'
+      + (_etaActual ? '<div style="font-size:10px;color:#60a5fa;margin-top:7px;opacity:.8;">Último: ' + escHtml(_etaActual.label) + ' · ' + (function(ts){ var m=Math.round((Date.now()-ts)/60000); return m===0?'ahora mismo':'hace '+m+' min'; })(_etaActual.ts) + '</div>' : '')
       + '</div>';
   }
 
