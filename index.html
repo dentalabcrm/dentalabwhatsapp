@@ -55840,7 +55840,7 @@ function _registrarUsoFrecuente(sku, nombre) {
         id: 'fija_pedido_faltante',
         nombre: 'Pedido con faltante → aviso automático',
         tipo: 'especial',
-        descripcion: 'Remitente: depositodentalab@gmail.com — Body: "Pedido con faltante" / "Pedido con faltantes" → responde con aviso al cliente',
+        descripcion: 'Remitente: depositodentalab@gmail.com — Body: "Pedido con faltante(s)" / "Sin stock" / "No hay stock" → responde con aviso al cliente',
         fija: true
       },
       {
@@ -56128,7 +56128,7 @@ function _registrarUsoFrecuente(sku, nombre) {
 
       if (!body.includes('PEDIDO ARMADO') && !body.includes('PEDIDO COMPLETADO') && !body.includes('PEDIDO COMPLETO') && !body.includes('PEDIDO PREPARADO')) return false;
       if (body.includes('SOLO DISPONIBLE')) return false; // tiene aclaración de faltante parcial
-      if (body.includes('FALTANTE')) return false; // "Pedido con faltante(s)" — le corresponde a la Regla 3, no a esta
+      if (body.includes('FALTANTE') || body.includes('SIN STOCK') || body.includes('NO HAY STOCK')) return false; // le corresponde a la Regla 3, no a esta
 
       // ── Detectar depósito mencionado en el body ──
       let deposito = '';
@@ -56309,7 +56309,7 @@ function _registrarUsoFrecuente(sku, nombre) {
       body = _extractBody(msg.payload).toUpperCase();
       if (!body.includes('PEDIDO ARMADO') && !body.includes('PEDIDO COMPLETADO') && !body.includes('PEDIDO COMPLETO') && !body.includes('PEDIDO PREPARADO')) return false;
       if (body.includes('SOLO DISPONIBLE')) return false; // tiene aclaración de faltante parcial
-      if (body.includes('FALTANTE')) return false; // "Pedido con faltante(s)" — le corresponde a la Regla 3, no a esta
+      if (body.includes('FALTANTE') || body.includes('SIN STOCK') || body.includes('NO HAY STOCK')) return false; // le corresponde a la Regla 3, no a esta
 
       // ✅ Condiciones OK — responder con texto de reclamo de pago
       const headers = msg.payload?.headers || [];
@@ -56430,7 +56430,7 @@ function _registrarUsoFrecuente(sku, nombre) {
       );
       const msg = await r.json();
       body = _extractBody(msg.payload).toUpperCase();
-      if (!body.includes('PEDIDO CON FALTANTE') && !body.includes('PEDIDO CON FALTANTES')) return false;
+      if (!body.includes('PEDIDO CON FALTANTE') && !body.includes('PEDIDO CON FALTANTES') && !body.includes('SIN STOCK') && !body.includes('NO HAY STOCK')) return false;
 
       // ✅ Condiciones OK — responder
       const headers = msg.payload?.headers || [];
@@ -57391,7 +57391,7 @@ function _registrarUsoFrecuente(sku, nombre) {
         id: 'fija_pedido_faltante',
         nombre: 'Pedido con faltante → aviso automático',
         tipo: 'especial',
-        descripcion: 'Remitente: depositodentalab@gmail.com — Body: "Pedido con faltante" / "Pedido con faltantes" → responde con aviso al cliente',
+        descripcion: 'Remitente: depositodentalab@gmail.com — Body: "Pedido con faltante(s)" / "Sin stock" / "No hay stock" → responde con aviso al cliente',
         fija: true
       },
       {
