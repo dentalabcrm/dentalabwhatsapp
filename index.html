@@ -61884,6 +61884,37 @@ function edCopiarInfoEnvio(id) {
 }
 window.edCopiarInfoEnvio = edCopiarInfoEnvio;
 
+// Arma el mensaje para avisarle al cliente que hoy sale su pedido — un texto si lo
+// reparte Envíos Dentalab (con el horario, si está cargado) y otro distinto si va por
+// un transporte externo (OCA, Andreani, etc.), aclarando que la guía se manda después.
+function _edMensajeClienteTexto(e) {
+  const esEnviosDentalab = !e.transporte || e.transporte === 'Envíos Dentalab';
+  if (esEnviosDentalab) {
+    const horarioTxt = e.horario ? `, en el horario de ${e.horario}` : '';
+    return `¡Buen día! Te escribimos de Dentalab para avisarte que hoy te estaremos entregando tu pedido${horarioTxt}. ¡Muchas gracias!`;
+  }
+  return `¡Buen día! Te escribimos de Dentalab para avisarte que hoy despachamos tu pedido por ${e.transporte}. Apenas tengamos el número de guía, te lo pasamos por este mismo medio. ¡Muchas gracias!`;
+}
+function edCopiarMensajeCliente(id) {
+  const e = _edEnvios.find(x => x.id === id);
+  if (!e) return;
+  const texto = _edMensajeClienteTexto(e);
+  const _ok = () => showToast('📲 Mensaje para el cliente copiado', 'ok');
+  const _fail = () => showToast('⚠ No se pudo copiar', 'warn');
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(texto).then(_ok).catch(_fail);
+  } else {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove();
+      _ok();
+    } catch (e2) { _fail(); }
+  }
+}
+window.edCopiarMensajeCliente = edCopiarMensajeCliente;
+
 function edTogglePrioritario(id) {
   if (edEsSoloLectura()) { showToast('🔒 No podés modificar este envío', 'warn'); return; }
   const idx = _edEnvios.findIndex(x => x.id === id);
@@ -62995,6 +63026,7 @@ function edRenderCardMobile(e, color) {
               ? '<span onclick="event.stopPropagation();' + (edEsSoloLectura() ? '' : ("edTogglePrioritario('" + e.id + "')")) + '" style="' + (edEsSoloLectura()?'':'cursor:pointer;') + 'font-size:10px;font-weight:800;letter-spacing:.3px;background:#ef4444;color:#fff;border-radius:6px;padding:2px 9px;white-space:nowrap;flex-shrink:0;">🚩 PRIORITARIO</span>'
               : (edEsSoloLectura() ? '' : ('<button onclick="event.stopPropagation();edTogglePrioritario(\'' + e.id + '\')" title="Marcar como prioritario" style="font-size:12px;font-weight:700;padding:2px 7px;border-radius:6px;border:1px dashed var(--border2);background:none;color:var(--text3);cursor:pointer;white-space:nowrap;line-height:1.4;flex-shrink:0;">🚩</button>')))
     +       '<button onclick="event.stopPropagation();edCopiarInfoEnvio(\'' + e.id + '\')" title="Copiar info del envío para WhatsApp" style="font-size:12px;font-weight:700;padding:2px 7px;border-radius:6px;border:1px dashed var(--border2);background:none;color:var(--text3);cursor:pointer;white-space:nowrap;line-height:1.4;flex-shrink:0;">📋</button>'
+    +       '<button onclick="event.stopPropagation();edCopiarMensajeCliente(\'' + e.id + '\')" title="Copiar mensaje para avisar al cliente que hoy le llega/despachamos su pedido" style="font-size:12px;font-weight:700;padding:2px 7px;border-radius:6px;border:1px dashed var(--border2);background:none;color:var(--text3);cursor:pointer;white-space:nowrap;line-height:1.4;flex-shrink:0;">📲</button>'
     +       (function(){
               if ((authCurrentUser?.name||'') === 'Deposito Central') return '';
               var _avisadoMob = !!e.avisado;
@@ -63753,6 +63785,7 @@ function edRenderCard(e, color) {
                 ? `<span onclick="event.stopPropagation();${edEsSoloLectura()?'':`edTogglePrioritario('${e.id}')`}" title="${edEsSoloLectura()?'Prioritario':'Click para quitar prioridad'}" style="${edEsSoloLectura()?'':'cursor:pointer;'}font-size:10px;font-weight:800;letter-spacing:.3px;background:#ef4444;color:#fff;border-radius:6px;padding:2px 9px;white-space:nowrap;flex-shrink:0;">🚩 PRIORITARIO</span>`
                 : (edEsSoloLectura() ? '' : `<button onclick="event.stopPropagation();edTogglePrioritario('${e.id}')" title="Marcar como prioritario" style="font-size:12px;font-weight:700;padding:2px 7px;border-radius:6px;border:1px dashed var(--border2);background:none;color:var(--text3);cursor:pointer;white-space:nowrap;line-height:1.4;flex-shrink:0;">🚩</button>`)}
               <button onclick="event.stopPropagation();edCopiarInfoEnvio('${e.id}')" title="Copiar info del envío para WhatsApp" style="font-size:12px;font-weight:700;padding:2px 7px;border-radius:6px;border:1px dashed var(--border2);background:none;color:var(--text3);cursor:pointer;white-space:nowrap;line-height:1.4;flex-shrink:0;">📋</button>
+              <button onclick="event.stopPropagation();edCopiarMensajeCliente('${e.id}')" title="Copiar mensaje para avisar al cliente que hoy le llega/despachamos su pedido" style="font-size:12px;font-weight:700;padding:2px 7px;border-radius:6px;border:1px dashed var(--border2);background:none;color:var(--text3);cursor:pointer;white-space:nowrap;line-height:1.4;flex-shrink:0;">📲</button>
               ${(() => {
                 if ((authCurrentUser?.name||'') === 'Deposito Central') return '';
                 const _avisado = !!e.avisado;
