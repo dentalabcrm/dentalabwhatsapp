@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.287</title>
+<title>Dentalab Whatsapp CRM · v25.288</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -1516,6 +1516,18 @@
   }
   #ed-f-pdf-drop.ed-pdf-drop-activo, #gcal-pdf-drop.ed-pdf-drop-activo {
     border-color: #f59e0b; background: rgba(245,158,11,.08);
+  }
+  /* Modal de Google Calendar: se resalta completo al arrastrar un PDF sobre cualquier parte */
+  #gcal-box { position: relative; }
+  #gcal-box.ed-pdf-drop-activo {
+    outline: 3px dashed #f59e0b; outline-offset: -3px;
+  }
+  #gcal-box.ed-pdf-drop-activo::after {
+    content: "📄 Soltá el PDF de presupuesto acá";
+    position: absolute; inset: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(15,23,42,.82); color: #f59e0b; font-size: 15px; font-weight: 800;
+    text-align: center; padding: 24px; pointer-events: none; border-radius: 16px;
   }
   #panel-envios-dentalab.ed-panel-drop-activo {
     outline: 3px dashed #f59e0b; outline-offset: -3px; background: rgba(245,158,11,.04);
@@ -29657,7 +29669,7 @@ function openEnvioGCalModal(env) {
   backdrop.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;`;
 
   backdrop.innerHTML = `
-  <div id="gcal-box" style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:480px;overflow:hidden;animation:slideUp .2s ease;">
+  <div id="gcal-box" ondragover="event.preventDefault();event.stopPropagation();this.classList.add('ed-pdf-drop-activo')" ondragleave="if(!this.contains(event.relatedTarget)){this.classList.remove('ed-pdf-drop-activo')}" ondrop="event.preventDefault();this.classList.remove('ed-pdf-drop-activo');gcalPdfDrop1(event, document.getElementById('gcal-pdf-drop'))" style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:480px;overflow:hidden;animation:slideUp .2s ease;">
     <div style="background:linear-gradient(135deg,#4285f4,#1a73e8);padding:20px 24px;display:flex;align-items:center;gap:12px;">
       <div style="font-size:26px;">📅</div>
       <div>
@@ -29667,9 +29679,9 @@ function openEnvioGCalModal(env) {
       <button id="gcal-close" style="margin-left:auto;background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 12px;color:#fff;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">✕</button>
     </div>
     <div style="padding:24px;display:flex;flex-direction:column;gap:14px;">
-      <div id="gcal-pdf-drop" ondragover="event.preventDefault();this.classList.add('ed-pdf-drop-activo')" ondragleave="this.classList.remove('ed-pdf-drop-activo')" ondrop="gcalPdfDrop1(event, this)" onclick="document.getElementById('gcal-pdf-input').click()"
+      <div id="gcal-pdf-drop" onclick="document.getElementById('gcal-pdf-input').click()"
         style="border:2px dashed var(--border2);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s;">
-        <div id="gcal-pdf-drop-texto" style="font-size:12.5px;font-weight:700;color:var(--text2);">📄 Arrastrá acá un PDF de presupuesto, o hacé clic para elegirlo</div>
+        <div id="gcal-pdf-drop-texto" style="font-size:12.5px;font-weight:700;color:var(--text2);">📄 Arrastrá un PDF de presupuesto en cualquier parte de esta ventana, o hacé clic para elegirlo</div>
         <div style="font-size:10.5px;color:var(--text3);margin-top:3px;">Completa dirección, transporte, cobro, vendedor y teléfono solo</div>
         <input type="file" id="gcal-pdf-input" accept="application/pdf" style="display:none;" onchange="gcalPdfFile1(this.files[0])">
       </div>
@@ -30432,7 +30444,7 @@ function openGCalModal(pedido) {
   backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
 
   backdrop.innerHTML = `
-  <div id="gcal-box" style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:500px;overflow:hidden;animation:slideUp .2s ease;">
+  <div id="gcal-box" ondragover="event.preventDefault();event.stopPropagation();this.classList.add('ed-pdf-drop-activo')" ondragleave="if(!this.contains(event.relatedTarget)){this.classList.remove('ed-pdf-drop-activo')}" ondrop="event.preventDefault();this.classList.remove('ed-pdf-drop-activo');gcalPdfDrop2(event, document.getElementById('gcal-pdf-drop'))" style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:500px;overflow:hidden;animation:slideUp .2s ease;">
     <div style="background:linear-gradient(135deg,#4285f4,#1a73e8);padding:20px 24px;display:flex;align-items:center;gap:12px;">
       <div style="font-size:26px;">📅</div>
       <div>
@@ -30442,9 +30454,9 @@ function openGCalModal(pedido) {
       <button id="gcal-close" style="margin-left:auto;background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 12px;color:#fff;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">✕ Cerrar</button>
     </div>
     <div style="padding:24px;display:flex;flex-direction:column;gap:14px;">
-      <div id="gcal-pdf-drop" ondragover="event.preventDefault();this.classList.add('ed-pdf-drop-activo')" ondragleave="this.classList.remove('ed-pdf-drop-activo')" ondrop="gcalPdfDrop2(event, this)" onclick="document.getElementById('gcal-pdf-input').click()"
+      <div id="gcal-pdf-drop" onclick="document.getElementById('gcal-pdf-input').click()"
         style="border:2px dashed var(--border2);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s;">
-        <div id="gcal-pdf-drop-texto" style="font-size:12.5px;font-weight:700;color:var(--text2);">📄 Arrastrá acá un PDF de presupuesto, o hacé clic para elegirlo</div>
+        <div id="gcal-pdf-drop-texto" style="font-size:12.5px;font-weight:700;color:var(--text2);">📄 Arrastrá un PDF de presupuesto en cualquier parte de esta ventana, o hacé clic para elegirlo</div>
         <div style="font-size:10.5px;color:var(--text3);margin-top:3px;">Completa dirección, transporte, cobro, vendedor y teléfono solo</div>
         <input type="file" id="gcal-pdf-input" accept="application/pdf" style="display:none;" onchange="gcalPdfFile2(this.files[0])">
       </div>
@@ -44152,7 +44164,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.287';
+  const LATEST_VERSION = 'v25.288';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44165,6 +44177,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.288',
+      fecha: '2026-09-12',
+      titulo: 'Modal "Enviar a Google Calendar": ahora detecta el PDF en toda la ventana',
+      items: [
+        { tipo: 'mejora', texto: 'Antes solo se podía soltar el PDF de presupuesto en el recuadro punteado chico. Ahora podés soltarlo en cualquier parte del modal (título, fecha, dirección, etc.) y se lee igual — el recuadro se mantiene como referencia visual y para el clic manual, pero ya no es la única zona activa. Se resalta todo el modal mientras arrastrás el archivo.' },
+      ]
+    },
     {
       version: 'v25.287',
       fecha: '2026-07-21',
