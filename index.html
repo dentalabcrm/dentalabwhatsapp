@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.288</title>
+<title>Dentalab Whatsapp CRM · v25.289</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -44164,7 +44164,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.288';
+  const LATEST_VERSION = 'v25.289';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44177,6 +44177,15 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.289',
+      fecha: '2026-09-12',
+      titulo: 'Mensaje para el cliente: se saca la mención a "Dentalab" y se corrige el tiempo verbal',
+      items: [
+        { tipo: 'corrección', texto: 'El mensaje que se copia en Envíos Dentalab para avisarle al cliente ya no aclara "Te escribimos de Dentalab para avisarte", queda directo en "Te avisamos que...". Se aplicó en los dos casos: entrega con Envíos Dentalab y despacho por transporte externo (OCA, Andreani, etc.).' },
+        { tipo: 'corrección', texto: 'En el mensaje de despacho por transporte externo, "hoy despachamos tu pedido" pasó a "hoy despacharemos tu pedido" (tiempo futuro).' },
+      ]
+    },
     {
       version: 'v25.288',
       fecha: '2026-09-12',
@@ -61911,9 +61920,9 @@ function _edMensajeClienteTexto(e) {
   const esEnviosDentalab = !e.transporte || e.transporte === 'Envíos Dentalab';
   if (esEnviosDentalab) {
     const horarioTxt = e.horario ? `, en el horario de ${e.horario}` : '';
-    return `¡Buen día! Te escribimos de Dentalab para avisarte que hoy te estaremos entregando tu pedido${horarioTxt}. ¡Muchas gracias!`;
+    return `¡Buen día! Te avisamos que hoy te estaremos entregando tu pedido${horarioTxt}. ¡Muchas gracias!`;
   }
-  return `¡Buen día! Te escribimos de Dentalab para avisarte que hoy despachamos tu pedido por ${e.transporte}. Apenas tengamos el número de guía, te lo pasamos por este mismo medio. ¡Muchas gracias!`;
+  return `¡Buen día! Te avisamos que hoy despacharemos tu pedido por ${e.transporte}. Apenas tengamos el número de guía, te lo pasamos por este mismo medio. ¡Muchas gracias!`;
 }
 function edCopiarMensajeCliente(id) {
   const e = _edEnvios.find(x => x.id === id);
