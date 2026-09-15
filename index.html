@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.291</title>
+<title>Dentalab Whatsapp CRM · v25.292</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -44186,7 +44186,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.291';
+  const LATEST_VERSION = 'v25.292';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44199,6 +44199,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.292',
+      fecha: '2026-09-12',
+      titulo: 'Mensaje para el cliente: se agrega el total si el cobro es en efectivo',
+      items: [
+        { tipo: 'nuevo', texto: 'Cuando el envío tiene cargado "Cobrar en efectivo" con un monto, el mensaje que se copia para avisarle al cliente ahora incluye "El total es de $X." antes del cierre. Si no es cobro en efectivo, o no tiene monto cargado, el mensaje queda igual que antes.' },
+      ]
+    },
     {
       version: 'v25.291',
       fecha: '2026-09-12',
@@ -61958,13 +61966,15 @@ window.edCopiarInfoEnvio = edCopiarInfoEnvio;
 // Arma el mensaje para avisarle al cliente que hoy sale su pedido — un texto si lo
 // reparte Envíos Dentalab (con el horario, si está cargado) y otro distinto si va por
 // un transporte externo (OCA, Andreani, etc.), aclarando que la guía se manda después.
+// Si el cobro es "efectivo" y tiene monto cargado, se suma el total al mensaje.
 function _edMensajeClienteTexto(e) {
   const esEnviosDentalab = !e.transporte || e.transporte === 'Envíos Dentalab';
+  const montoTxt = (e.cobro === 'efectivo' && e.montoEfectivo) ? ` El total es de $${Number(e.montoEfectivo).toLocaleString('es-AR')}.` : '';
   if (esEnviosDentalab) {
     const horarioTxt = e.horario ? `, en el horario de ${e.horario}` : '';
-    return `¡Buen día! Te avisamos que hoy te estaremos entregando tu pedido${horarioTxt}. ¡Muchas gracias!`;
+    return `¡Buen día! Te avisamos que hoy te estaremos entregando tu pedido${horarioTxt}.${montoTxt} ¡Muchas gracias!`;
   }
-  return `¡Buen día! Te avisamos que hoy despacharemos tu pedido por ${e.transporte}. Apenas tengamos el número de guía, te lo pasamos por este mismo medio. ¡Muchas gracias!`;
+  return `¡Buen día! Te avisamos que hoy despacharemos tu pedido por ${e.transporte}. Apenas tengamos el número de guía, te lo pasamos por este mismo medio.${montoTxt} ¡Muchas gracias!`;
 }
 function edCopiarMensajeCliente(id) {
   const e = _edEnvios.find(x => x.id === id);
