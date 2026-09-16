@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.292</title>
+<title>Dentalab Whatsapp CRM · v25.293</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -9760,6 +9760,10 @@ async function publicarCatalogoWeb() {
       // le muestra al cliente, ver esAdminCatalogo() del lado del catálogo).
       item.d1 = Math.max(0, Math.floor(parseFloat(row['Deposito 1 - Local'] || 0)));
       item.dc = Math.max(0, Math.floor(parseFloat(row['Deposito Central'] || 0)));
+      // Proveedor — mismo criterio que el stock por depósito: se publica siempre (uso
+      // interno del admin en el catálogo web), nunca se le muestra al cliente.
+      const proveedor = String(row.Proveedor || row['Proveedor'] || '').trim();
+      if (proveedor) item.prov = proveedor;
       const imgRaw = imagenesCache[claveImg(sku)];
       const img = Array.isArray(imgRaw) ? imgRaw[0] : imgRaw;
       if (img) item.img = img;
@@ -44186,7 +44190,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.292';
+  const LATEST_VERSION = 'v25.293';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44199,6 +44203,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.293',
+      fecha: '2026-09-12',
+      titulo: 'El catálogo de Pedidos ahora publica el Proveedor de cada SKU (solo admin)',
+      items: [
+        { tipo: 'nuevo', texto: 'Al publicar el catálogo web, cada producto ahora incluye su Proveedor (columna "Proveedor" de Lista de Precios). Es de uso interno: nunca se le muestra al cliente, solo aparece en el catálogo cuando entrás como admin, junto al stock por depósito.' },
+      ]
+    },
     {
       version: 'v25.292',
       fecha: '2026-09-12',
