@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.293</title>
+<title>Dentalab Whatsapp CRM · v25.294</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -9621,6 +9621,7 @@ async function publicarCatalogoWeb() {
     // su propio número sea >=5, solo puede bajar a Agotado si su propio stock es 0.
     const PARES_HIJO_PADRE_TOPE = {
       '244-F': '244',
+      '32820-FRO': '32820-ROJ', '32820-FAZ': '32820-AZU',
       '61350-1U': '61350-1', '61350-2U': '61350-2', '61350-3U': '61350-3', '61350-4U': '61350-4',
       '61351-1U': '61351-1', '61351-2U': '61351-2', '61351-3U': '61351-3', '61351-4U': '61351-4', '61351-5U': '61351-5',
       '61351-BLU': '61351-BL', '61351-MFU': '61351-MF', '61351-MGU': '61351-MG', '61351-REU': '61351-RE',
@@ -44190,7 +44191,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.293';
+  const LATEST_VERSION = 'v25.294';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44203,6 +44204,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.294',
+      fecha: '2026-09-12',
+      titulo: 'Dos pares hijo/padre nuevos en el tope de stock',
+      items: [
+        { tipo: 'nuevo', texto: 'Se agregaron 32820-FRO → 32820-ROJ y 32820-FAZ → 32820-AZU a PARES_HIJO_PADRE_TOPE (el hijo no puede figurar con mejor stock que el padre).' },
+      ]
+    },
     {
       version: 'v25.293',
       fecha: '2026-09-12',
