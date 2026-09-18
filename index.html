@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.294</title>
+<title>Dentalab Whatsapp CRM · v25.295</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -9593,7 +9593,7 @@ async function publicarCatalogoWeb() {
     const SKUS_SIN_PRECIO_PUBLICO = ['22100', '22200', '8508', '50000']; // Escáner Eighteeth/Fussen, Sillón GDK/DABI ATLANTE — consultar precio
     // Se ingresan por unidad pero también se venden por paquete (el "-f"): el stock de la unidad
     // no refleja bien lo disponible para vender, así que siempre muestran "Stock a confirmar".
-    const SKUS_STOCK_SIEMPRE_A_CONFIRMAR = ['32791', '32784', '32798', '32790', '32799', '32792', '32794', '32820-ROJ', '32820-AZU'];
+    const SKUS_STOCK_SIEMPRE_A_CONFIRMAR = ['32791', '32784', '32798', '32790', '32799', '32792', '32794', '32820-ROJ', '32820-AZU', '5305', '5306', '5307', '5308', '5310', '5311', '5313', '5330', '5332', '5333'];
     // Pares "unidad" → "blister": si la unidad (caja) tiene stock >= 5, el blister se puede armar
     // partiendo la caja, así que se muestra "En stock" aunque su propio stock cargado sea bajo.
     const PARES_BLISTER_PADRE = { '6505-F': '6505', '6506-F': '6506', '6507-F': '6507', '6508-F': '6508' };
@@ -9631,7 +9631,7 @@ async function publicarCatalogoWeb() {
       '5305-U': '5305', '5306-U': '5306', '5307-U': '5307', '5308-U': '5308', '5309-U': '5309', '5310-U': '5310',
       '5311-U': '5311', '5312-U': '5312', '5313-U': '5313', '5314-U': '5314',
       '5335-U': '5335', '5336-U': '5336', '5337-U': '5337', '5338-U': '5338', '5339-U': '5339', '5340-U': '5340',
-      '5330-U': '5330', '5332-U': '5332', '5334-U': '5334',
+      '5330-U': '5330', '5332-U': '5332', '5333-U': '5333', '5334-U': '5334',
       '5341-U': '5341', '5342-U': '5342', '5343-U': '5343', '5344-U': '5344', '5345-U': '5345', '5346-U': '5346',
       '5347-U': '5347', '5348-U': '5348', '5349-U': '5349', '5350-U': '5350', '5351-U': '5351', '5352-U': '5352',
       '21267-F': '21267', '32806-F': '32806', '32809-F': '32809',
@@ -44191,7 +44191,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.294';
+  const LATEST_VERSION = 'v25.295';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44204,6 +44204,15 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.295',
+      fecha: '2026-09-12',
+      titulo: 'Familia de ensanchadores Peeso: nunca más "Agotado"',
+      items: [
+        { tipo: 'nuevo', texto: 'Se agregaron 5305, 5306, 5307, 5308, 5310, 5311, 5313, 5330, 5332 y 5333 a la lista de SKUs que nunca muestran "Agotado" — como mínimo muestran "Stock a confirmar", igual que ya pasaba con 32820-ROJ y 32820-AZU.' },
+        { tipo: 'corrección', texto: 'Faltaba el par 5333-U → 5333 en el tope de stock hijo/padre; ya está agregado (los demás de esta familia ya existían).' },
+      ]
+    },
     {
       version: 'v25.294',
       fecha: '2026-09-12',
