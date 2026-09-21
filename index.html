@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.295</title>
+<title>Dentalab Whatsapp CRM · v25.298</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -44191,7 +44191,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.295';
+  const LATEST_VERSION = 'v25.298';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44204,6 +44204,31 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.298',
+      fecha: '2026-09-12',
+      titulo: 'La causa real: a "Transferencia" le faltaba la rama entera en 3 lugares',
+      items: [
+        { tipo: 'corrección', texto: 'Encontré el motivo real de que no apareciera "Asignar Transportista" con Transferencia/Tarjeta: la función edEsListo() (que usan otras partes del sistema) sí contemplaba ese caso, pero el cálculo de "listo" que realmente dibuja la tarjeta está DUPLICADO en otros 3 lugares (edRenderCard en PC, edRenderCardMobile, y un tercer cálculo dentro del bloque de acciones de la tarjeta) — y a los tres les faltaba directamente la rama de Transferencia/Tarjeta, así que para esos SKU nunca daban "listo" aunque tuvieran Facturado + Pago acreditado. Se agregó la rama que faltaba en los 3 lugares.' },
+      ]
+    },
+    {
+      version: 'v25.297',
+      fecha: '2026-09-12',
+      titulo: 'Segunda parte del bug de Transferencia: también pasaba al marcar Facturado',
+      items: [
+        { tipo: 'corrección', texto: 'La v25.296 corrigió el pisado silencioso de Transferencia/Tarjeta → Solo entregar en el modal de "Pago acreditado", pero había una segunda copia de la misma lógica que disparaba al marcar "Facturado" desde el selector de estados directo (edCambiarEstado), no desde el modal. Se sacó también — Transferencia y Tarjeta ya no se pisan en ningún flujo.' },
+      ]
+    },
+    {
+      version: 'v25.296',
+      fecha: '2026-09-12',
+      titulo: 'Corrección: cambiar a Transferencia + Pago acreditado dejaba el envío trabado',
+      items: [
+        { tipo: 'corrección', texto: 'Al confirmar "Pago acreditado" en un envío que se había corregido de Efectivo a Transferencia (o Tarjeta), el sistema pisaba el método de pago poniéndolo en "Solo entregar" sin que nadie lo pidiera — eso rompía el flujo y no dejaba avanzar a "Asignar transportista" con los datos correctos. Ahora Transferencia y Tarjeta se respetan tal cual el admin los dejó; solo "A confirmar" se resuelve automáticamente a "Solo entregar" al confirmar el pago (ese sí era el comportamiento buscado).' },
+        { tipo: 'corrección', texto: 'De paso, "Facturado" ya no se duplica en el historial si el envío ya lo tenía cargado de antes (por ejemplo, facturado cuando todavía figuraba como Efectivo).' },
+      ]
+    },
     {
       version: 'v25.295',
       fecha: '2026-09-12',
@@ -62790,8 +62815,9 @@ function edRenderCardMobile(e, color) {
   const _mSolo  = e.cobro === 'solo_entregar' || e.cobro === 'ya_pago';
   const _mEfect = e.cobro === 'efectivo' || e.cobro === 'dolares' || e.cobro === 'cuenta_corriente';
   const _mIndef = e.cobro === 'custom' || e.cobro === 'en_espera';
+  const _mTransf = e.cobro === 'transferencia' || e.cobro === 'tarjeta';
   const _mFin   = ['entregado','no_entregado','no_responde','cancelado','cobrado','guia_enviada'];
-  const _mListo = !_mFin.includes(e.estado) && (_mSolo ? (_mF && _mP) : _mEfect ? _mF : _mIndef ? (_mF && _mP) : false);
+  const _mListo = !_mFin.includes(e.estado) && (_mSolo ? (_mF && _mP) : _mEfect ? _mF : _mIndef ? (_mF && _mP) : _mTransf ? (_mF && _mP) : false);
   const _mEstado = (!_mListo && !_mFin.includes(e.estado)) ? 'pendiente' : e.estado;
   const _MC = { pendiente:'var(--border2)', en_camino:'#10b981', entregado:'#10b981', cancelado:'#ef4444', no_entregado:'#f97316', no_responde:'#f97316' };
   const cardColor = e.repartidorId ? '#10b981' : _mListo ? '#10b981' : (_MC[_mEstado] || '#94a3b8');
@@ -63672,19 +63698,20 @@ function edRenderCard(e, color) {
   const _esSoloEntregar = e.cobro === 'solo_entregar' || e.cobro === 'ya_pago';
   const _esEfectivo = e.cobro === 'efectivo' || e.cobro === 'dolares' || e.cobro === 'cuenta_corriente';
   const _esIndefinido = e.cobro === 'custom' || e.cobro === 'en_espera';
+  const _esTransf = e.cobro === 'transferencia' || e.cobro === 'tarjeta';
   const _estadosFin = ['entregado','no_entregado','no_responde','cancelado','cobrado','guia_enviada'];
   // Si el estado actual es 'pendiente', el envío fue reprogramado y está activo de nuevo → nunca finalizado
   const _yaFinalizo = e.estado !== 'pendiente' && (
     _estadosFin.includes(e.estado) ||
     (e.estadoLog?.length > 0 && (() => {
       const _log = [...(e.estadoLog || [])].sort((a,b) => a.ts - b.ts);
-      const _needsBoth = _esSoloEntregar || _esIndefinido;
+      const _needsBoth = _esSoloEntregar || _esIndefinido || _esTransf;
       const _triggerEstado = _needsBoth ? (_tieneP ? 'pago_acreditado' : 'facturado') : 'facturado';
       const _idxT = _log.map(s => s.estado).lastIndexOf(_triggerEstado);
       return _idxT >= 0 && _log.slice(_idxT + 1).some(s => _estadosFin.includes(s.estado) && !s.esReprogramado);
     })())
   );
-  const _listo = !_yaFinalizo && (_esSoloEntregar ? (_tieneF && _tieneP) : _esEfectivo ? _tieneF : _esIndefinido ? (_tieneF && _tieneP) : false);
+  const _listo = !_yaFinalizo && (_esSoloEntregar ? (_tieneF && _tieneP) : _esEfectivo ? _tieneF : _esIndefinido ? (_tieneF && _tieneP) : _esTransf ? (_tieneF && _tieneP) : false);
   const _ESTADO_DISPLAY_MAP = { guia_enviada: 'entregado', cobrado: 'entregado' };
   const _estadoMostrado = _listo ? null : (!_estadosFin.includes(e.estado) ? 'pendiente' : (_ESTADO_DISPLAY_MAP[e.estado] || e.estado));
   const est = _estadoMostrado ? (ED_ESTADOS.find(s => s.id === _estadoMostrado) || ED_ESTADOS[0]) : null;
@@ -63972,18 +63999,19 @@ function edRenderCard(e, color) {
             const esSoloEntregar = e.cobro === 'solo_entregar' || e.cobro === 'ya_pago';
             const esEfectivo = e.cobro === 'efectivo' || e.cobro === 'dolares' || e.cobro === 'cuenta_corriente';
             const esIndefinido = e.cobro === 'custom' || e.cobro === 'en_espera';
+            const esTransf = e.cobro === 'transferencia' || e.cobro === 'tarjeta';
             const estadosFin = ['entregado','no_entregado','no_responde','cancelado','cobrado','guia_enviada'];
             const yaFinalizo = e.estado !== 'pendiente' && (
               estadosFin.includes(e.estado) ||
               (e.estadoLog?.length > 0 && (() => {
                 const logOrdenado = [...(e.estadoLog || [])].sort((a,b) => a.ts - b.ts);
-                const needsBoth = esSoloEntregar || esIndefinido;
+                const needsBoth = esSoloEntregar || esIndefinido || esTransf;
                 const triggerEstado = needsBoth ? (tieneP ? 'pago_acreditado' : 'facturado') : 'facturado';
                 const idxTrigger = logOrdenado.map(s=>s.estado).lastIndexOf(triggerEstado);
                 return idxTrigger >= 0 && logOrdenado.slice(idxTrigger + 1).some(s => estadosFin.includes(s.estado) && !s.esReprogramado);
               })())
             );
-            const listo = !yaFinalizo && (esSoloEntregar ? (tieneF && tieneP) : esEfectivo ? tieneF : esIndefinido ? (tieneF && tieneP) : false);
+            const listo = !yaFinalizo && (esSoloEntregar ? (tieneF && tieneP) : esEfectivo ? tieneF : esIndefinido ? (tieneF && tieneP) : esTransf ? (tieneF && tieneP) : false);
             if (e.estado === 'en_camino') return `
               <span style="font-size:11px;font-weight:800;background:rgba(245,158,11,.15);color:#f59e0b;border:1.5px solid rgba(245,158,11,.4);border-radius:6px;padding:3px 10px;animation:ed-moto-blink 1.2s ease-in-out infinite;">
                 🟠 En camino
@@ -64312,16 +64340,6 @@ function edCambiarEstado(id, nuevoEstado) {
   edSaveEnvios();
   edRenderLista();
   showToast(`Estado → ${est?.label || nuevoEstado}`, 'ok');
-
-  // Si el cobro es "Transferencia / Link" o "Tarjeta" y se marca Facturado → cambiar automáticamente a "Solo entregar"
-  // (mismo criterio que edEsListo() y edGuardarForm(), que ya tratan transferencia y tarjeta como equivalentes)
-  if (nuevoEstado === 'facturado' && (_edEnvios[idx].cobro === 'transferencia' || _edEnvios[idx].cobro === 'tarjeta')) {
-    _edEnvios[idx].cobro = 'solo_entregar';
-    _edEnvios[idx].updatedAt = Date.now();
-    edSaveEnvios();
-    edRenderLista();
-    showToast('📦 Cobro actualizado → Solo entregar', 'ok');
-  }
 
   // Si el envío era "A confirmar" (en_espera) y ahora tiene facturado + pago_acreditado → cambiar a Solo entregar
   if (_edEnvios[idx].cobro === 'en_espera') {
@@ -67936,11 +67954,20 @@ function _edConfirmarAbono(envioId, autor) {
   if (idx < 0) return;
   const now2 = Date.now();
   if (!_edEnvios[idx].estadoLog) _edEnvios[idx].estadoLog = [];
-  // Si el cobro era "A confirmar" o "Transferencia/Tarjeta", cambiarlo a "Solo entregar"
-  if (_edEnvios[idx].cobro === 'en_espera' || _edEnvios[idx].cobro === 'transferencia' || _edEnvios[idx].cobro === 'tarjeta') {
+  // Si el cobro era "A confirmar" (todavía sin definir), al confirmar el pago se resuelve
+  // a "Solo entregar". Transferencia y Tarjeta NO se tocan acá — son métodos concretos que
+  // el admin eligió a propósito (por ejemplo al corregir un envío que se había cargado mal
+  // como Efectivo); pisarlos con "Solo entregar" rompía el flujo normal y no dejaba avanzar
+  // a "Asignar transportista" con el método de pago correcto.
+  if (_edEnvios[idx].cobro === 'en_espera') {
     _edEnvios[idx].cobro = 'solo_entregar';
   }
-  _edEnvios[idx].estadoLog.push({ estado: 'facturado',       label: 'Facturado',       icon: '🧾', ts: now2,     autor: autor || authCurrentUser?.name || '' });
+  // No duplicar "Facturado" si ya estaba en el historial (por ejemplo, se facturó cuando el
+  // envío todavía figuraba como Efectivo, y después se corrigió el método de pago).
+  const yaFacturado = _edEnvios[idx].estadoLog.some(s => s.estado === 'facturado');
+  if (!yaFacturado) {
+    _edEnvios[idx].estadoLog.push({ estado: 'facturado', label: 'Facturado', icon: '🧾', ts: now2, autor: autor || authCurrentUser?.name || '' });
+  }
   _edEnvios[idx].estadoLog.push({ estado: 'pago_acreditado', label: 'Pago acreditado', icon: '💳', ts: now2 + 1, autor: autor || authCurrentUser?.name || '' });
   _edEnvios[idx].updatedAt = now2;
   edSaveEnvios();
