@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.287</title>
+<title>Dentalab Whatsapp CRM · v25.299</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -1516,6 +1516,18 @@
   }
   #ed-f-pdf-drop.ed-pdf-drop-activo, #gcal-pdf-drop.ed-pdf-drop-activo {
     border-color: #f59e0b; background: rgba(245,158,11,.08);
+  }
+  /* Modal de Google Calendar: se resalta completo al arrastrar un PDF sobre cualquier parte */
+  #gcal-box { position: relative; }
+  #gcal-box.ed-pdf-drop-activo {
+    outline: 3px dashed #f59e0b; outline-offset: -3px;
+  }
+  #gcal-box.ed-pdf-drop-activo::after {
+    content: "📄 Soltá el PDF de presupuesto acá";
+    position: absolute; inset: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(15,23,42,.82); color: #f59e0b; font-size: 15px; font-weight: 800;
+    text-align: center; padding: 24px; pointer-events: none; border-radius: 16px;
   }
   #panel-envios-dentalab.ed-panel-drop-activo {
     outline: 3px dashed #f59e0b; outline-offset: -3px; background: rgba(245,158,11,.04);
@@ -9581,7 +9593,7 @@ async function publicarCatalogoWeb() {
     const SKUS_SIN_PRECIO_PUBLICO = ['22100', '22200', '8508', '50000']; // Escáner Eighteeth/Fussen, Sillón GDK/DABI ATLANTE — consultar precio
     // Se ingresan por unidad pero también se venden por paquete (el "-f"): el stock de la unidad
     // no refleja bien lo disponible para vender, así que siempre muestran "Stock a confirmar".
-    const SKUS_STOCK_SIEMPRE_A_CONFIRMAR = ['32791', '32784', '32798', '32790', '32799', '32792', '32794', '32820-ROJ', '32820-AZU'];
+    const SKUS_STOCK_SIEMPRE_A_CONFIRMAR = ['32791', '32784', '32798', '32790', '32799', '32792', '32794', '32820-ROJ', '32820-AZU', '5305', '5306', '5307', '5308', '5310', '5311', '5313', '5330', '5332', '5333'];
     // Pares "unidad" → "blister": si la unidad (caja) tiene stock >= 5, el blister se puede armar
     // partiendo la caja, así que se muestra "En stock" aunque su propio stock cargado sea bajo.
     const PARES_BLISTER_PADRE = { '6505-F': '6505', '6506-F': '6506', '6507-F': '6507', '6508-F': '6508' };
@@ -9609,6 +9621,7 @@ async function publicarCatalogoWeb() {
     // su propio número sea >=5, solo puede bajar a Agotado si su propio stock es 0.
     const PARES_HIJO_PADRE_TOPE = {
       '244-F': '244',
+      '32820-FRO': '32820-ROJ', '32820-FAZ': '32820-AZU',
       '61350-1U': '61350-1', '61350-2U': '61350-2', '61350-3U': '61350-3', '61350-4U': '61350-4',
       '61351-1U': '61351-1', '61351-2U': '61351-2', '61351-3U': '61351-3', '61351-4U': '61351-4', '61351-5U': '61351-5',
       '61351-BLU': '61351-BL', '61351-MFU': '61351-MF', '61351-MGU': '61351-MG', '61351-REU': '61351-RE',
@@ -9618,7 +9631,7 @@ async function publicarCatalogoWeb() {
       '5305-U': '5305', '5306-U': '5306', '5307-U': '5307', '5308-U': '5308', '5309-U': '5309', '5310-U': '5310',
       '5311-U': '5311', '5312-U': '5312', '5313-U': '5313', '5314-U': '5314',
       '5335-U': '5335', '5336-U': '5336', '5337-U': '5337', '5338-U': '5338', '5339-U': '5339', '5340-U': '5340',
-      '5330-U': '5330', '5332-U': '5332', '5334-U': '5334',
+      '5330-U': '5330', '5332-U': '5332', '5333-U': '5333', '5334-U': '5334',
       '5341-U': '5341', '5342-U': '5342', '5343-U': '5343', '5344-U': '5344', '5345-U': '5345', '5346-U': '5346',
       '5347-U': '5347', '5348-U': '5348', '5349-U': '5349', '5350-U': '5350', '5351-U': '5351', '5352-U': '5352',
       '21267-F': '21267', '32806-F': '32806', '32809-F': '32809',
@@ -9748,6 +9761,10 @@ async function publicarCatalogoWeb() {
       // le muestra al cliente, ver esAdminCatalogo() del lado del catálogo).
       item.d1 = Math.max(0, Math.floor(parseFloat(row['Deposito 1 - Local'] || 0)));
       item.dc = Math.max(0, Math.floor(parseFloat(row['Deposito Central'] || 0)));
+      // Proveedor — mismo criterio que el stock por depósito: se publica siempre (uso
+      // interno del admin en el catálogo web), nunca se le muestra al cliente.
+      const proveedor = String(row.Proveedor || row['Proveedor'] || '').trim();
+      if (proveedor) item.prov = proveedor;
       const imgRaw = imagenesCache[claveImg(sku)];
       const img = Array.isArray(imgRaw) ? imgRaw[0] : imgRaw;
       if (img) item.img = img;
@@ -19347,6 +19364,28 @@ async function exportPDF(sinTotal = false, sinLista = false, sinAhorro = false, 
   });
 
   y = doc.lastAutoTable.finalY + 6;
+
+  // ── Chequeo de espacio: si el bloque de Envío + Subtotal + Descuento + TOTAL no
+  // entra completo antes del borde inferior de la hoja, se salta a una página nueva
+  // en vez de dibujarlo cortado (antes se dibujaba igual y el TOTAL quedaba pisando
+  // el borde de la página, como se ve en la vista previa cuando la tabla terminaba
+  // muy abajo). ──
+  {
+    let _altoBloqueTotales = 0;
+    if (env.activo) _altoBloqueTotales += 16; // recuadro resumen de envío
+    if (!sinTotal) {
+      _altoBloqueTotales += 8; // Subtotal
+      if (globalDescuento > 0) _altoBloqueTotales += 8; // Descuento
+      if (env.activo && ((env.costMode === 'precio' && parseFloat(env.costo || 0) > 0) || env.costMode === 'destino')) {
+        _altoBloqueTotales += 8; // Envío dentro de la columna de totales
+      }
+      _altoBloqueTotales += 16; // TOTAL
+    }
+    if (_altoBloqueTotales > 0 && y + _altoBloqueTotales > pageH - margin) {
+      doc.addPage();
+      y = margin;
+    }
+  }
 
   // ── Envío (si activo) ──
   if(env.activo){
@@ -29657,7 +29696,7 @@ function openEnvioGCalModal(env) {
   backdrop.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;`;
 
   backdrop.innerHTML = `
-  <div id="gcal-box" style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:480px;overflow:hidden;animation:slideUp .2s ease;">
+  <div id="gcal-box" ondragover="event.preventDefault();event.stopPropagation();this.classList.add('ed-pdf-drop-activo')" ondragleave="if(!this.contains(event.relatedTarget)){this.classList.remove('ed-pdf-drop-activo')}" ondrop="event.preventDefault();this.classList.remove('ed-pdf-drop-activo');gcalPdfDrop1(event, document.getElementById('gcal-pdf-drop'))" style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:480px;overflow:hidden;animation:slideUp .2s ease;">
     <div style="background:linear-gradient(135deg,#4285f4,#1a73e8);padding:20px 24px;display:flex;align-items:center;gap:12px;">
       <div style="font-size:26px;">📅</div>
       <div>
@@ -29667,9 +29706,9 @@ function openEnvioGCalModal(env) {
       <button id="gcal-close" style="margin-left:auto;background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 12px;color:#fff;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">✕</button>
     </div>
     <div style="padding:24px;display:flex;flex-direction:column;gap:14px;">
-      <div id="gcal-pdf-drop" ondragover="event.preventDefault();this.classList.add('ed-pdf-drop-activo')" ondragleave="this.classList.remove('ed-pdf-drop-activo')" ondrop="gcalPdfDrop1(event, this)" onclick="document.getElementById('gcal-pdf-input').click()"
+      <div id="gcal-pdf-drop" onclick="document.getElementById('gcal-pdf-input').click()"
         style="border:2px dashed var(--border2);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s;">
-        <div id="gcal-pdf-drop-texto" style="font-size:12.5px;font-weight:700;color:var(--text2);">📄 Arrastrá acá un PDF de presupuesto, o hacé clic para elegirlo</div>
+        <div id="gcal-pdf-drop-texto" style="font-size:12.5px;font-weight:700;color:var(--text2);">📄 Arrastrá un PDF de presupuesto en cualquier parte de esta ventana, o hacé clic para elegirlo</div>
         <div style="font-size:10.5px;color:var(--text3);margin-top:3px;">Completa dirección, transporte, cobro, vendedor y teléfono solo</div>
         <input type="file" id="gcal-pdf-input" accept="application/pdf" style="display:none;" onchange="gcalPdfFile1(this.files[0])">
       </div>
@@ -30432,7 +30471,7 @@ function openGCalModal(pedido) {
   backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
 
   backdrop.innerHTML = `
-  <div id="gcal-box" style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:500px;overflow:hidden;animation:slideUp .2s ease;">
+  <div id="gcal-box" ondragover="event.preventDefault();event.stopPropagation();this.classList.add('ed-pdf-drop-activo')" ondragleave="if(!this.contains(event.relatedTarget)){this.classList.remove('ed-pdf-drop-activo')}" ondrop="event.preventDefault();this.classList.remove('ed-pdf-drop-activo');gcalPdfDrop2(event, document.getElementById('gcal-pdf-drop'))" style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:500px;overflow:hidden;animation:slideUp .2s ease;">
     <div style="background:linear-gradient(135deg,#4285f4,#1a73e8);padding:20px 24px;display:flex;align-items:center;gap:12px;">
       <div style="font-size:26px;">📅</div>
       <div>
@@ -30442,9 +30481,9 @@ function openGCalModal(pedido) {
       <button id="gcal-close" style="margin-left:auto;background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 12px;color:#fff;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">✕ Cerrar</button>
     </div>
     <div style="padding:24px;display:flex;flex-direction:column;gap:14px;">
-      <div id="gcal-pdf-drop" ondragover="event.preventDefault();this.classList.add('ed-pdf-drop-activo')" ondragleave="this.classList.remove('ed-pdf-drop-activo')" ondrop="gcalPdfDrop2(event, this)" onclick="document.getElementById('gcal-pdf-input').click()"
+      <div id="gcal-pdf-drop" onclick="document.getElementById('gcal-pdf-input').click()"
         style="border:2px dashed var(--border2);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s;">
-        <div id="gcal-pdf-drop-texto" style="font-size:12.5px;font-weight:700;color:var(--text2);">📄 Arrastrá acá un PDF de presupuesto, o hacé clic para elegirlo</div>
+        <div id="gcal-pdf-drop-texto" style="font-size:12.5px;font-weight:700;color:var(--text2);">📄 Arrastrá un PDF de presupuesto en cualquier parte de esta ventana, o hacé clic para elegirlo</div>
         <div style="font-size:10.5px;color:var(--text3);margin-top:3px;">Completa dirección, transporte, cobro, vendedor y teléfono solo</div>
         <input type="file" id="gcal-pdf-input" accept="application/pdf" style="display:none;" onchange="gcalPdfFile2(this.files[0])">
       </div>
@@ -44152,7 +44191,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.287';
+  const LATEST_VERSION = 'v25.299';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44165,6 +44204,105 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.299',
+      fecha: '2026-09-12',
+      titulo: 'Cargar Cliente: faltaban 9 provincias en el desplegable',
+      items: [
+        { tipo: 'corrección', texto: 'El selector "Provincia / Estado" del modal de Cargar Cliente terminaba en "Entre Ríos" — le faltaban Mendoza, San Juan, San Luis, La Pampa, Neuquén, Río Negro, Chubut, Santa Cruz y Tierra del Fuego (Cuyo, Patagonia y La Pampa completas). El mapa interno que las traduce a YiQi (PROV_MAP) ya tenía las 24 provincias bien cargadas — solo faltaban en la lista visible. Se agregaron en las dos copias de ese formulario que hay en el archivo.' },
+      ]
+    },
+    {
+      version: 'v25.298',
+      fecha: '2026-09-12',
+      titulo: 'La causa real: a "Transferencia" le faltaba la rama entera en 3 lugares',
+      items: [
+        { tipo: 'corrección', texto: 'Encontré el motivo real de que no apareciera "Asignar Transportista" con Transferencia/Tarjeta: la función edEsListo() (que usan otras partes del sistema) sí contemplaba ese caso, pero el cálculo de "listo" que realmente dibuja la tarjeta está DUPLICADO en otros 3 lugares (edRenderCard en PC, edRenderCardMobile, y un tercer cálculo dentro del bloque de acciones de la tarjeta) — y a los tres les faltaba directamente la rama de Transferencia/Tarjeta, así que para esos SKU nunca daban "listo" aunque tuvieran Facturado + Pago acreditado. Se agregó la rama que faltaba en los 3 lugares.' },
+      ]
+    },
+    {
+      version: 'v25.297',
+      fecha: '2026-09-12',
+      titulo: 'Segunda parte del bug de Transferencia: también pasaba al marcar Facturado',
+      items: [
+        { tipo: 'corrección', texto: 'La v25.296 corrigió el pisado silencioso de Transferencia/Tarjeta → Solo entregar en el modal de "Pago acreditado", pero había una segunda copia de la misma lógica que disparaba al marcar "Facturado" desde el selector de estados directo (edCambiarEstado), no desde el modal. Se sacó también — Transferencia y Tarjeta ya no se pisan en ningún flujo.' },
+      ]
+    },
+    {
+      version: 'v25.296',
+      fecha: '2026-09-12',
+      titulo: 'Corrección: cambiar a Transferencia + Pago acreditado dejaba el envío trabado',
+      items: [
+        { tipo: 'corrección', texto: 'Al confirmar "Pago acreditado" en un envío que se había corregido de Efectivo a Transferencia (o Tarjeta), el sistema pisaba el método de pago poniéndolo en "Solo entregar" sin que nadie lo pidiera — eso rompía el flujo y no dejaba avanzar a "Asignar transportista" con los datos correctos. Ahora Transferencia y Tarjeta se respetan tal cual el admin los dejó; solo "A confirmar" se resuelve automáticamente a "Solo entregar" al confirmar el pago (ese sí era el comportamiento buscado).' },
+        { tipo: 'corrección', texto: 'De paso, "Facturado" ya no se duplica en el historial si el envío ya lo tenía cargado de antes (por ejemplo, facturado cuando todavía figuraba como Efectivo).' },
+      ]
+    },
+    {
+      version: 'v25.295',
+      fecha: '2026-09-12',
+      titulo: 'Familia de ensanchadores Peeso: nunca más "Agotado"',
+      items: [
+        { tipo: 'nuevo', texto: 'Se agregaron 5305, 5306, 5307, 5308, 5310, 5311, 5313, 5330, 5332 y 5333 a la lista de SKUs que nunca muestran "Agotado" — como mínimo muestran "Stock a confirmar", igual que ya pasaba con 32820-ROJ y 32820-AZU.' },
+        { tipo: 'corrección', texto: 'Faltaba el par 5333-U → 5333 en el tope de stock hijo/padre; ya está agregado (los demás de esta familia ya existían).' },
+      ]
+    },
+    {
+      version: 'v25.294',
+      fecha: '2026-09-12',
+      titulo: 'Dos pares hijo/padre nuevos en el tope de stock',
+      items: [
+        { tipo: 'nuevo', texto: 'Se agregaron 32820-FRO → 32820-ROJ y 32820-FAZ → 32820-AZU a PARES_HIJO_PADRE_TOPE (el hijo no puede figurar con mejor stock que el padre).' },
+      ]
+    },
+    {
+      version: 'v25.293',
+      fecha: '2026-09-12',
+      titulo: 'El catálogo de Pedidos ahora publica el Proveedor de cada SKU (solo admin)',
+      items: [
+        { tipo: 'nuevo', texto: 'Al publicar el catálogo web, cada producto ahora incluye su Proveedor (columna "Proveedor" de Lista de Precios). Es de uso interno: nunca se le muestra al cliente, solo aparece en el catálogo cuando entrás como admin, junto al stock por depósito.' },
+      ]
+    },
+    {
+      version: 'v25.292',
+      fecha: '2026-09-12',
+      titulo: 'Mensaje para el cliente: se agrega el total si el cobro es en efectivo',
+      items: [
+        { tipo: 'nuevo', texto: 'Cuando el envío tiene cargado "Cobrar en efectivo" con un monto, el mensaje que se copia para avisarle al cliente ahora incluye "El total es de $X." antes del cierre. Si no es cobro en efectivo, o no tiene monto cargado, el mensaje queda igual que antes.' },
+      ]
+    },
+    {
+      version: 'v25.291',
+      fecha: '2026-09-12',
+      titulo: 'Corrección: el TOTAL del PDF de Presupuestos se cortaba al final de la página',
+      items: [
+        { tipo: 'corrección', texto: 'Cuando la tabla de productos terminaba muy cerca del borde inferior de la hoja, el recuadro de Envío y los de Subtotal/Descuento/TOTAL se dibujaban igual ahí mismo y quedaban pisando el borde — se veían cortados en la vista previa y en el PDF descargado. Ahora, antes de dibujar ese bloque, se chequea si entra completo en el espacio que queda; si no entra, se salta a una página nueva.' },
+      ]
+    },
+    {
+      version: 'v25.290',
+      fecha: '2026-09-12',
+      titulo: 'Reglas automáticas de mail: se excluyen los asuntos con "Fede"',
+      items: [
+        { tipo: 'nuevo', texto: 'Si el asunto del mail contiene la palabra "Fede" o "fede" (sin importar mayúsculas/minúsculas), ninguna regla automática se aplica a ese mail — ni las 6 reglas fijas, ni las reglas configurables de remitente/asunto, ni la regla de seguimiento de RETIRA.' },
+      ]
+    },
+    {
+      version: 'v25.289',
+      fecha: '2026-09-12',
+      titulo: 'Mensaje para el cliente: se saca la mención a "Dentalab" y se corrige el tiempo verbal',
+      items: [
+        { tipo: 'corrección', texto: 'El mensaje que se copia en Envíos Dentalab para avisarle al cliente ya no aclara "Te escribimos de Dentalab para avisarte", queda directo en "Te avisamos que...". Se aplicó en los dos casos: entrega con Envíos Dentalab y despacho por transporte externo (OCA, Andreani, etc.).' },
+        { tipo: 'corrección', texto: 'En el mensaje de despacho por transporte externo, "hoy despachamos tu pedido" pasó a "hoy despacharemos tu pedido" (tiempo futuro).' },
+      ]
+    },
+    {
+      version: 'v25.288',
+      fecha: '2026-09-12',
+      titulo: 'Modal "Enviar a Google Calendar": ahora detecta el PDF en toda la ventana',
+      items: [
+        { tipo: 'mejora', texto: 'Antes solo se podía soltar el PDF de presupuesto en el recuadro punteado chico. Ahora podés soltarlo en cualquier parte del modal (título, fecha, dirección, etc.) y se lee igual — el recuadro se mantiene como referencia visual y para el clic manual, pero ya no es la única zona activa. Se resalta todo el modal mientras arrastrás el archivo.' },
+      ]
+    },
     {
       version: 'v25.287',
       fecha: '2026-07-21',
@@ -56931,7 +57069,7 @@ function _registrarUsoFrecuente(sku, nombre) {
   function _regla7SubjectOK(subject) {
     const s = (subject || '').toUpperCase();
     if (!s.includes('RETIRA')) return false;
-    if (s.includes('JORGE') || s.includes('MARY')) return false; // excluidos explícitamente
+    if (s.includes('JORGE') || s.includes('MARY') || s.includes('FEDE')) return false; // excluidos explícitamente
     return _COBRO_KEYWORDS_REGLA7.some(k => s.includes(k));
   }
 
@@ -57088,6 +57226,10 @@ function _registrarUsoFrecuente(sku, nombre) {
       const mailMsgId    = mail.id;
       const mailThreadId = mail.threadId || mail.id;
       if (_reglasProcesadas.has(mailMsgId)) continue;
+
+      // ── Exclusión global: si el asunto contiene "Fede"/"fede", NINGUNA regla
+      // automática se aplica a este mail (ni las fijas 1-6 ni las configurables) ──
+      if ((mail.subject || '').toLowerCase().includes('fede')) continue;
 
       // ── Reglas fijas especiales ──
       try {
@@ -61905,13 +62047,15 @@ window.edCopiarInfoEnvio = edCopiarInfoEnvio;
 // Arma el mensaje para avisarle al cliente que hoy sale su pedido — un texto si lo
 // reparte Envíos Dentalab (con el horario, si está cargado) y otro distinto si va por
 // un transporte externo (OCA, Andreani, etc.), aclarando que la guía se manda después.
+// Si el cobro es "efectivo" y tiene monto cargado, se suma el total al mensaje.
 function _edMensajeClienteTexto(e) {
   const esEnviosDentalab = !e.transporte || e.transporte === 'Envíos Dentalab';
+  const montoTxt = (e.cobro === 'efectivo' && e.montoEfectivo) ? ` El total es de $${Number(e.montoEfectivo).toLocaleString('es-AR')}.` : '';
   if (esEnviosDentalab) {
     const horarioTxt = e.horario ? `, en el horario de ${e.horario}` : '';
-    return `¡Buen día! Te escribimos de Dentalab para avisarte que hoy te estaremos entregando tu pedido${horarioTxt}. ¡Muchas gracias!`;
+    return `¡Buen día! Te avisamos que hoy te estaremos entregando tu pedido${horarioTxt}.${montoTxt} ¡Muchas gracias!`;
   }
-  return `¡Buen día! Te escribimos de Dentalab para avisarte que hoy despachamos tu pedido por ${e.transporte}. Apenas tengamos el número de guía, te lo pasamos por este mismo medio. ¡Muchas gracias!`;
+  return `¡Buen día! Te avisamos que hoy despacharemos tu pedido por ${e.transporte}. Apenas tengamos el número de guía, te lo pasamos por este mismo medio.${montoTxt} ¡Muchas gracias!`;
 }
 function edCopiarMensajeCliente(id) {
   const e = _edEnvios.find(x => x.id === id);
@@ -62697,8 +62841,9 @@ function edRenderCardMobile(e, color) {
   const _mSolo  = e.cobro === 'solo_entregar' || e.cobro === 'ya_pago';
   const _mEfect = e.cobro === 'efectivo' || e.cobro === 'dolares' || e.cobro === 'cuenta_corriente';
   const _mIndef = e.cobro === 'custom' || e.cobro === 'en_espera';
+  const _mTransf = e.cobro === 'transferencia' || e.cobro === 'tarjeta';
   const _mFin   = ['entregado','no_entregado','no_responde','cancelado','cobrado','guia_enviada'];
-  const _mListo = !_mFin.includes(e.estado) && (_mSolo ? (_mF && _mP) : _mEfect ? _mF : _mIndef ? (_mF && _mP) : false);
+  const _mListo = !_mFin.includes(e.estado) && (_mSolo ? (_mF && _mP) : _mEfect ? _mF : _mIndef ? (_mF && _mP) : _mTransf ? (_mF && _mP) : false);
   const _mEstado = (!_mListo && !_mFin.includes(e.estado)) ? 'pendiente' : e.estado;
   const _MC = { pendiente:'var(--border2)', en_camino:'#10b981', entregado:'#10b981', cancelado:'#ef4444', no_entregado:'#f97316', no_responde:'#f97316' };
   const cardColor = e.repartidorId ? '#10b981' : _mListo ? '#10b981' : (_MC[_mEstado] || '#94a3b8');
@@ -63579,19 +63724,20 @@ function edRenderCard(e, color) {
   const _esSoloEntregar = e.cobro === 'solo_entregar' || e.cobro === 'ya_pago';
   const _esEfectivo = e.cobro === 'efectivo' || e.cobro === 'dolares' || e.cobro === 'cuenta_corriente';
   const _esIndefinido = e.cobro === 'custom' || e.cobro === 'en_espera';
+  const _esTransf = e.cobro === 'transferencia' || e.cobro === 'tarjeta';
   const _estadosFin = ['entregado','no_entregado','no_responde','cancelado','cobrado','guia_enviada'];
   // Si el estado actual es 'pendiente', el envío fue reprogramado y está activo de nuevo → nunca finalizado
   const _yaFinalizo = e.estado !== 'pendiente' && (
     _estadosFin.includes(e.estado) ||
     (e.estadoLog?.length > 0 && (() => {
       const _log = [...(e.estadoLog || [])].sort((a,b) => a.ts - b.ts);
-      const _needsBoth = _esSoloEntregar || _esIndefinido;
+      const _needsBoth = _esSoloEntregar || _esIndefinido || _esTransf;
       const _triggerEstado = _needsBoth ? (_tieneP ? 'pago_acreditado' : 'facturado') : 'facturado';
       const _idxT = _log.map(s => s.estado).lastIndexOf(_triggerEstado);
       return _idxT >= 0 && _log.slice(_idxT + 1).some(s => _estadosFin.includes(s.estado) && !s.esReprogramado);
     })())
   );
-  const _listo = !_yaFinalizo && (_esSoloEntregar ? (_tieneF && _tieneP) : _esEfectivo ? _tieneF : _esIndefinido ? (_tieneF && _tieneP) : false);
+  const _listo = !_yaFinalizo && (_esSoloEntregar ? (_tieneF && _tieneP) : _esEfectivo ? _tieneF : _esIndefinido ? (_tieneF && _tieneP) : _esTransf ? (_tieneF && _tieneP) : false);
   const _ESTADO_DISPLAY_MAP = { guia_enviada: 'entregado', cobrado: 'entregado' };
   const _estadoMostrado = _listo ? null : (!_estadosFin.includes(e.estado) ? 'pendiente' : (_ESTADO_DISPLAY_MAP[e.estado] || e.estado));
   const est = _estadoMostrado ? (ED_ESTADOS.find(s => s.id === _estadoMostrado) || ED_ESTADOS[0]) : null;
@@ -63879,18 +64025,19 @@ function edRenderCard(e, color) {
             const esSoloEntregar = e.cobro === 'solo_entregar' || e.cobro === 'ya_pago';
             const esEfectivo = e.cobro === 'efectivo' || e.cobro === 'dolares' || e.cobro === 'cuenta_corriente';
             const esIndefinido = e.cobro === 'custom' || e.cobro === 'en_espera';
+            const esTransf = e.cobro === 'transferencia' || e.cobro === 'tarjeta';
             const estadosFin = ['entregado','no_entregado','no_responde','cancelado','cobrado','guia_enviada'];
             const yaFinalizo = e.estado !== 'pendiente' && (
               estadosFin.includes(e.estado) ||
               (e.estadoLog?.length > 0 && (() => {
                 const logOrdenado = [...(e.estadoLog || [])].sort((a,b) => a.ts - b.ts);
-                const needsBoth = esSoloEntregar || esIndefinido;
+                const needsBoth = esSoloEntregar || esIndefinido || esTransf;
                 const triggerEstado = needsBoth ? (tieneP ? 'pago_acreditado' : 'facturado') : 'facturado';
                 const idxTrigger = logOrdenado.map(s=>s.estado).lastIndexOf(triggerEstado);
                 return idxTrigger >= 0 && logOrdenado.slice(idxTrigger + 1).some(s => estadosFin.includes(s.estado) && !s.esReprogramado);
               })())
             );
-            const listo = !yaFinalizo && (esSoloEntregar ? (tieneF && tieneP) : esEfectivo ? tieneF : esIndefinido ? (tieneF && tieneP) : false);
+            const listo = !yaFinalizo && (esSoloEntregar ? (tieneF && tieneP) : esEfectivo ? tieneF : esIndefinido ? (tieneF && tieneP) : esTransf ? (tieneF && tieneP) : false);
             if (e.estado === 'en_camino') return `
               <span style="font-size:11px;font-weight:800;background:rgba(245,158,11,.15);color:#f59e0b;border:1.5px solid rgba(245,158,11,.4);border-radius:6px;padding:3px 10px;animation:ed-moto-blink 1.2s ease-in-out infinite;">
                 🟠 En camino
@@ -64219,16 +64366,6 @@ function edCambiarEstado(id, nuevoEstado) {
   edSaveEnvios();
   edRenderLista();
   showToast(`Estado → ${est?.label || nuevoEstado}`, 'ok');
-
-  // Si el cobro es "Transferencia / Link" o "Tarjeta" y se marca Facturado → cambiar automáticamente a "Solo entregar"
-  // (mismo criterio que edEsListo() y edGuardarForm(), que ya tratan transferencia y tarjeta como equivalentes)
-  if (nuevoEstado === 'facturado' && (_edEnvios[idx].cobro === 'transferencia' || _edEnvios[idx].cobro === 'tarjeta')) {
-    _edEnvios[idx].cobro = 'solo_entregar';
-    _edEnvios[idx].updatedAt = Date.now();
-    edSaveEnvios();
-    edRenderLista();
-    showToast('📦 Cobro actualizado → Solo entregar', 'ok');
-  }
 
   // Si el envío era "A confirmar" (en_espera) y ahora tiene facturado + pago_acreditado → cambiar a Solo entregar
   if (_edEnvios[idx].cobro === 'en_espera') {
@@ -67843,11 +67980,20 @@ function _edConfirmarAbono(envioId, autor) {
   if (idx < 0) return;
   const now2 = Date.now();
   if (!_edEnvios[idx].estadoLog) _edEnvios[idx].estadoLog = [];
-  // Si el cobro era "A confirmar" o "Transferencia/Tarjeta", cambiarlo a "Solo entregar"
-  if (_edEnvios[idx].cobro === 'en_espera' || _edEnvios[idx].cobro === 'transferencia' || _edEnvios[idx].cobro === 'tarjeta') {
+  // Si el cobro era "A confirmar" (todavía sin definir), al confirmar el pago se resuelve
+  // a "Solo entregar". Transferencia y Tarjeta NO se tocan acá — son métodos concretos que
+  // el admin eligió a propósito (por ejemplo al corregir un envío que se había cargado mal
+  // como Efectivo); pisarlos con "Solo entregar" rompía el flujo normal y no dejaba avanzar
+  // a "Asignar transportista" con el método de pago correcto.
+  if (_edEnvios[idx].cobro === 'en_espera') {
     _edEnvios[idx].cobro = 'solo_entregar';
   }
-  _edEnvios[idx].estadoLog.push({ estado: 'facturado',       label: 'Facturado',       icon: '🧾', ts: now2,     autor: autor || authCurrentUser?.name || '' });
+  // No duplicar "Facturado" si ya estaba en el historial (por ejemplo, se facturó cuando el
+  // envío todavía figuraba como Efectivo, y después se corrigió el método de pago).
+  const yaFacturado = _edEnvios[idx].estadoLog.some(s => s.estado === 'facturado');
+  if (!yaFacturado) {
+    _edEnvios[idx].estadoLog.push({ estado: 'facturado', label: 'Facturado', icon: '🧾', ts: now2, autor: autor || authCurrentUser?.name || '' });
+  }
   _edEnvios[idx].estadoLog.push({ estado: 'pago_acreditado', label: 'Pago acreditado', icon: '💳', ts: now2 + 1, autor: autor || authCurrentUser?.name || '' });
   _edEnvios[idx].updatedAt = now2;
   edSaveEnvios();
