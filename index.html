@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.300</title>
+<title>Dentalab Whatsapp CRM · v25.302</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -15696,6 +15696,16 @@ async function mostrarSkusSinFoto() {
   } catch (e) { /* seguimos con caché vacía */ }
   const claveImg = s => String(s).trim().replace(/[.#$\[\]/]/g, '_');
 
+  // SKUs que el propio sistema de Novedades ya detectó como "recién aparecidos" (no
+  // estaban en el snapshot anterior de la Lista de Precios) — mismo dato que usa
+  // Mercadería Faltante para cruzar restocks, reaprovechado acá para poder filtrar
+  // "nuevos sin foto" sin tener que armar nada aparte.
+  const skusNuevosSet = new Set(
+    (typeof loadNovedades === 'function' ? loadNovedades() : [])
+      .filter(n => n.tipo === 'nuevo-sku' && n.sku)
+      .map(n => n.sku)
+  );
+
   const vistos = new Set();
   const pendientes = [];
   allData.forEach(row => {
@@ -15705,10 +15715,11 @@ async function mostrarSkusSinFoto() {
     vistos.add(sku);
     if (cache[claveImg(sku)]) return;
     const stock = (typeof stockTotal === 'function') ? stockTotal(row) : 0;
-    pendientes.push({ sku, nombre, stock });
+    pendientes.push({ sku, nombre, stock, esNuevo: skusNuevosSet.has(sku) });
   });
   pendientes.sort((a, b) => a.sku.localeCompare(b.sku, 'es', { numeric: true }));
   const conStock = pendientes.filter(p => p.stock > 0).length;
+  const conNuevo = pendientes.filter(p => p.esNuevo).length;
 
   document.getElementById('skus-sin-foto-overlay')?.remove();
   const overlay = document.createElement('div');
@@ -15717,12 +15728,15 @@ async function mostrarSkusSinFoto() {
   overlay.innerHTML = `
     <div style="background:var(--surface2);border-radius:14px;padding:20px;max-width:560px;width:100%;max-height:85vh;display:flex;flex-direction:column;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <span style="font-weight:800;color:var(--text);font-size:15px;">📋 ${pendientes.length} productos sin foto guardada <span style="font-weight:400;color:var(--text3);font-size:12px;">(${conStock} con stock)</span></span>
+        <span style="font-weight:800;color:var(--text);font-size:15px;">📋 ${pendientes.length} productos sin foto guardada <span style="font-weight:400;color:var(--text3);font-size:12px;">(${conStock} con stock · ${conNuevo} nuevos)</span></span>
         <button id="skus-sin-foto-cerrar" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;line-height:1;">×</button>
       </div>
       <input id="skus-sin-foto-buscar" type="text" placeholder="Filtrar por SKU o nombre..." style="padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:13px;margin-bottom:8px;">
-      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text2);margin-bottom:10px;cursor:pointer;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text2);margin-bottom:6px;cursor:pointer;">
         <input type="checkbox" id="skus-sin-foto-solo-stock"> Solo los que tienen stock (Depósito 1 + Central)
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text2);margin-bottom:10px;cursor:pointer;" title="SKUs que el sistema de Novedades detectó como recién aparecidos en la Lista de Precios (no estaban en la carga anterior)">
+        <input type="checkbox" id="skus-sin-foto-solo-nuevo"> 🆕 Solo los que son SKU nuevo
       </label>
       <div id="skus-sin-foto-lista" style="overflow-y:auto;flex:1;border-top:1px solid var(--border2);"></div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
@@ -15733,29 +15747,32 @@ async function mostrarSkusSinFoto() {
 
   const listaEl = overlay.querySelector('#skus-sin-foto-lista');
   const chkStock = overlay.querySelector('#skus-sin-foto-solo-stock');
+  const chkNuevo = overlay.querySelector('#skus-sin-foto-solo-nuevo');
   const getFiltrados = () => {
     const f = (overlay.querySelector('#skus-sin-foto-buscar').value || '').toLowerCase();
     return pendientes.filter(p =>
       (!f || p.sku.toLowerCase().includes(f) || p.nombre.toLowerCase().includes(f)) &&
-      (!chkStock.checked || p.stock > 0)
+      (!chkStock.checked || p.stock > 0) &&
+      (!chkNuevo.checked || p.esNuevo)
     );
   };
   const pintarLista = () => {
     const filtrados = getFiltrados();
     listaEl.innerHTML = filtrados.map(p => `
-      <div style="padding:6px 4px;border-bottom:1px solid var(--border2);font-size:12.5px;color:var(--text2);display:flex;justify-content:space-between;gap:8px;">
-        <span><span style="color:var(--text);font-weight:700;">${escHtml(p.sku)}</span> — ${escHtml(p.nombre)}</span>
+      <div style="padding:6px 4px;border-bottom:1px solid var(--border2);font-size:12.5px;color:var(--text2);display:flex;justify-content:space-between;gap:8px;align-items:center;">
+        <span>${p.esNuevo ? '🆕 ' : ''}<span style="color:var(--text);font-weight:700;">${escHtml(p.sku)}</span> — ${escHtml(p.nombre)}</span>
         <span style="color:${p.stock > 0 ? 'var(--green,#10b981)' : 'var(--text3)'};font-weight:700;white-space:nowrap;">${p.stock > 0 ? 'Stock: ' + p.stock : 'Sin stock'}</span>
       </div>`).join('') || `<div style="padding:20px;text-align:center;color:var(--text3);">Sin resultados.</div>`;
   };
   pintarLista();
   overlay.querySelector('#skus-sin-foto-buscar').addEventListener('input', pintarLista);
   chkStock.addEventListener('change', pintarLista);
+  chkNuevo.addEventListener('change', pintarLista);
   overlay.querySelector('#skus-sin-foto-cerrar').onclick = () => overlay.remove();
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   overlay.querySelector('#skus-sin-foto-descargar').onclick = () => {
     const filtrados = getFiltrados();
-    const texto = filtrados.map(p => `${p.sku}\t${p.nombre}\t${p.stock > 0 ? 'Stock: ' + p.stock : 'Sin stock'}`).join('\n');
+    const texto = filtrados.map(p => `${p.sku}\t${p.nombre}\t${p.stock > 0 ? 'Stock: ' + p.stock : 'Sin stock'}${p.esNuevo ? '\tNUEVO' : ''}`).join('\n');
     const blob = new Blob([texto], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -29772,6 +29789,11 @@ function openEnvioGCalModal(env) {
         <input id="gcal-direccion" type="text" value="${escHtml(env.entrega||env.direccion||'')}" placeholder="Calle, número, ciudad..."
           style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;">
       </div>
+      <div id="gcal-forzar-transporte-wrap" style="margin-bottom:12px;${_esRetira ? '' : 'display:none;'}">
+        <button type="button" id="gcal-forzar-transporte-btn" onclick="document.getElementById('gcal-transporte-wrap').style.display='block'; document.getElementById('gcal-forzar-transporte-wrap').style.display='none';" style="background:none;border:none;color:#8b5cf6;font-size:12px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;">
+          🚛 Este pedido se detectó como "Retira" — si en realidad necesita transporte, tocá acá para elegirlo
+        </button>
+      </div>
       <div id="gcal-transporte-wrap" style="display:${_esRetira ? 'none' : 'block'};">
         <label style="font-size:10px;font-weight:800;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;display:block;margin-bottom:6px;">🚛 TRANSPORTE</label>
         <div style="display:flex;gap:6px;">
@@ -30547,6 +30569,11 @@ function openGCalModal(pedido) {
         </div>
       </div>
 
+      ${_esRetiraDirect ? `<div id="gcal-forzar-transporte-wrap" style="margin-bottom:12px;">
+        <button type="button" id="gcal-forzar-transporte-btn" onclick="document.getElementById('gcal-transporte-wrap').style.display='block'; document.getElementById('gcal-forzar-transporte-wrap').style.display='none';" style="background:none;border:none;color:#8b5cf6;font-size:12px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;">
+          🚛 Este pedido se detectó como "Retira" — si en realidad necesita transporte, tocá acá para elegirlo
+        </button>
+      </div>` : ''}
       <div id="gcal-transporte-wrap" style="display:${_esRetiraDirect ? 'none' : 'block'};">
         <label style="font-size:10px;font-weight:800;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;display:block;margin-bottom:6px;">🚛 TRANSPORTE</label>
         <div style="display:flex;gap:6px;">
@@ -44196,7 +44223,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.300';
+  const LATEST_VERSION = 'v25.302';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44209,6 +44236,22 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.302',
+      fecha: '2026-09-14',
+      titulo: 'Productos sin foto: nuevo filtro "Solo los que son SKU nuevo"',
+      items: [
+        { tipo: 'nuevo', texto: 'En el modal "productos sin foto guardada" (el que lista y permite descargar los SKUs sin foto) se agregó un segundo checkbox: "🆕 Solo los que son SKU nuevo", además del que ya existía de "Solo los que tienen stock" — se pueden combinar los dos. Usa el mismo sistema de Novedades que ya cruza Mercadería Faltante (SKUs que no estaban en la Lista de Precios anterior), así que depende de que no se haya usado "Limpiar historial" en la pestaña Novedades desde que ese producto apareció por primera vez.' },
+      ]
+    },
+    {
+      version: 'v25.301',
+      fecha: '2026-09-14',
+      titulo: 'Modal de evento: se puede destrabar "Transporte" cuando se detecta mal como Retira',
+      items: [
+        { tipo: 'corrección', texto: 'Si un presupuesto se armó sin activar el panel de Envío, queda etiquetado como "Retira" por dentro — y al arrastrar ese PDF en el modal de crear evento (Pedido por WhatsApp / Envíos Dentalab), eso ocultaba el campo Transporte aunque el pedido fuera a otra provincia y sí necesitara uno. Ahora, cuando pasa eso, aparece un link "🚛 Este pedido se detectó como Retira — si en realidad necesita transporte, tocá acá para elegirlo" que lo muestra al toque. Se corrigió en las dos copias de ese modal.' },
+      ]
+    },
     {
       version: 'v25.300',
       fecha: '2026-09-14',
