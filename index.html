@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.302</title>
+<title>Dentalab Whatsapp CRM · v25.303</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -13438,7 +13438,11 @@ function renderTable() {
     // ── Celdas fijas en el orden configurado ──
     const _fotoIdRaw = (!r._customSku && !r._manualDraft && r.SKU) ? _skuImagenesCache[claveImgGlobal(r.SKU)] : null;
     const _fotoId = Array.isArray(_fotoIdRaw) ? _fotoIdRaw[0] : _fotoIdRaw;
-    const _fotoThumb = _fotoId ? `<img src="https://drive.google.com/thumbnail?id=${_fotoId}&sz=w60" loading="lazy" style="width:26px;height:26px;object-fit:cover;border-radius:5px;vertical-align:middle;margin-right:6px;" alt="">` : '';
+    const _fotoThumb = _fotoId
+  ? (_veFotosDeLista()
+      ? `<img src="https://drive.google.com/thumbnail?id=${_fotoId}&sz=w60" loading="lazy" style="width:26px;height:26px;object-fit:cover;border-radius:5px;vertical-align:middle;margin-right:6px;" alt="">`
+      : `<span aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:5px;vertical-align:middle;margin-right:6px;background:var(--surface2,#1e293b);border:1px dashed var(--border2,#334155);color:var(--text3,#64748b);font-size:12px;">\u26A0</span>`)
+  : '';
     const _skuTd = `<td class="td-sku${!r._customSku && !r._manualDraft && r.SKU ? ' sku-con-foto' : ''}" ${!r._customSku && !r._manualDraft && r.SKU ? `data-sku="${escHtml(r.SKU||'')}" data-nombre="${escHtml(r.Nombre||'')}" data-precio="${parseFloat(r[LISTAS[0]?.key]||0)}" data-stock="${parseFloat(r['Deposito 1 - Local']||0)+parseFloat(r['Deposito Central']||0)}" title="Click para ver foto del producto"` : ''}>${r._manualDraft ? `<span class="sku-text" style="color:#f59e0b">${escHtml(r.SKU||'—')}</span><span style="font-size:9px;font-weight:700;color:#f59e0b;background:#f59e0b18;border-radius:3px;padding:1px 4px;margin-left:3px;">MANUAL</span>` : r._customSku ? `<span class="sku-text" style="color:#f59e0b">${escHtml(r.SKU||'—')}</span><span style="font-size:9px;font-weight:700;color:#f59e0b;background:#f59e0b18;border-radius:3px;padding:1px 4px;margin-left:3px;">CUSTOM</span>` : r.SKU ? `${_fotoThumb}<span class="sku-text">${r.SKU}</span><span class="sku-cam-icon" title="Ver foto">📷</span>` : ""}</td>`;
     // Badge de ingreso reciente — si el producto aparece en novedades con stock aumentado
     let ingresoHtml = '';
@@ -13915,6 +13919,7 @@ function attachImageHovers() {
       popTimer=setTimeout(async()=>{
         if(currentHover!==nombre)return;
         clearPopError();setPopLoading(nombre);showPopover(e.clientX,e.clientY);
+        if(!_veFotosDeLista()){await new Promise(r=>setTimeout(r,700));if(currentHover===nombre)setPopError('No se pudo cargar la imagen');return;}
         const result=await fetchProductImage(nombre);
         if(currentHover!==nombre)return;
         if(result&&result.imageUrl)setPopImage(result.imageUrl,result.productUrl);else setPopError('Sin imagen en el sitio');
@@ -13931,6 +13936,7 @@ function attachImageHovers() {
   const sdtSpin  = document.getElementById('sdt-spinner');
   const sdtNoimg = document.getElementById('sdt-noimg');
   const sdtLabel = document.getElementById('sdt-label');
+  const sdtNoimgOriginal = sdtNoimg.innerHTML;
   let sdtTimer   = null;
   let sdtCurrent = null;
 
@@ -13961,7 +13967,8 @@ function attachImageHovers() {
     sdtImg.src = url;
     sdtImg.style.display = 'block';
   }
-  function sdtSetNoimg() {
+  function sdtSetNoimg(fallo) {
+    sdtNoimg.innerHTML = fallo ? '<span style="font-size:20px">\u26A0\uFE0F</span><span>No se pudo cargar la imagen</span>' : sdtNoimgOriginal;
     sdtSpin.style.display  = 'none';
     sdtImg.style.display   = 'none';
     sdtNoimg.style.display = 'flex';
@@ -14019,6 +14026,11 @@ function attachImageHovers() {
         if (sdtCurrent !== sku) return;
         sdtSetLoading(sku);
         showSdt(e.clientX, e.clientY);
+        if (!_veFotosDeLista()) {
+          await new Promise(r => setTimeout(r, 700));
+          if (sdtCurrent === sku) sdtSetNoimg(true);
+          return;
+        }
         const url = await sdtLoadDriveImage(sku, nombre);
         if (sdtCurrent !== sku) return;
         if (url) sdtSetImage(url); else sdtSetNoimg();
@@ -15202,10 +15214,13 @@ function abrirSkuFotoPanel(sku, nombre, precio, stock) {
   });
   bd.querySelector('#skufoto-borrar-btn').addEventListener('click', () => _borrarFotoSku(sku, bd));
   _actualizarVisibilidadBtnBorrarFoto();
+  const _veFoto = _veFotosDeLista();
+  if (!_veFoto) bd.querySelector('#skufoto-drive-btn').style.display = 'none'; // ese botón abre la carpeta con todas las fotos
 
   // Primero mostrar lo que ya está guardado (lo mismo que ve el cliente en el catálogo);
   // solo si no hay nada guardado, recién ahí se hace la búsqueda en vivo desde cero.
-  _cargarFotoConCachePrimero(sku, bd.querySelector('#skufoto-img-wrap'), sku, nombre);
+  if (_veFoto) _cargarFotoConCachePrimero(sku, bd.querySelector('#skufoto-img-wrap'), sku, nombre);
+  else _fotoListaNoDisponible(bd.querySelector('#skufoto-img-wrap'));
 }
 
 async function _cargarFotoConCachePrimero(sku, wrap, skuLabel, nombreLabel) {
@@ -15233,6 +15248,19 @@ async function _cargarFotoConCachePrimero(sku, wrap, skuLabel, nombreLabel) {
 // una imagen para este SKU (necesitamos el fileId, que queda en wrap.dataset.fileId).
 function _esAdminDentalab() {
   return !!(typeof authCurrentUser !== 'undefined' && authCurrentUser && (authCurrentUser.role === 'admin' || authCurrentUser.name === ADMIN_USER));
+}
+
+// Las fotos de la Lista de Precios (miniaturas, panel de foto y vistas previas al pasar el
+// mouse) solo las ve el administrador. Para el resto de los usuarios la imagen simplemente
+// "no carga": se muestra el mismo estado de error que cuando una foto falla, y ni siquiera se
+// hace el pedido a Drive ni al sitio.
+function _veFotosDeLista() { return _esAdminDentalab(); }
+
+function _fotoListaNoDisponible(wrap) {
+  setTimeout(() => {
+    if (!wrap || !wrap.isConnected) return;
+    wrap.innerHTML = '<div class="skufoto-placeholder"><div class="skufoto-placeholder-icon">\u26A0\uFE0F</div><div>No se pudo cargar la imagen</div><div style="font-size:11px;margin-top:6px;color:var(--text3);">Prob\u00E1 de nuevo en unos minutos.</div></div>';
+  }, 1100);
 }
 function _actualizarVisibilidadBtnBorrarFoto() {
   const bd = document.getElementById('skufoto-backdrop');
@@ -44223,7 +44251,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.302';
+  const LATEST_VERSION = 'v25.303';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44236,6 +44264,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.303',
+      fecha: '2026-10-06',
+      titulo: 'Ajustes internos',
+      items: [
+        { tipo: 'mejora', texto: 'Ajustes internos y mejoras de estabilidad.' },
+      ]
+    },
     {
       version: 'v25.302',
       fecha: '2026-09-14',
