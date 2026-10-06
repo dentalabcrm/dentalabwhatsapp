@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.303</title>
+<title>Dentalab Whatsapp CRM · v25.304</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -36912,6 +36912,13 @@ function authGrantAccess(user) {
     }, 1500);
   }
 
+  // "Novedades" del encabezado (historial de cambios del CRM): solo para el administrador.
+  // Se decide en cada ingreso, así si cambia de usuario sin recargar tampoco queda a la vista.
+  // (La pestaña "Novedades" de la barra de pestañas es otra cosa y no se toca.)
+  const _btnNovedadesCRM = document.getElementById('changelog-btn');
+  if (_btnNovedadesCRM) _btnNovedadesCRM.style.display = _esAdminDentalab() ? '' : 'none';
+  if (!_esAdminDentalab()) { const _badgeNovCRM = document.getElementById('changelog-badge'); if (_badgeNovCRM) _badgeNovCRM.style.display = 'none'; }
+
   // ── Restricciones para repartidores (Esteban, Mayuri, Dentalab Repartos) ──
   const AUTH_NO_PASSWORD_USERS_LOCAL = ['Esteban', 'Mayuri', 'Dentalab Repartos', 'Logistica Muñoz'];
   if (AUTH_NO_PASSWORD_USERS_LOCAL.includes(user.name)) {
@@ -44251,7 +44258,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.303';
+  const LATEST_VERSION = 'v25.304';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44264,6 +44271,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.304',
+      fecha: '2026-10-06',
+      titulo: 'Novedades del encabezado: solo administrador',
+      items: [
+        { tipo: 'mejora', texto: 'El botón "Novedades" del encabezado (historial de cambios del CRM) y su aviso automático al cambiar de versión ahora son solo para el administrador. La pestaña "Novedades" de la barra de pestañas no cambia.' },
+      ]
+    },
     {
       version: 'v25.303',
       fecha: '2026-10-06',
@@ -49236,6 +49251,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
   // para que la clave sea por-usuario. Ver función checkChangelogForUser() más abajo.
 
   function openChangelog() {
+    if (!_esAdminDentalab()) return;
     const existing = document.getElementById('changelog-modal-bd');
     if (existing) { existing.remove(); return; }
     markSeen();
@@ -49310,7 +49326,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
   window._checkChangelogForUser = function() {
     const NO_NOVEDADES = ['Deposito Central', 'Esteban', 'Mayuri', 'Dentalab Repartos', 'Logistica Muñoz'];
     const currentUser = (typeof authCurrentUser !== 'undefined' && authCurrentUser?.name) || '';
-    if (NO_NOVEDADES.includes(currentUser)) {
+    if (NO_NOVEDADES.includes(currentUser) || !_esAdminDentalab()) {
       const badge = document.getElementById('changelog-badge');
       if (badge) badge.style.display = 'none';
       return;
