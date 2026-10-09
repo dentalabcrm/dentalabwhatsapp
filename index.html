@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.306</title>
+<title>Dentalab Whatsapp CRM · v25.308</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -20725,7 +20725,7 @@ async function importarPresupuestoPDF(input) {
         }
       }
 
-      _parseAndAddSKUs(textLines, _rows, _listaWebOverride);
+      _parseAndAddSKUs(textLines, _rows, _listaWebOverride, true);
 
       // Además de los SKUs, si el PDF trae "Lugar de Entrega" / "Observaciones" (formato
       // Yiqi), reutilizamos el mismo detector que ya usa Envíos Dentalab para sacar de ahí
@@ -20876,7 +20876,45 @@ async function importarPresupuestoPDF(input) {
   showToast('\u26a0 Formato no soportado', 'warn');
 }
 
-function _parseAndAddSKUs(lines, _rows, listaKeyOverride) {
+// Detecta la lista de precios que figura en un PDF de presupuesto (columna LISTA).
+// Devuelve { porSku: {SKU: keyLista}, global: keyLista|null }. Si no reconoce nada, devuelve vacío
+// y el que llama se queda con la lista por defecto (Lista 1 Contado).
+function _detectarListasEnPdf(lines, skuIndex) {
+  const keyDe = label => { const l = LISTAS.find(x => x.label === label); return l ? l.key : null; };
+  const clasificar = txt => {
+    const t = String(txt || '');
+    if (/Lista\s*Reventa|\bReventa\b/i.test(t)) return keyDe('Reventa');
+    if (/Lista\s*Mayorista|Precio\s*Mayorista|\bMayorista\b/i.test(t)) return keyDe('Mayorista');
+    if (/Lista\s*2\b|Tarjeta|Mercado\s*Pago\s*\W*\s*1\s*pago/i.test(t)) return keyDe('Lista 2 General');
+    if (/Lista\s*1\b|Precio\s*c\s*\/?\s*dto|Efectivo\s*,?\s*(d[eé]bito|transferencia)|d[eé]bito\s*o\s*transferencia/i.test(t)) return keyDe('Lista 1 Contado');
+    return null;
+  };
+  const porSku = {};
+  const votos = {};
+  let actual = null;
+  (lines || []).forEach(line => {
+    const tokens = String(line).split('\t').map(s => s.trim()).filter(Boolean);
+    if (!tokens.length) return;
+    const cand = tokens[0].toUpperCase();
+    if (skuIndex[cand]) {
+      actual = { sku: cand, txt: tokens.slice(1).join(' ') };
+      const k = clasificar(actual.txt);
+      if (k) { porSku[cand] = k; }
+      return;
+    }
+    // Línea de continuación de la misma fila (la celda de lista puede ocupar 2-3 renglones)
+    if (actual && !porSku[actual.sku]) {
+      const k = clasificar(tokens.join(' '));
+      if (k && tokens.length <= 4) porSku[actual.sku] = k;
+    }
+  });
+  Object.values(porSku).forEach(k => { votos[k] = (votos[k] || 0) + 1; });
+  let global = null, max = 0;
+  Object.keys(votos).forEach(k => { if (votos[k] > max) { max = votos[k]; global = k; } });
+  return { porSku, global };
+}
+
+function _parseAndAddSKUs(lines, _rows, listaKeyOverride, detectarLista) {
   const skuIndex = {};
   _rows.forEach(r => {
     const k = String(r.SKU || '').trim().toUpperCase();
@@ -20886,6 +20924,12 @@ function _parseAndAddSKUs(lines, _rows, listaKeyOverride) {
   let listaKey = 'Lista 1 Contado';
   if (listaKeyOverride) listaKey = listaKeyOverride;
   else if (budgetItems.length > 0 && budgetItems[0].lista) listaKey = budgetItems[0].lista;
+  let _listasPorSku = {};
+  if (detectarLista && !listaKeyOverride) {
+    const det = _detectarListasEnPdf(lines, skuIndex);
+    _listasPorSku = det.porSku || {};
+    if (det.global) listaKey = det.global;
+  }
   const listaInfo = LISTAS.find(l => l.key === listaKey) || LISTAS[0];
 
   const skipSet = new Set(['SKU','PRODUCTO','LISTA','CANT','SUBTOTAL','TOTAL','DESC','CLIENTE','CUIT']);
@@ -20957,12 +21001,14 @@ function _parseAndAddSKUs(lines, _rows, listaKeyOverride) {
   parsed.forEach(({ sku, qty }) => {
     const row = skuIndex[sku];
     if (!row) return;
-    if (budgetItems.find(it => String(it.sku||'').toUpperCase() === sku && it.lista === listaKey)) { skipped++; return; }
+    const lk = _listasPorSku[sku] || listaKey;
+    const lInfo = LISTAS.find(l => l.key === lk) || listaInfo;
+    if (budgetItems.find(it => String(it.sku||'').toUpperCase() === sku && it.lista === lk)) { skipped++; return; }
     let precio = 0;
-    const lDef = LISTAS_DEF.find(d => d.aliases.includes(listaKey));
+    const lDef = LISTAS_DEF.find(d => d.aliases.includes(lk));
     if (lDef) { const alias = lDef.aliases.find(al => row[al] != null && parseFloat(row[al]) > 0); if (alias) precio = parseFloat(row[alias]) || 0; }
-    if (!precio) precio = parseFloat(row[listaKey]) || 0;
-    budgetItems.push({ sku: row.SKU || sku, nombre: row.Nombre || '', lista: listaKey, listaLabel: listaInfo ? listaInfo.label : listaKey, listaClass: listaInfo ? listaInfo.cls : '', precio, qty, disc: 0, nota: '' });
+    if (!precio) precio = parseFloat(row[lk]) || 0;
+    budgetItems.push({ sku: row.SKU || sku, nombre: row.Nombre || '', lista: lk, listaLabel: lInfo ? lInfo.label : lk, listaClass: lInfo ? lInfo.cls : '', precio, qty, disc: 0, nota: '' });
     added++;
   });
 
@@ -44269,7 +44315,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.306';
+  const LATEST_VERSION = 'v25.308';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44282,6 +44328,22 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.308',
+      fecha: '2026-10-09',
+      titulo: 'Envíos: el mensaje para el cliente incluye la dirección',
+      items: [
+        { tipo: 'mejora', texto: 'Al copiar el mensaje para avisarle al cliente (transporte Envíos Dentalab), ahora dice la dirección de entrega. Si el envío no tiene dirección cargada, el mensaje queda como antes. Los envíos por otros transportes no cambian.' },
+      ]
+    },
+    {
+      version: 'v25.307',
+      fecha: '2026-10-08',
+      titulo: 'Presupuestos: al arrastrar un PDF, la lista de precios se ajusta a la del PDF',
+      items: [
+        { tipo: 'mejora', texto: 'Al importar un PDF de presupuesto, cada producto toma la lista que figura en la columna LISTA del PDF (Lista 1 Contado, Lista 2 General, Reventa o Mayorista). Si el PDF no indica ninguna, se mantiene Lista 1 Contado (o la que ya tenía el presupuesto).' },
+      ]
+    },
     {
       version: 'v25.306',
       fecha: '2026-10-07',
@@ -62188,7 +62250,14 @@ function _edMensajeClienteTexto(e) {
   const montoTxt = (e.cobro === 'efectivo' && e.montoEfectivo) ? ` El total es de $${Number(e.montoEfectivo).toLocaleString('es-AR')}.` : '';
   if (esEnviosDentalab) {
     const horarioTxt = e.horario ? `, en el horario de ${e.horario}` : '';
-    return `¡Buen día! Te avisamos que hoy te estaremos entregando tu pedido${horarioTxt}.${montoTxt} ¡Muchas gracias!`;
+    // Dirección en el mensaje. Se omite un ", CABA" final si ya dice "Capital Federal" (queda repetido).
+    const _dir = (e.direccion || '').replace(/\s+/g, ' ').trim();
+    let dirTxt = '';
+    if (_dir) {
+      const _dirVisible = /capital federal/i.test(_dir) ? _dir.replace(/,\s*CABA\s*$/i, '') : _dir;
+      dirTxt = ` en ${_dirVisible}`;
+    }
+    return `¡Buen día! Te avisamos que hoy te estaremos entregando tu pedido${dirTxt}${horarioTxt}.${montoTxt} ¡Muchas gracias!`;
   }
   return `¡Buen día! Te avisamos que hoy despacharemos tu pedido por ${e.transporte}. Apenas tengamos el número de guía, te lo pasamos por este mismo medio.${montoTxt} ¡Muchas gracias!`;
 }
