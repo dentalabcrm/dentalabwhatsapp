@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.311</title>
+<title>Dentalab Whatsapp CRM · v25.312</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -44376,7 +44376,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.311';
+  const LATEST_VERSION = 'v25.312';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44389,6 +44389,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.312',
+      fecha: '2026-10-16',
+      titulo: 'Reglas de mail: mandar a facturar solo si el depósito dice únicamente "pedido armado"',
+      items: [
+        { tipo: 'fix', texto: 'Las reglas Depósito → Facturación y Pago pendiente → Reclamo + a facturar ahora solo se aplican si el mail del depósito contiene SOLO el aviso de pedido armado (con el depósito, un saludo y/o la firma). Si el mail trae cualquier otro texto (ej. "espero remito interno del depósito", "faltan…", "retira a las 15") no se hace nada automático y se revisa a mano. El historial citado de la conversación no cuenta.' },
+      ]
+    },
     {
       version: 'v25.311',
       fecha: '2026-10-16',
@@ -56538,6 +56546,45 @@ function _registrarUsoFrecuente(sku, nombre) {
     await _loadReglasMail();
   }
 
+  // ── Modo estricto para las reglas que mandan el pedido a FACTURAR ──
+  // Esas reglas solo deben actuar cuando el mail del depósito dice SOLAMENTE que el pedido
+  // está armado (ej. "Pedido armado en depósito 1", con saludo y/o firma). Si el mail trae
+  // cualquier otro texto (ej. "espero remito interno", "faltan 4 …", "retira a las 15"), no se
+  // aplica nada automático y se revisa a mano. Se mira solo el texto que escribió el
+  // depósito: se descarta el historial citado de la conversación ("El … escribió:", ">", etc.).
+  // Recibe el cuerpo del mail en su texto original (sin pasar a mayúsculas).
+  function _cuerpoSoloDiceArmado(bodyOriginal) {
+    let t = String(bodyOriginal || '').replace(/\r/g, '');
+    // 1) Quedarse solo con lo que escribió el depósito (sin lo citado de abajo)
+    const cortes = [
+      /(^|\n)[ \t]*(El|On)\s[\s\S]{0,250}?(escribi[óo]|wrote)\s*:/i,
+      /(^|\n)[ \t]*>/,
+      /(^|\n)[ \t]*-{2,}[ \t]*(Original|Mensaje|Forwarded|Reenviado)/i,
+      /(^|\n)[ \t]*(De|From|Enviado el|Sent):[ \t]/i,
+    ];
+    let corte = t.length;
+    for (const re of cortes) { const m = re.exec(t); if (m && m.index < corte) corte = m.index; }
+    t = t.slice(0, corte).trim();
+    if (!t) return false;
+    // 2) Firma: última línea con 1 o 2 palabras que parecen un nombre (ej. "Rodrigo")
+    const lineas = t.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lineas.length > 1) {
+      const ult = lineas[lineas.length - 1];
+      const palabras = ult.split(/\s+/);
+      const pareceNombre = palabras.length <= 2 && palabras.every(w => /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}$/.test(w));
+      const noEsNombre = /PENDIENTE|ESPER|REMITO|URGENTE|ATENCION|ATENCIÓN|FALTANTE|CUIDADO|RETIRA|ENTREGA|AVISAR|CONSULTAR/i.test(ult);
+      if (pareceNombre && !noEsNombre) { lineas.pop(); }
+    }
+    // 3) Normalizar (mayúsculas, sin tildes ni signos) y sacar solo lo permitido
+    let n = lineas.join(' ').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    n = n.replace(/\bPEDIDO (ARMADO|COMPLETADO|COMPLETO|PREPARADO)\b/g, ' ')
+         .replace(/\bDEPOSITO (1|UNO|CENTRAL)\b/g, ' ')
+         .replace(/\b(HOLA|GRACIAS|SALUDOS|SALUDO|ATTE|BUEN DIA|BUENOS DIAS|BUENAS TARDES|BUENAS NOCHES|BUENAS)\b/g, ' ')
+         .replace(/\bEN\b/g, ' ');
+    return n.replace(/\s+/g, ' ').trim() === '';
+  }
+
   // ¿El mail del depósito avisa que falta mercadería? Cubre "faltante(s)", "falta", "faltan",
   // "faltaron", "faltó", "sin stock" y "no hay stock". Recibe el cuerpo ya en MAYÚSCULAS.
   // Ante la duda se prefiere NO reenviar a facturar (se revisa a mano) antes que facturar
@@ -56593,6 +56640,8 @@ function _registrarUsoFrecuente(sku, nombre) {
       if (!body.includes('PEDIDO ARMADO') && !body.includes('PEDIDO COMPLETADO') && !body.includes('PEDIDO COMPLETO') && !body.includes('PEDIDO PREPARADO')) return false;
       if (body.includes('SOLO DISPONIBLE')) return false; // tiene aclaración de faltante parcial
       if (_bodyIndicaFaltante(body)) return false; // hay mercadería faltante: NO se manda a facturar (le corresponde a la Regla 3 / revisión manual)
+      // Modo estricto: solo se aplica si el mail dice únicamente "pedido armado" (+ depósito, saludo, firma)
+      if (!_cuerpoSoloDiceArmado(_extractBody(msg.payload))) { console.log('[Regla] No se aplica: el mail del depósito tiene texto adicional a "pedido armado".'); return false; }
 
       // ── Detectar depósito mencionado en el body ──
       let deposito = '';
@@ -56774,6 +56823,8 @@ function _registrarUsoFrecuente(sku, nombre) {
       if (!body.includes('PEDIDO ARMADO') && !body.includes('PEDIDO COMPLETADO') && !body.includes('PEDIDO COMPLETO') && !body.includes('PEDIDO PREPARADO')) return false;
       if (body.includes('SOLO DISPONIBLE')) return false; // tiene aclaración de faltante parcial
       if (_bodyIndicaFaltante(body)) return false; // hay mercadería faltante: NO se manda a facturar (le corresponde a la Regla 3 / revisión manual)
+      // Modo estricto: solo se aplica si el mail dice únicamente "pedido armado" (+ depósito, saludo, firma)
+      if (!_cuerpoSoloDiceArmado(_extractBody(msg.payload))) { console.log('[Regla] No se aplica: el mail del depósito tiene texto adicional a "pedido armado".'); return false; }
 
       // ✅ Condiciones OK — responder con texto de reclamo de pago
       const headers = msg.payload?.headers || [];
