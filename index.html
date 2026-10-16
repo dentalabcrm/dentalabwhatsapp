@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.310</title>
+<title>Dentalab Whatsapp CRM · v25.311</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -14327,6 +14327,40 @@ function loadDefaultTransportista(){
 function saveDefaultTransportista(v){try{localStorage.setItem(TRANSP_DEFAULT_LS_KEY, v);}catch(e){}}
 
 let transportistas=loadTransportistas();
+
+// ── Transportistas de Presupuestos = la lista compartida de Envíos Dentalab ──
+// Antes esta pantalla tenía su propia lista corta (6 transportes) guardada solo en cada
+// navegador. Ahora usa la misma lista que "+ Nuevo envío" (Firebase: dentalab/ed_transportes),
+// así que todo transporte registrado ahí aparece acá solo, y los cambios se ven en tiempo real.
+// Se llama cada vez que la lista compartida carga o cambia (ver fbListen más abajo).
+function _presupSyncTransportistas(){
+  try {
+    if (typeof _edTransportes === 'undefined' || !Array.isArray(_edTransportes) || !_edTransportes.length) return;
+    // Migración única por navegador: lo que solo existía en la lista vieja de Presupuestos
+    // (ej. "Expreso Imagina") se suma a la compartida para no perderlo.
+    const MIG_KEY = 'dentalab_transp_migrado_a_compartida';
+    let migrado = false; try { migrado = localStorage.getItem(MIG_KEY) === '1'; } catch(e) {}
+    if (!migrado) {
+      const soloLocales = transportistas.filter(t => t && !_edTransportes.includes(t));
+      if (soloLocales.length) {
+        _edTransportes.push(...soloLocales);
+        if (typeof edSaveTransportes === 'function') edSaveTransportes();
+      }
+      try { localStorage.setItem(MIG_KEY, '1'); } catch(e) {}
+    }
+    const antes = JSON.stringify(transportistas);
+    const nueva = _edTransportes.filter(t => typeof t === 'string' && t.trim());
+    if (JSON.stringify(nueva) === antes) return;
+    transportistas.length = 0;
+    transportistas.push(...nueva);
+    saveTransportistas(transportistas);
+    // Si el transportista elegido en el presupuesto ya no está, se pasa al por defecto.
+    if (typeof budgetEnvio !== 'undefined' && budgetEnvio && budgetEnvio.transportista && !transportistas.includes(budgetEnvio.transportista)) {
+      budgetEnvio.transportista = loadDefaultTransportista();
+    }
+    if (typeof renderShippingCard === 'function' && document.getElementById('shipping-card-container')) renderShippingCard();
+  } catch (e) { console.warn('[Transportistas] no se pudo sincronizar con Envíos:', e); }
+}
 // Catálogo de servicios de envío de Yiqi (SEYI_ID_SEYI) — nombre exacto tal como aparece
 // en la tabla "Servicios" al pie del PDF de Yiqi, mapeado a su ID numérico. Se usa tanto
 // para cargar el servicio al sistema de Yiqi como para detectarlo al importar un PDF.
@@ -16566,7 +16600,7 @@ function openTranspModal(){
     backdrop.innerHTML=`<div class="modal-box" id="transp-modal-box">
       <div class="modal-title">🚚 Administrar Transportistas</div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
-        El transportista marcado como <span style="color:#f59e0b;font-weight:700">⭐ Por defecto</span> se pre-seleccionará en Cambios y Devoluciones.
+        El transportista marcado como <span style="color:#f59e0b;font-weight:700">⭐ Por defecto</span> se pre-seleccionará en Cambios y Devoluciones.<br>Esta lista se comparte y se sincroniza sola con Envíos Dentalab.
       </div>
       <div class="transp-list" id="transp-list">
         ${transportistas.length===0
@@ -16597,8 +16631,14 @@ function openTranspModal(){
         e.stopPropagation();
         const i=parseInt(btn.dataset.i);
         const removed = transportistas[i];
+        if(!confirm('¿Quitar "'+removed+'" de la lista?\n\nEsta lista es la misma que usa Envíos Dentalab: se quita para todos.')) return;
         transportistas.splice(i,1);
         saveTransportistas(transportistas);
+        // Lista compartida con Envíos Dentalab
+        if(typeof _edTransportes!=='undefined' && Array.isArray(_edTransportes)){
+          const k=_edTransportes.indexOf(removed);
+          if(k>=0){ _edTransportes.splice(k,1); if(typeof edSaveTransportes==='function') edSaveTransportes(); }
+        }
         // Si se eliminó el default, reasignar al primero disponible
         if(removed === loadDefaultTransportista()) {
           saveDefaultTransportista(transportistas[0] || '');
@@ -16629,6 +16669,11 @@ function openTranspModal(){
       if(transportistas.includes(v)){showToast('⚠ Ya existe ese transportista','warn');return;}
       transportistas.push(v);
       saveTransportistas(transportistas);
+      // Lista compartida con Envíos Dentalab
+      if(typeof _edTransportes!=='undefined' && Array.isArray(_edTransportes) && !_edTransportes.includes(v)){
+        _edTransportes.push(v);
+        if(typeof edSaveTransportes==='function') edSaveTransportes();
+      }
       // Si no había ninguno, seleccionar el nuevo
       if(!budgetEnvio.transportista) budgetEnvio.transportista=v;
       newInp.value='';
@@ -44331,7 +44376,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.310';
+  const LATEST_VERSION = 'v25.311';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44344,6 +44389,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.311',
+      fecha: '2026-10-16',
+      titulo: 'Presupuestos: todos los transportistas, sincronizados con Envíos Dentalab',
+      items: [
+        { tipo: 'mejora', texto: 'El selector "Transportista" del Envío en Presupuestos ahora usa la misma lista compartida que "+ Nuevo envío" (más de 30 transportes). Cualquier transporte agregado o quitado en una de las dos pantallas aparece solo en la otra, para todos los usuarios y en tiempo real. Los que solo existían en la lista corta anterior (ej. Expreso Imagina) se pasan a la compartida.' },
+      ]
+    },
     {
       version: 'v25.310',
       fecha: '2026-10-14',
@@ -61954,6 +62007,7 @@ fbListen('dentalab/ed_transportes', data => {
       fbWrite('dentalab/ed_transportes', _edTransportes);
     }
     try { localStorage.setItem(edGetTransportesKey(), JSON.stringify(_edTransportes)); } catch(e) {}
+    if (typeof _presupSyncTransportistas === 'function') _presupSyncTransportistas();
   } else if (!data) {
     // Primera vez que corre esto: todavía no hay nada en Firebase — sembrar con la lista local actual
     fbWrite('dentalab/ed_transportes', _edTransportes);
