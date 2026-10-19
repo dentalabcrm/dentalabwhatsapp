@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.313</title>
+<title>Dentalab Whatsapp CRM · v25.314</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -21041,15 +21041,32 @@ function _parseAndAddSKUs(lines, _rows, listaKeyOverride, detectarLista) {
     }
   }
 
-  lines.forEach(line => {
+  lines.forEach((line, li) => {
     const tokens = String(line).split('\t').map(s => s.trim()).filter(Boolean);
     if (tokens.length < 1) return;
     const candidate = tokens[0].toUpperCase();
     if (skipSet.has(candidate)) return;
     if (!skuIndex[candidate]) return;
-    let qty = 1;
+    let qty = 1, qtyIdx = -1;
     for (let i = 1; i < tokens.length; i++) {
-      if (numRe.test(tokens[i])) { const n = parseInt(tokens[i]); if (n >= 1 && n <= 999) { qty = n; break; } }
+      if (numRe.test(tokens[i])) { const n = parseInt(tokens[i]); if (n >= 1 && n <= 999) { qty = n; qtyIdx = i; break; } }
+    }
+    // SKUs "manuales" (885-889): no tienen precio ni nombre en la lista, lo que vale es lo que
+    // se cargó en el presupuesto: el texto adicional (puede seguir en renglones de abajo) y el
+    // precio unitario. Se leen del PDF y pueden repetirse (dos productos manuales distintos).
+    if (MANUAL_SKUS.includes(candidate)) {
+      const textoPartes = tokens.slice(1, qtyIdx > 0 ? qtyIdx : tokens.length).filter(t => !/^\$/.test(t));
+      for (let j = li + 1; j < lines.length; j++) {
+        const tk = String(lines[j]).split('\t').map(s => s.trim()).filter(Boolean);
+        if (tk.length !== 1) break;
+        if (skuIndex[tk[0].toUpperCase()] || /^(Observaciones|Neto|IVA|Total|Lugar|Percep|Desc|%|Transporte|Destinatario|Domicilio|Tel[eé]fono)/i.test(tk[0]) || /^[\d.,$%\s-]+$/.test(tk[0])) break;
+        textoPartes.push(tk[0]);
+      }
+      let precioNeto = 0;
+      const pm = tokens.slice(qtyIdx > 0 ? qtyIdx + 1 : 1).find(t => /^\$?\s*[\d.]+,\d{1,2}$/.test(t));
+      if (pm) precioNeto = parseFloat(pm.replace(/[$\s.]/g, '').replace(',', '.')) || 0;
+      parsed.push({ sku: candidate, qty, manual: true, nota: textoPartes.join(' ').trim(), precioNeto });
+      return;
     }
     if (!parsed.find(p => p.sku === candidate)) parsed.push({ sku: candidate, qty });
   });
@@ -21059,11 +21076,24 @@ function _parseAndAddSKUs(lines, _rows, listaKeyOverride, detectarLista) {
   if (!parsed.length) { showToast('\u26a0 No se encontraron SKUs coincidentes en la Lista de Precios', 'warn'); return; }
 
   let added = 0, skipped = 0;
-  parsed.forEach(({ sku, qty }) => {
+  parsed.forEach(({ sku, qty, manual, nota, precioNeto }) => {
     const row = skuIndex[sku];
     if (!row) return;
     const lk = _listasPorSku[sku] || listaKey;
     const lInfo = LISTAS.find(l => l.key === lk) || listaInfo;
+    if (manual) {
+      // El PDF de YiQi muestra el precio SIN IVA; el CRM trabaja con IVA incluido. Se prueba 21% y
+      // 10,5% y se elige el que da un precio redondo en pesos (los manuales se cargaron con IVA).
+      let precioM = 0;
+      if (precioNeto > 0) {
+        const c21 = precioNeto * 1.21, c105 = precioNeto * 1.105;
+        const redondo = v => Math.abs(v - Math.round(v)) < 0.06;
+        precioM = (!redondo(c21) && redondo(c105)) ? Math.round(c105) : Math.round(c21 * 100) / 100;
+      }
+      budgetItems.push({ sku: row.SKU || sku, nombre: row.Nombre || '', lista: lk, listaLabel: lInfo ? lInfo.label : lk, listaClass: lInfo ? lInfo.cls : '', precio: precioM, qty, disc: 0, nota: nota || '' });
+      added++;
+      return;
+    }
     if (budgetItems.find(it => String(it.sku||'').toUpperCase() === sku && it.lista === lk)) { skipped++; return; }
     let precio = 0;
     const lDef = LISTAS_DEF.find(d => d.aliases.includes(lk));
@@ -44376,7 +44406,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.313';
+  const LATEST_VERSION = 'v25.314';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44389,6 +44419,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.314',
+      fecha: '2026-10-19',
+      titulo: 'Presupuestos: al importar un PDF, los SKU manuales (885–889) traen su texto adicional y precio',
+      items: [
+        { tipo: 'mejora', texto: 'Al arrastrar un PDF de presupuesto, los productos manuales (SKU 885, 886, 887, 888, 889) ahora se cargan con el "Texto adicional" del PDF (incluso si ocupa varios renglones) y con su precio unitario (convertido a IVA incluido, como trabaja el CRM). Se pueden cargar varios manuales del mismo SKU.' },
+      ]
+    },
     {
       version: 'v25.313',
       fecha: '2026-10-17',
