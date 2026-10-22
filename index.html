@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.316</title>
+<title>Dentalab Whatsapp CRM · v25.317</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -23946,6 +23946,7 @@ function renderCostosOcaPanel() {
           <button class="bud-cols-btn" id="btn-costosoca-tema" onclick="costosOcaToggleTema()" title="Cambiar tema de esta pestaña (independiente del resto del CRM)">${temaOscuro ? '☀️ Modo claro' : '🌙 Modo oscuro'}</button>
           <button class="bud-cols-btn" onclick="_costosOcaAgregarFila()">+ Agregar fila</button>
           <button class="bud-cols-btn" onclick="_costosOcaIrAlUltimo()" title="Baja directo hasta la última fila cargada">⬇ Ir al último cargado</button>
+          <button class="bud-cols-btn" onclick="_costosOcaOrdenarPorFecha()" title="Reordena TODOS los envíos de más viejo a más nuevo según la columna Día (los que tienen la misma fecha mantienen su orden)">📅 Ordenar por fecha</button>
           <button class="bud-cols-btn" onclick="document.getElementById('costosoca-file-input').click()">📎 Importar Excel</button>
           <input type="file" id="costosoca-file-input" accept=".xlsx,.xls" style="display:none;" onchange="_costosOcaImportarExcel(this.files[0])">
           <button class="bud-cols-btn" onclick="costosOcaDescargarExcel()" title="Descarga un Excel con todos los envíos cargados">⬇ Descargar Excel</button>
@@ -24291,7 +24292,7 @@ function _costosOcaLimpiarFiltros() {
 window._costosOcaLimpiarFiltros = _costosOcaLimpiarFiltros;
 
 // ── Columnas redimensionables (arrastrando el borde derecho de cada encabezado, como en Excel) ──
-const COSTOS_OCA_ANCHOS_DEFAULT = [110, 90, 220, 140, 130, 130, 100, 120, 130, 220, 36];
+const COSTOS_OCA_ANCHOS_DEFAULT = [110, 90, 220, 140, 130, 130, 100, 120, 130, 220, 62];
 const COSTOS_OCA_ANCHOS_KEY = 'dentalab_costosoca_colwidths';
 function _costosOcaCargarAnchos() {
   try {
@@ -24553,7 +24554,7 @@ function renderCostosOcaTabla() {
           </select>
         </td>
         <td style="padding:5px 6px;overflow:hidden;"><input type="text" value="${escHtml(f.obs || '')}" data-id="${id}" data-campo="obs" class="costosoca-inp" placeholder="Comentario…" style="background:var(--co-panel2);border:1px solid var(--co-border);border-radius:6px;padding:5px 6px;color:var(--co-text);font-size:12px;width:100%;box-sizing:border-box;"></td>
-        <td style="padding:5px 6px;"><button onclick="_costosOcaBorrarFila('${id}')" title="Eliminar fila" style="background:none;border:none;color:#f87171;font-size:15px;cursor:pointer;">✕</button></td>
+        <td style="padding:5px 4px;white-space:nowrap;"><span class="costosoca-handle" title="Arrastrá para mover este envío de lugar" style="cursor:grab;color:var(--co-text3);font-size:16px;padding:2px 4px;user-select:none;">⠿</span><button onclick="_costosOcaBorrarFila('${id}')" title="Eliminar fila" style="background:none;border:none;color:#f87171;font-size:15px;cursor:pointer;">✕</button></td>
       </tr>`;
   }).join('');
 
@@ -24569,6 +24570,7 @@ function renderCostosOcaTabla() {
     }
   }
 
+  _costosOcaInicializarArrastre();
   const CAMPOS_ORDEN_TAB = ['dia', 'numEnvio', 'cliente', 'precioCliente', 'precioSinImp', 'origen', 'obs'];
   function _costosOcaFocoCampo(tr, campo) {
     const el = tr?.querySelector(`[data-campo="${campo}"]`);
@@ -24651,6 +24653,104 @@ function _costosOcaRecalcularFilaEnPantalla(id) {
   tds[6].style.background = bgDif; tds[6].style.color = colorDif;
   tds[7].textContent = (pct * 100).toFixed(2) + '%';
   tds[7].style.background = bgDif; tds[7].style.color = colorDif;
+}
+
+// ── Mover envíos de lugar (arrastrando el ⠿) y ordenar todo por fecha ──
+// El orden de la planilla vive en el campo "orden" de cada envío. Al soltar una fila se le
+// da un "orden" justo entre sus dos vecinas (solo se escribe esa fila). Si por algún motivo
+// no hay espacio entre las dos, se renumera todo respetando el orden actual.
+function _costosOcaRenumerar(idsEnOrden) {
+  const n = idsEnOrden.length;
+  const base = Date.now() - n - 5; // más viejos que cualquier fila que se agregue después
+  const upd = {};
+  idsEnOrden.forEach((id, i) => { upd[id + '/orden'] = base + i; });
+  return db.ref('dentalab/costos_oca').update(upd);
+}
+function _costosOcaOrdenarPorFecha() {
+  const entradas = Object.entries(_costosOcaCache);
+  if (!entradas.length) return;
+  if (!confirm('¿Ordenar TODOS los envíos por fecha (columna Día), de más viejo a más nuevo?\n\nLos que tienen la misma fecha mantienen el orden que ya tenían, y los que no tienen fecha quedan al final. Después podés seguir moviendo filas a mano.\n\n(Tip: antes podés tocar "☁ Backup a Drive" por las dudas.)')) return;
+  entradas.sort((a, b) => {
+    const da = a[1].dia || '9999-99-99', dbb = b[1].dia || '9999-99-99';
+    if (da !== dbb) return da < dbb ? -1 : 1;
+    return (a[1].orden || 0) - (b[1].orden || 0);
+  });
+  _costosOcaRenumerar(entradas.map(([id]) => id))
+    .then(() => showToast('📅 Envíos ordenados por fecha', 'ok'))
+    .catch(err => showToast('⚠ No se pudo ordenar: ' + err.message, 'warn'));
+}
+window._costosOcaOrdenarPorFecha = _costosOcaOrdenarPorFecha;
+
+let _costosOcaDragId = null;
+function _costosOcaInicializarArrastre() {
+  const tbody = document.getElementById('costosoca-tbody');
+  if (!tbody || tbody._ocaDragListo) return;
+  tbody._ocaDragListo = true;
+  const limpiarMarcas = () => tbody.querySelectorAll('tr').forEach(tr => { tr.style.boxShadow = ''; tr.style.opacity = ''; });
+  // Solo se puede arrastrar agarrando el ⠿ (así no interfiere con escribir/seleccionar en los campos)
+  tbody.addEventListener('mousedown', e => {
+    const tr = e.target.closest && e.target.closest('tr[data-id]');
+    if (!tr) return;
+    tr.draggable = !!e.target.closest('.costosoca-handle');
+  });
+  tbody.addEventListener('dragstart', e => {
+    const tr = e.target.closest && e.target.closest('tr[data-id]');
+    if (!tr || !tr.draggable) return;
+    _costosOcaDragId = tr.dataset.id;
+    try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', _costosOcaDragId); } catch (err) {}
+    setTimeout(() => { tr.style.opacity = '.45'; }, 0);
+  });
+  tbody.addEventListener('dragover', e => {
+    if (!_costosOcaDragId) return;
+    const tr = e.target.closest && e.target.closest('tr[data-id]');
+    if (!tr) return;
+    e.preventDefault();
+    limpiarMarcas();
+    const r = tr.getBoundingClientRect();
+    const arriba = e.clientY < r.top + r.height / 2;
+    tr.style.boxShadow = arriba ? 'inset 0 3px 0 #3b82f6' : 'inset 0 -3px 0 #3b82f6';
+    tr._ocaArriba = arriba;
+  });
+  tbody.addEventListener('dragend', () => {
+    _costosOcaDragId = null; limpiarMarcas();
+    tbody.querySelectorAll('tr').forEach(tr => { tr.draggable = false; });
+  });
+  tbody.addEventListener('drop', e => {
+    const idMov = _costosOcaDragId;
+    _costosOcaDragId = null;
+    const trDest = e.target.closest && e.target.closest('tr[data-id]');
+    limpiarMarcas();
+    if (!idMov || !trDest) return;
+    e.preventDefault();
+    const idDest = trDest.dataset.id;
+    if (idDest === idMov) return;
+    const arriba = !!trDest._ocaArriba;
+    // Orden visible, sin la fila que se mueve, con la fila metida en su nuevo lugar
+    const ids = [...tbody.querySelectorAll('tr[data-id]')].map(tr => tr.dataset.id).filter(id => id !== idMov);
+    const posDest = ids.indexOf(idDest);
+    if (posDest < 0) return;
+    ids.splice(arriba ? posDest : posDest + 1, 0, idMov);
+    const k = ids.indexOf(idMov);
+    const ordenDe = id => (_costosOcaCache[id] && Number(_costosOcaCache[id].orden)) || 0;
+    const prev = k > 0 ? ordenDe(ids[k - 1]) : null;
+    const next = k < ids.length - 1 ? ordenDe(ids[k + 1]) : null;
+    let nuevo;
+    if (prev !== null && next !== null) nuevo = (prev + next) / 2;
+    else if (prev !== null) nuevo = prev + 1000;
+    else if (next !== null) nuevo = next - 1000;
+    else return;
+    const hayEspacio = (prev === null || nuevo > prev) && (next === null || nuevo < next);
+    let p;
+    if (hayEspacio) {
+      p = db.ref('dentalab/costos_oca/' + idMov + '/orden').set(nuevo);
+    } else {
+      const todos = Object.entries(_costosOcaCache).sort((a, b) => (a[1].orden || 0) - (b[1].orden || 0)).map(([id]) => id).filter(id => id !== idMov);
+      const pd = todos.indexOf(idDest);
+      todos.splice(pd < 0 ? todos.length : (arriba ? pd : pd + 1), 0, idMov);
+      p = _costosOcaRenumerar(todos);
+    }
+    p.catch(err => showToast('⚠ No se pudo mover: ' + err.message, 'warn'));
+  });
 }
 
 let _costosOcaUltimaAgregada = null;
@@ -44406,7 +44506,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.316';
+  const LATEST_VERSION = 'v25.317';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44419,6 +44519,15 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.317',
+      fecha: '2026-10-22',
+      titulo: 'Costos Envíos OCA: mover envíos de lugar y ordenar por fecha',
+      items: [
+        { tipo: 'nuevo', texto: 'Cada fila tiene un ⠿ (a la izquierda de la ✕): arrastrándolo se mueve ese envío a otro lugar de la planilla. El cambio queda guardado y lo ven todos.' },
+        { tipo: 'nuevo', texto: 'Nuevo botón "📅 Ordenar por fecha": reordena todos los envíos de más viejo a más nuevo según la columna Día (misma fecha = mantiene el orden que tenían; sin fecha = al final).' },
+      ]
+    },
     {
       version: 'v25.316',
       fecha: '2026-10-20',
