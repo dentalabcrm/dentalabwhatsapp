@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.317</title>
+<title>Dentalab Whatsapp CRM · v25.319</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -14778,6 +14778,7 @@ function renderBudgetPanel() {
             onclick="budgetCheckStock=!budgetCheckStock;saveBudgetCheckStock(budgetCheckStock);renderBudgetPanel();">
             ${budgetCheckStock?'⚠️ Verificar stock: ON':'Verificar stock: OFF'}
           </button>
+          ${(budgetItems.length>0 && typeof _presuHayMensajeEnvio === 'function' && _presuHayMensajeEnvio())?`<button class="bud-cols-btn" id="btn-presu-msg-envio" onclick="presuAbrirMensajeEnvio()" title="Mensaje listo para avisarle al cliente de su Envío Dentalab (día, horario, dirección y monto si paga en efectivo)" style="background:#10b98122;border-color:#10b98166;color:#10b981;font-weight:700;">📲 Mensaje al cliente</button>`:''}
           ${budgetItems.length>0?`
             <div style="display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:4px 10px" title="Cambiar la lista de precios de TODOS los ítems">
               <span style="font-size:10px;font-weight:700;color:var(--text3);white-space:nowrap">CAMBIAR TODO →</span>
@@ -16940,7 +16941,7 @@ function bindBudgetEvents(){
   }
   ['cl-nombre','cl-cuit','cl-fecha','cl-notas','cl-email','cl-num'].forEach(id=>{const el=$(id);if(el)el.addEventListener('input',syncClientDataFromForm);});
   const clrBtn=$('btn-clear-budget');
-  if(clrBtn)clrBtn.addEventListener('click',()=>{if(!confirm('¿Vaciar el presupuesto actual?'))return;budgetItems=[];budgetGlobalDisc=0;selectedRows.clear();budgetClientData={nombre:'',cuit:'',fecha:todayISO(),notas:'',email:'',validez:'',condiciones:''};budgetEnvio={activo:false,tipo:'Estándar a domicilio',transportista:loadDefaultTransportista(),costMode:'precio',costo:'',metodoPago:''};budgetFinancing={activo:false};const _n=$('cl-nombre'),_c=$('cl-cuit'),_f=$('cl-fecha'),_no=$('cl-notas'),_em=$('cl-email'),_vl=$('cl-validez'),_cond=$('cl-condiciones');if(_n)_n.value='';if(_c)_c.value='';if(_f)_f.value=todayISO();if(_no)_no.value='';if(_em)_em.value='';if(_vl)_vl.value='';if(_cond)_cond.value='';updateBudgetBadge();borrarPresupuestoBorrador();renderBudgetPanel();renderTable();});
+  if(clrBtn)clrBtn.addEventListener('click',()=>{if(!confirm('¿Vaciar el presupuesto actual?'))return;_presuMsgEnvio=null;budgetItems=[];budgetGlobalDisc=0;selectedRows.clear();budgetClientData={nombre:'',cuit:'',fecha:todayISO(),notas:'',email:'',validez:'',condiciones:''};budgetEnvio={activo:false,tipo:'Estándar a domicilio',transportista:loadDefaultTransportista(),costMode:'precio',costo:'',metodoPago:''};budgetFinancing={activo:false};const _n=$('cl-nombre'),_c=$('cl-cuit'),_f=$('cl-fecha'),_no=$('cl-notas'),_em=$('cl-email'),_vl=$('cl-validez'),_cond=$('cl-condiciones');if(_n)_n.value='';if(_c)_c.value='';if(_f)_f.value=todayISO();if(_no)_no.value='';if(_em)_em.value='';if(_vl)_vl.value='';if(_cond)_cond.value='';updateBudgetBadge();borrarPresupuestoBorrador();renderBudgetPanel();renderTable();});
   const saveBtn=$('btn-save-budget');
   if(saveBtn)saveBtn.addEventListener('click',()=>{syncClientDataFromForm();if(!budgetClientData.nombre.trim()){showToast('⚠ Ingresá el nombre del cliente','warn');$('cl-nombre').focus();return;}if(budgetItems.length===0){showToast('⚠ El presupuesto está vacío','warn');return;}saveBudgetToHistory();});
   const pdfBtn=$('btn-export-pdf');
@@ -20907,6 +20908,12 @@ async function importarPresupuestoPDF(input) {
           _transporteDetectado = _detectarTransporteEnTexto(_obsParaTransporte) || _detectarTransporteEnTexto(textLines.join(' '));
           if (_transporteDetectado) budgetEnvio.transportista = _transporteDetectado;
         }
+        // ¿Es un Envío Dentalab? → habilita el botón "📲 Mensaje al cliente"
+        try {
+          _presuDetectarMensajeEnvio(_datosEnvioPdf, textLines, _transporteDetectado);
+          if (_presuMsgEnvio && typeof showToast === 'function') showToast('📲 Envío Dentalab detectado — tenés el botón "Mensaje al cliente" arriba', 'ok');
+          if (typeof renderBudgetPanel === 'function') renderBudgetPanel();
+        } catch (eMsg) { console.warn('[Presupuestos] No se pudo armar el mensaje de envío:', eMsg.message); }
 
         // Si no había tabla de "Servicios" pero sí se sabe el transportista y/o si es a
         // domicilio o a sucursal (por las observaciones), igual conviene activar el
@@ -20974,6 +20981,95 @@ function _detectarListasEnPdf(lines, skuIndex) {
   Object.keys(votos).forEach(k => { if (votos[k] > max) { max = votos[k]; global = k; } });
   return { porSku, global };
 }
+
+// ── Mensaje para el cliente cuando el PDF importado es un "Envío Dentalab" ──
+// Si el pedido se entrega con Envíos Dentalab (no con transporte externo, ni retira), arma el
+// mismo mensaje que "Copiar mensaje para el cliente" de la pestaña Envíos: día, dirección,
+// horario y, si paga en efectivo, cuánto tiene que abonar. Queda guardado en _presuMsgEnvio y
+// aparece el botón "📲 Mensaje al cliente" en Presupuestos (se puede editar antes de copiar).
+let _presuMsgEnvio = null;
+// Texto para proponerle el envío al cliente ANTES de mandar el pedido a preparar (pide confirmación).
+function _presuArmarTextoConfirmacion({ dia, direccion, horario, cobro, monto }) {
+  let d = (dia || '').replace(/^\s*para\s+/i, '').trim().toLowerCase();
+  if (d && !/^el\s/.test(d) && /^(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)/.test(d)) d = 'el ' + d;
+  let dir = (direccion || '').replace(/\s+/g, ' ').replace(/,\s*,+/g, ',').replace(/[\s,]+$/, '').trim();
+  if (dir && /capital federal/i.test(dir)) dir = dir.replace(/,\s*CABA\s*$/i, '');
+  let hor = (horario || '').replace(/\s+/g, ' ').trim().replace(/(\d{1,2}(?::\d{2})?)\s*a\s*(\d{1,2}(?::\d{2})?)\s*hs?\b/i, (m, a, b) => `${a} a ${b} hs`).replace(/\bA\b/g, 'a').replace(/\bHS\b/g, 'hs');
+  const montoTxt = (cobro === 'efectivo' && monto) ? ` El total a abonar en efectivo es de $${Number(monto).toLocaleString('es-AR')}.` : '';
+  return `¡Buen día! El pedido te lo podemos enviar${d ? ' ' + d : ''}${dir ? ' en ' + dir : ''}${hor ? ', en el horario de ' + hor : ''}.${montoTxt} Si nos confirmás, enviamos el pedido a preparar. ¡Muchas gracias!`;
+}
+function _presuDetectarMensajeEnvio(datos, textLines, transporteDetectado) {
+  _presuMsgEnvio = null;
+  if (!datos) return;
+  const obs = datos.observaciones || '';
+  const obsLow = obs.toLowerCase();
+  const diceRetira = /\bretir\w*/.test(obsLow);
+  const diceEnviar = /\benv[ií]\w*/.test(obsLow) || /\bdentalab\b/.test(obsLow) || /\bmoto\w*/.test(obsLow);
+  const transporteExterno = transporteDetectado && transporteDetectado !== 'Envíos Dentalab';
+  const esDentalab = transporteDetectado === 'Envíos Dentalab' || (!transporteExterno && diceEnviar && !(diceRetira && !/\benv[ií]\w*/.test(obsLow)) && datos.tipoEntrega !== 'sucursal');
+  if (!esDentalab) return;
+  // Cobro: palabras clave en las observaciones; si no, la "Condición de Vta" del PDF
+  let cobro = '', monto = '';
+  const porObs = (typeof _detectarCobroEnTexto === 'function' && obs) ? _detectarCobroEnTexto(obs) : null;
+  if (porObs) { cobro = porObs.cobro; monto = porObs.montoEfectivo || ''; }
+  else if (datos.condicionVenta && typeof _mapearCobroDesdeCondicionVenta === 'function') cobro = _mapearCobroDesdeCondicionVenta(datos.condicionVenta) || '';
+  if (cobro === 'efectivo' && !monto && datos.total) {
+    const n = Math.round(parseFloat(String(datos.total).replace(/\./g, '').replace(',', '.')));
+    if (!isNaN(n) && n > 0) monto = String(n);
+  }
+  const texto = _presuArmarTextoConfirmacion({ dia: datos.fechaEntregaTexto || '', direccion: datos.direccion || '', horario: datos.horario || '', cobro, monto });
+  _presuMsgEnvio = { texto, cobro, monto };
+}
+// ¿Hay que mostrar el botón? Sí si el PDF importado era un Envío Dentalab, o si en la tarjeta
+// "Envío" del presupuesto está elegido el transportista "Envíos Dentalab" (aunque el presupuesto
+// se haya armado a mano). En ese caso el mensaje se arma con lo que haya en Condiciones
+// Comerciales (día, horario y dirección) y el vendedor completa lo que falte.
+function _presuHayMensajeEnvio() {
+  if (_presuMsgEnvio) return true;
+  try { return !!(budgetEnvio && budgetEnvio.activo && budgetEnvio.transportista === 'Envíos Dentalab'); } catch (e) { return false; }
+}
+function _presuMensajeEnvioActual() {
+  if (_presuMsgEnvio) return _presuMsgEnvio;
+  const cond = (document.getElementById('cl-condiciones')?.value || (typeof budgetClientData === 'object' && budgetClientData ? budgetClientData.condiciones : '') || '');
+  const toma = rx => { const m = cond.match(rx); return m ? m[1].trim() : ''; };
+  const dia = toma(/D[ií]a de entrega\s*:\s*(.+)/i).toLowerCase();
+  const horario = toma(/Horario\s*:\s*(.+)/i);
+  const direccion = toma(/Direcci[oó]n de env[ií]o\s*:\s*(.+)/i);
+  const texto = _presuArmarTextoConfirmacion({ dia, direccion, horario, cobro: '', monto: '' });
+  return { texto, cobro: '', monto: '' };
+}
+function presuAbrirMensajeEnvio() {
+  if (!_presuHayMensajeEnvio()) return;
+  const _msg = _presuMensajeEnvioActual();
+  document.getElementById('presu-msg-envio-bd')?.remove();
+  const bd = document.createElement('div');
+  bd.id = 'presu-msg-envio-bd';
+  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60000;display:flex;align-items:center;justify-content:center;padding:20px;';
+  bd.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:520px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:22px 22px 18px;">
+      <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px;">📲 Mensaje para el cliente</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Revisá el día, el horario, la dirección y el monto (si paga en efectivo), corregí lo que haga falta y copialo.</div>
+      <textarea id="presu-msg-envio-txt" rows="6" style="width:100%;box-sizing:border-box;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.5;font-family:'DM Sans',sans-serif;resize:vertical;"></textarea>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
+        <button id="presu-msg-envio-cerrar" style="padding:9px 16px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;">Cerrar</button>
+        <button id="presu-msg-envio-copiar" style="padding:9px 16px;background:#10b981;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">📋 Copiar mensaje</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bd);
+  const ta = document.getElementById('presu-msg-envio-txt');
+  ta.value = _msg.texto;
+  ta.focus();
+  document.getElementById('presu-msg-envio-cerrar').onclick = () => bd.remove();
+  bd.addEventListener('click', e => { if (e.target === bd) bd.remove(); });
+  document.getElementById('presu-msg-envio-copiar').onclick = () => {
+    const t = ta.value;
+    const ok = () => { showToast('📲 Mensaje para el cliente copiado', 'ok'); bd.remove(); };
+    const fail = () => showToast('⚠ No se pudo copiar', 'warn');
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(t).then(ok).catch(fail);
+    else { try { ta.select(); document.execCommand('copy'); ok(); } catch (e2) { fail(); } }
+  };
+}
+window.presuAbrirMensajeEnvio = presuAbrirMensajeEnvio;
 
 function _parseAndAddSKUs(lines, _rows, listaKeyOverride, detectarLista) {
   const skuIndex = {};
@@ -44506,7 +44602,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.317';
+  const LATEST_VERSION = 'v25.319';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44519,6 +44615,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.319',
+      fecha: '2026-10-26',
+      titulo: 'Presupuestos: botón "Mensaje al cliente" para PDFs de Envío Dentalab',
+      items: [
+        { tipo: 'nuevo', texto: 'Al arrastrar un PDF a Presupuestos, si el pedido se entrega con Envíos Dentalab (no retira ni va por transporte externo), aparece el botón "📲 Mensaje al cliente". Abre una propuesta ya armada ("El pedido te lo podemos enviar el martes 27/10 en [dirección], en el horario de 12 a 18 hs. Si nos confirmás, enviamos el pedido a preparar") con el día, la dirección, el horario y, si paga en efectivo, cuánto tiene que abonar. Se puede editar antes de copiarlo.' },
+      ]
+    },
     {
       version: 'v25.317',
       fecha: '2026-10-22',
