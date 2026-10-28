@@ -15507,25 +15507,36 @@ function _mostrarModalLimpiezaFotos(entradas, token) {
     let revisadas = 0, limpiadas = 0;
     for (let i = 0; i < entradas.length; i++) {
       if (detenido) break;
-      const [key, fileId] = entradas[i];
+      const [key, valor] = entradas[i];
       status.textContent = `${i + 1} de ${entradas.length} — limpiadas: ${limpiadas} (SKU ${key})`;
       bar.style.width = Math.round(((i + 1) / entradas.length) * 100) + '%';
       revisadas++;
+      // Cada SKU puede tener VARIAS fotos (array de IDs) o una sola (string, formato viejo).
+      // Antes se consultaba a Drive con el array entero como si fuera un solo ID → Drive
+      // respondía 404 y se borraban TODAS las fotos del producto. Ahora se revisa cada foto
+      // por separado y solo se sacan las que de verdad están borradas o en la papelera.
+      const ids = Array.isArray(valor) ? valor.filter(Boolean) : (valor ? [valor] : []);
+      const quedan = [];
+      let sacadas = 0;
+      for (const fileId of ids) {
+        let borrada = false;
+        try {
+          const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=trashed`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+          if (resp.status === 404) borrada = true;
+          else if (resp.ok) borrada = !!(await resp.json()).trashed;
+        } catch (e) { /* si falla la consulta, la foto se deja como está */ }
+        if (borrada) sacadas++; else quedan.push(fileId);
+        if (ids.length > 1) await new Promise(r => setTimeout(r, 200));
+      }
       try {
-        const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=trashed`, {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        if (resp.status === 404) {
-          await db.ref('dentalab/sku_imagenes/' + key).remove();
-          limpiadas++;
-        } else if (resp.ok) {
-          const data = await resp.json();
-          if (data.trashed) {
-            await db.ref('dentalab/sku_imagenes/' + key).remove();
-            limpiadas++;
-          }
+        if (sacadas) {
+          if (quedan.length) await db.ref('dentalab/sku_imagenes/' + key).set(quedan);
+          else await db.ref('dentalab/sku_imagenes/' + key).remove();
+          limpiadas += sacadas;
         }
-      } catch (e) { /* si falla la consulta de este, lo dejamos y seguimos con el resto */ }
+      } catch (e) { /* si falla la escritura de este, lo dejamos y seguimos con el resto */ }
       await new Promise(r => setTimeout(r, 200)); // pausa para no pasarse de la cuota de Drive
     }
     status.textContent = detenido
