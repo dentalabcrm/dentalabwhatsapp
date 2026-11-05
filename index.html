@@ -12357,8 +12357,10 @@ function _getSearchIdx(r) {
     // Saca guion/barra/punto Y tildes/ñ (ej: "acrilico" encuentra "Acrílico",
     // "brunidor" encuentra "Bruñidor") — normaliza a forma descompuesta (NFD),
     // saca los acentos como caracteres combinantes, y de paso saca la puntuación.
-    const strip = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[-/.]/g, "");
-    r._sIdx = [sku, nom, prov, strip(sku), strip(nom), strip(prov)];
+    // El nombre va también sin el punto decimal, para que "195" siga encontrando "1.95".
+    const strip = _sinPuntGlobal;
+    const nomSin = strip(nom);
+    r._sIdx = [sku, nom, prov, strip(sku), nomSin + " " + nomSin.replace(/\./g, ""), strip(prov)];
     r._sIdxClave = _clave;
   }
   return r._sIdx;
@@ -12367,7 +12369,8 @@ function _getSearchIdx(r) {
 // ── Sinónimos de búsqueda (mismos que en el link de Pedido Whatsapp): si el término
 //    escrito coincide con cualquiera de un grupo, también se busca con los demás
 //    términos del mismo grupo (ej: "irrigador" también encuentra "Duchador"). ──
-function _sinPuntGlobal(s) { return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[-/.]/g, ""); }
+// Los decimales quedan siempre con punto ("4,1" y "4.1" son lo mismo); el resto de los puntos se saca.
+function _sinPuntGlobal(s) { return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/(\d),(\d)/g, "$1.$2").replace(/[-/]|(?<!\d)\.|\.(?!\d)/g, ""); }
 const SINONIMOS_RAW = [
   ['Irrigador', 'Duchador'],
   ['Placas', 'Termoplaca'],
@@ -12427,12 +12430,204 @@ const ADHESIVO_COMPOSITE_SKUS = ['1542','1543','1545','1546','1548','1715','2125
 //    fija de SKUs, y cualquier palabra extra que se haya escrito filtra dentro de esa lista.
 //    Para sumar uno nuevo: agregar un objeto acá, no hace falta tocar el resto del código.
 //    (Misma definición que en pedido-web-cliente.html, para que busquen igual.) ──
+const _ALT_KIT = ['kits'];
+const _ALT_NAVECILLA = ['navecillas', 'nabecilla', 'nabecillas', 'navesilla', 'navesillas', 'nabesilla', 'nabesillas'];
+const _ALT_BALL = ['bal', 'balls', 'bola', 'bolas', 'bolita', 'bolitas', 'ballattach', 'ballatach', 'ballattache', 'ballatache', 'ballattached'];
+const _ALT_BARRA = ['barras', 'rielera', 'rieleras', 'riel', 'rieles'];
+const _ALT_RIELERA = ['rieleras'];
+const _ALT_TEFLON = ['teflones', 'cofia', 'cofias', 'hembra', 'hembras'];   // en attaches son la misma pieza
+const _ALT_ANCHA = ['anchas', 'ancho', 'anchos'];
+const _ALT_GOTA = ['gotas', 'gotita', 'gotitas'];
+const _ALT_VERTICAL = ['verticales', 'vert'];
+const _OPC_ATTACHE = ['attach', 'attachs', 'atach', 'attache', 'atache', 'attaches', 'ataches', 'attached', 'atached', 'attachment', 'atachment', 'attachement',
+  'perno', 'pernos', 'repuesto', 'repuestos', 'rep', 'repu'];
+// SKU fijos + todo producto cuyo nombre coincide con el patrón. En attaches el patrón pide que EMPIECE con el modelo: "attache ar-19v" no debe agarrar
+// el "Attache HE-1810V Hembra p/ AR-19V", que lo nombra más adelante.
+function _skusAttache(fijos, patron){
+  const porNombre = (allData || []).filter(it => {
+    // sin _stripAccents: ese también saca los guiones, y acá hacen falta para reconocer el modelo
+    const n = String(it.Nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    return patron.test(n);
+  }).map(it => String(it.SKU || '').trim());
+  return Array.from(new Set([...fijos, ...porNombre]));
+}
+// Colores de las ceras: la raíz para buscar en el nombre (así "roja" encuentra "Rojo") y el final del SKU.
+const _COLORES_CERA = [
+  { palabras: ['azul', 'azules'], raiz: 'azul', sufijo: /-azu?$/i },
+  { palabras: ['verde', 'verdes'], raiz: 'verde', sufijo: /-(?:v|ve|ver)$/i },
+  { palabras: ['amarillo', 'amarilla', 'amarillos', 'amarillas'], raiz: 'amarill', sufijo: /-am$/i },
+  { palabras: ['gris', 'grises'], raiz: 'gris', sufijo: /-gr$/i },
+  { palabras: ['blanco', 'blanca', 'blancos', 'blancas'], raiz: 'blanc', sufijo: /-bla?$/i },
+  { palabras: ['beige', 'beiges', 'beis'], raiz: 'beige', sufijo: /-bei?$/i },
+  { palabras: ['marfil', 'marfiles'], raiz: 'marfil', sufijo: /-(?:m|mar)$/i },
+  { palabras: ['rojo', 'roja', 'rojos', 'rojas'], raiz: 'roj', sufijo: /-(?:r|roj)$/i },
+];
+function _coincideColorCera(palabra, it){
+  const color = _COLORES_CERA.find(c => c.palabras.includes(palabra));
+  if (!color) return false;
+  const n = String(it.Nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return new RegExp('\\b' + color.raiz).test(n) || color.sufijo.test(String(it.SKU || ''));
+}
 const GRUPOS_ESPECIALES = [
   { requiere: ['acrilico', 'rosa'], requiereAlt: { acrilico: ['polimero'] }, skus: ACRILICO_ROSA_TODOS_SKUS },
   { requiere: ['acrilico', 'cristal'], requiereAlt: { acrilico: ['polimero'], cristal: ['transparente'] }, skus: ACRILICO_CRISTAL_SKUS },
   { requiere: ['adhesivo', 'composite'], skus: ADHESIVO_COMPOSITE_SKUS },
+  // "Triad gel" → Composite Resinlay TDV Gel p/ Modelos y Fundición (va antes que las placas triad)
+  { requiere: ['triad', 'gel'], skus: ['31557'] },
+  // Placas de fotocurado: "placa(s) triad", "placa(s) (de) fotocurado", "placas de foto"
+  { requiere: ['placa', 'triad'], requiereAlt: { placa: ['placas'], triad: ['fotocurado', 'foto'] }, skus: ['32806', '32806-F', '32809', '32809-F', '32805'] },
+  // "Pasta provisoria" / "Pasta provi" → Material de Obturación Temporario
+  // (el 1142-F se pone en mayúscula y minúscula por las dudas: los SKU distinguen entre las dos)
+  { requiere: ['pasta', 'provisoria'], requiereAlt: { pasta: ['pastas'], provisoria: ['provi', 'provisorias', 'provisorio', 'provisorios'] }, skus: ['1139', '1142-F', '1142-f', '1144', '1145', '1142', '1141'] },
+  // "Placa(s) (de/para) protector (bucal)" → Termoplacas flexibles .120"/3mm, .150" y .150"/3.8mm
+  // ("bucal" es opcional: se lista como alternativa para que no filtre la lista si viene escrito)
+  { requiere: ['placa', 'protector'], requiereAlt: { placa: ['placas'], protector: ['protectores', 'bucal', 'bucales'] },
+    skus: ['32794', '32794-F', '32794-f', '32781-AMA', '32781-AZU', '32781-BLA', '32781-CEL', '32781-FUC', '32781-NEG', '32781-TUR', '32781-VEF', '32781-VER', '32781-VIO', '32781-ROJ', '32820-AZU', '32820-FAZ', '32820-ROJ', '32820-FRO'] },
+  // "Polímero auto / autocurado / autocurable (para) provisorio(s)" → todos los "Polímero Autocurable…" y
+  // "Polímero Auto…" del catálogo (también los que se agreguen después), menos los de ortodoncia.
+  { requiere: ['polimero', 'auto', 'provisorio'],
+    requiereAlt: { polimero: ['polimeros', 'acrilico', 'acrilicos'], auto: ['autocurado', 'autocurable', 'autocurables', 'autocurados'], provisorio: ['provisorios', 'provisoria', 'provisorias', 'provi', 'provis'] },
+    get skus(){
+      return (allData || []).filter(it => {
+        const n = String(it.Nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        return /^polimeros?\s+auto(curable|curado)?\b/.test(n) && !/ortodoncia/.test(n);
+      }).map(it => String(it.SKU || '').trim());
+    } },
+  // "Polímero termo / termocurado / termocurable (para) provisorio(s)" → todos los "Polímero Termocurable…"
+  // y "Polímero Termo…" del catálogo (también los que se agreguen después), menos los de ortodoncia.
+  { requiere: ['polimero', 'termo', 'provisorio'],
+    requiereAlt: { polimero: ['polimeros', 'acrilico', 'acrilicos'], termo: ['termocurado', 'termocurable', 'termocurables', 'termocurados'], provisorio: ['provisorios', 'provisoria', 'provisorias', 'provi', 'provis'] },
+    get skus(){
+      return (allData || []).filter(it => {
+        const n = String(it.Nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        return /^polimeros?\s+termo(curable|curado)?\b/.test(n) && !/ortodoncia/.test(n);
+      }).map(it => String(it.SKU || '').trim());
+    } },
+  // Porta radiografía: "porta rx / porta película(s)", "bolsa(s) / bolsista(s) / sobre(s) de película(s) o de rx".
+  // Va ANTES que el de películas, así "porta películas" no abre las películas.
+  { requiere: ['porta', 'rx'],
+    requiereAlt: { porta: ['bolsa', 'bolsas', 'bolsista', 'bolsistas', 'sobre', 'sobres'], rx: ['pelicula', 'peliculas', 'radiografia', 'radiografias'] },
+    skus: ['794', '794-12'] },
+  // Bolsa p/ Esterilizar c/ vapor: "bolsa/sobre (para) (esterilizar) (en) autoclave"
+  // ("esterilizar" va como alternativa de "autoclave" para que, si viene escrito, no filtre la lista)
+  { requiere: ['bolsa', 'autoclave'],
+    requiereAlt: { bolsa: ['bolsas', 'sobre', 'sobres'], autoclave: ['autoclaves', 'esterilizar'] },
+    skus: ['6124-F', '6124-f'] },
+  // "Rollo (para) esterilizar / estufa / esterilización" → todos los "Rollo de Esterilización Pouch…"
+  // del catálogo (también los que se agreguen después)
+  { requiere: ['rollo', 'esterilizar'],
+    requiereAlt: { rollo: ['rollos'], esterilizar: ['estufa', 'esterilizacion', 'esterilizado', 'esterilizados'] },
+    get skus(){
+      return (allData || []).filter(it => /^rollos?\s+de\s+esterilizacion\s+pouch\b/.test(String(it.Nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase())).map(it => String(it.SKU || '').trim());
+    } },
+  // "Películas rx" / "películas dentales" / "radiografías" → todos los "Películas Radiográficas…" del
+  // catálogo (también los que se agreguen después). Van en dos entradas porque "radiografías" sola
+  // alcanza y "películas" necesita la segunda palabra.
+  { requiere: ['peliculas', 'rx'], requiereAlt: { peliculas: ['pelicula', 'pelis'], rx: ['dentales', 'dental', 'radiograficas', 'radiografica', 'radiologicas'] },
+    get skus(){ return _skusPeliculasRx(); } },
+  { requiere: ['radiografias'], requiereAlt: { radiografias: ['radiografia'] },
+    get skus(){ return _skusPeliculasRx(); } },
+  // "Placa(s) (de/para) blanqueamiento" → Termoplaca .040"/1mm Flexible
+  { requiere: ['placa', 'blanqueamiento'], requiereAlt: { placa: ['placas'], blanqueamiento: ['blanqueamientos', 'blanquear', 'blanqueo'] },
+    skus: ['32792', '32792-F', '32792-f', '32834', '32796', '32796-F', '32796-f', '32802', '32802-F', '32802-f', '32795', '32795-F', '32795-f'] },
+  // "Placa(s) (de/para) bruxismo" → Termoplaca .080"/2mm Rígida
+  { requiere: ['placa', 'bruxismo'], requiereAlt: { placa: ['placas'] },
+    skus: ['32830', '32791', '32791-F', '32791-f'] },
+  // "Godiva" → Compuesto de Modelar
+  { requiere: ['godiva'], skus: ['288-V', '286-F', '286', '285-M', '285-MF', '285-VF', '287-MAR', '287-VER', '288-M', '289', '285-V'] },
+
+  // ── Attaches ─────────────────────────────────────────────────────────────────────────
+  // El orden importa: se usa el PRIMER grupo que coincide, así que los más específicos van antes
+  // ("kit ball vertical" antes que "kit ball", "kit barra ancha" antes que "kit barra" y que "barra ancha").
+  // Cada grupo trae sus SKU fijos y, además, todo producto cuyo nombre tenga ese modelo (ver _skusAttache).
+  // Kit para ball attach vertical → AR-19V
+  { requiere: ['kit', 'ball', 'vertical'], requiereAlt: { kit: _ALT_KIT, ball: _ALT_BALL, vertical: _ALT_VERTICAL }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31122'], /^attache\s+ar[- ]?19\s*v\b/); } },
+  // Kit para barra ancha → AR-18 B
+  { requiere: ['kit', 'barra', 'ancha'], requiereAlt: { kit: _ALT_KIT, barra: _ALT_BARRA, ancha: _ALT_ANCHA }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31100'], /^attache\s+ar[- ]?18\s*b\b/); } },
+  // Kit para barra gota → AR-18 BG
+  { requiere: ['kit', 'barra', 'gota'], requiereAlt: { kit: _ALT_KIT, barra: _ALT_BARRA, gota: _ALT_GOTA }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31102'], /^attache\s+ar[- ]?18\s*bg\b/); } },
+  // Kit para ball attach / bola → AR-19H y AR-23H
+  { requiere: ['kit', 'ball'], requiereAlt: { kit: _ALT_KIT, ball: _ALT_BALL }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31120', '31140'], /^attache\s+ar[- ]?(19|23)\s*h\b/); } },
+  // Kit para barra / rielera → AR-18 R
+  { requiere: ['kit', 'barra'], requiereAlt: { kit: _ALT_KIT, barra: _ALT_BARRA }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31105'], /^attache\s+ar[- ]?18\s*r\b/); } },
+  // Cazoletas metálicas para teflón → Attache CM-… ("cazoleta" sola NO alcanza: es también la de pulido/profilaxis)
+  { requiere: ['cazoleta', 'metalica'],
+    requiereAlt: { cazoleta: ['cazoletas', 'casoleta', 'casoletas'], metalica: ['metalicas', 'metal', 'metalico', 'metalicos', 'teflon', 'teflones', 'attache', 'attaches', 'atache', 'ataches', 'attach', 'atach'] },
+    opcionales: [..._OPC_ATTACHE, 'ball', ..._ALT_BALL, 'barra', ..._ALT_BARRA],
+    get skus(){ return _skusAttache(['31170-18', '31170-19', '31170-21', '31170-23', '31170-25'], /^attache\s+cm-/); } },
+  // Teflón / cofia / hembra para ball vertical → HE-1810V (la hembra del kit AR-19V)
+  { requiere: ['teflon', 'ball', 'vertical'], requiereAlt: { teflon: _ALT_TEFLON, ball: _ALT_BALL, vertical: _ALT_VERTICAL }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31126-A', '31126-T'], /^attache\s+he[- ]?1810\s*v\b/); } },
+  // Teflón / cofia / hembra para barra / rielera vertical → HE-1810V
+  { requiere: ['teflon', 'barra', 'vertical'], requiereAlt: { teflon: _ALT_TEFLON, barra: _ALT_BARRA, vertical: _ALT_VERTICAL }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31126-A', '31126-T'], /^attache\s+he[- ]?1810\s*v\b/); } },
+  { requiere: ['rielera', 'vertical'], requiereAlt: { rielera: _ALT_RIELERA, vertical: _ALT_VERTICAL }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31126-A', '31126-T'], /^attache\s+he[- ]?1810\s*v\b/); } },
+  // Teflón / cofia / hembra para barra / "Rielera" sola → HE-1810
+  { requiere: ['teflon', 'barra'], requiereAlt: { teflon: _ALT_TEFLON, barra: _ALT_BARRA }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31112-A', '31112-T'], /^attache\s+he[- ]?1810\b/); } },
+  { requiere: ['rielera'], requiereAlt: { rielera: _ALT_RIELERA }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31112-A', '31112-T'], /^attache\s+he[- ]?1810\b/); } },
+  // Teflón / cofia / hembra para ball attach → todos los "Attache HE-…" menos los HE-1810 y HE-1810V, que son de barra
+  { requiere: ['teflon', 'ball'], requiereAlt: { teflon: _ALT_TEFLON, ball: _ALT_BALL }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31111-A', '31111-T', '31125-A', '31125-T', '31130-A', '31130-T', '31143-A', '31143-T', '31150-A', '31150-T'], /^attache\s+he(?![- ]?1810(?!\d))[- ]?\d/); } },
+  // Macho / Macho Perno para ball attach ("perno" es opcional; va antes que el grupo de pernos)
+  { requiere: ['macho', 'ball'], requiereAlt: { macho: ['machos', 'machoperno', 'machopernos'], ball: _ALT_BALL }, opcionales: _OPC_ATTACHE,
+    skus: ['31107', '31124', '31142'] },
+  // Perno para ball attach → RE-18P
+  { requiere: ['perno', 'ball'], requiereAlt: { perno: ['pernos'], ball: _ALT_BALL }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31110'], /^attache\s+re[- ]?18\s*p\b/); } },
+  // Barra ancha / repuesto de barra ancha → RE-18B
+  { requiere: ['barra', 'ancha'], requiereAlt: { barra: ['barras'], ancha: _ALT_ANCHA }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31108'], /^attache\s+re[- ]?18\s*b\b/); } },
+  // Barra gota / repuesto de barra gota → RE-18BG
+  { requiere: ['barra', 'gota'], requiereAlt: { barra: ['barras'], gota: _ALT_GOTA }, opcionales: _OPC_ATTACHE,
+    get skus(){ return _skusAttache(['31109'], /^attache\s+re[- ]?18\s*bg\b/); } },
+  // "Navecilla (para horno)" → Base Nido de Abeja c/ Pines Cerámicos / Metálicos. Si algún día hay un
+  // producto que se llame "Navecilla…" también aparece acá. ("horno" es opcional: si viene escrito no filtra.)
+  // "Navecilla cerámica / metálica" eligen una sola de las dos (el nombre dice "Cerámicos" / "Metálicos")
+  { requiere: ['navecilla', 'ceramica'], requiereAlt: { navecilla: _ALT_NAVECILLA, ceramica: ['ceramicas', 'ceramico', 'ceramicos'] },
+    opcionales: ['horno', 'hornos', 'pin', 'pines'], skus: ['31692'] },
+  { requiere: ['navecilla', 'metalica'], requiereAlt: { navecilla: _ALT_NAVECILLA, metalica: ['metalicas', 'metalico', 'metalicos', 'metal'] },
+    opcionales: ['horno', 'hornos', 'pin', 'pines'], skus: ['31690'] },
+  { requiere: ['navecilla'], requiereAlt: { navecilla: _ALT_NAVECILLA },
+    opcionales: ['horno', 'hornos'],
+    get skus(){ return _skusAttache(['31692', '31690'], /^base\s+nido\s+de\s+abeja\b|navecilla/); } },
+  // "Taza / tasa (de) goma" → Taza Siliconada Nacional. Si hay productos que se llamen "Taza de Goma…" también aparecen.
+  { requiere: ['taza', 'goma'], requiereAlt: { taza: ['tazas', 'tasa', 'tasas'], goma: ['gomas'] },
+    get skus(){ return _skusAttache(['68628', '68629', '68626-1', '68626-2', '68626-3', '68626-4', '68626-5'], /^tazas?\s+(?:de\s+)?(?:goma|siliconada\s+nacional)\b/); } },
+  // Ceras para modelar / encerar / caracterizar y "cera renfert". Un color escrito ("cera para modelar azul")
+  // filtra por el nombre del producto o por el final del SKU (-AZU, -VE, -BL…).
+  { requiere: ['cera', 'modelar'],
+    requiereAlt: { cera: ['ceras', 'cerade', 'cerapara'], modelar: ['modelado', 'modelados', 'encerado', 'encerados', 'encerar', 'caracterizar', 'caracterizacion', 'caracterizado', 'renfert'] },
+    coincide: _coincideColorCera,
+    skus: ['34258', '34258-F', '34232-ROJ', '61302-F', '61302', '34252-CER', '34231', '34231-ROJ', '34210-100', '34210-200', '34258-BA', '34232-AZU', '34231-AZU', '34250-AZ', '34212-100', '34209-200', '34209-100', '61358-AZ', '34257', '34257-BA', '34257-F', '34231-VER', '34250-VE', '61358-V', '34250-BL', '34232-BEI', '34250-BE', '34231-MAR', '61358-M', '34252-MAR', '34256', '34256-BA', '34256-F', '34250-GR', '34250-AM', '34251'] },
+  // "Pigmentos (para) porcelana / CZR / zirconio / Noritake" → Paste Stain CZR, Glaze FC y líquidos de stain.
+  // Con "pigmento" más cualquiera de esas palabras alcanza, y ninguna filtra la lista.
+  { requiere: ['pigmento', 'porcelana'],
+    requiereAlt: { pigmento: ['pigmentos', 'pigmentacion', 'pigmentar', 'pigmentante', 'pigmentantes', 'pigmetos', 'stain', 'stains', 'maquillaje', 'maquillajes'],
+      porcelana: ['porcelanas', 'czr', 'noritake', 'noritaque', 'zirconio', 'zirconios', 'zirconia', 'zirconias', 'circonio', 'circonia', 'zir', 'zr'] },
+    get skus(){ return _skusAttache(['33739-A', '33739-B', '33739-C', '33739-C1', '33739-C2', '33739-D', '33739-DG', '33739-RB', '33739-SP', '33739-W', '33739-EB', '33739-GB', '33739-LG', '33737', '33675', '33403-L'], /^porcelana\s+czr\s+fc\s+paste\s+stain\b/); } },
+  // "Separador (de/para) porcelana" / "Líquido separador" → Die Lube (va antes que los otros grupos de líquidos)
+  { requiere: ['separador', 'porcelana'], requiereAlt: { separador: ['separadores'], porcelana: ['porcelanas', 'liquido', 'liquidos', 'liq'] },
+    get skus(){ return _skusAttache(['34223', '34225', '34224'], /\bdie\s*lube\b/); } },
+  // "Líquido (para/de) glaze" → líquidos de stain EX3 y C-MIX
+  { requiere: ['liquido', 'glaze'], requiereAlt: { liquido: ['liquidos', 'liq'], glaze: ['glazes', 'glase', 'glaseado', 'glaseador'] },
+    skus: ['33403-L', '33675'] },
+  // "Líquido (para/de) porcelana / modelar / Noritake" → líquidos Modelar/Forming, también los que se agreguen después
+  { requiere: ['liquido', 'porcelana'],
+    requiereAlt: { liquido: ['liquidos', 'liq'], porcelana: ['porcelanas', 'noritake', 'noritaque', 'modelar', 'modelado', 'modeling', 'forming', 'formador'] },
+    get skus(){ return _skusAttache(['33674-100', '33678', '30674-100', '30674'], /\bliquido\s+p\/\s*modelar\b|\bmodeling\s*\/\s*forming\b/); } },
 ];
-const _STOPWORDS_BUSQUEDA = new Set(['para','de','del','la','el','los','las','p','y','o','con','sin']);
+function _skusPeliculasRx(){
+  return (allData || []).filter(it => /^peliculas?\s+radiograficas?\b/.test(String(it.Nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase())).map(it => String(it.SKU || '').trim());
+}
+const _STOPWORDS_BUSQUEDA = new Set(['para','de','del','la','el','los','las','p','y','o','con','sin','en','al','a']);
 
 function _buscarGrupoEspecial(tokens){
   for (const grupo of GRUPOS_ESPECIALES) {
@@ -12442,7 +12637,11 @@ function _buscarGrupoEspecial(tokens){
       alternativas.forEach(a => conceptoTokens.add(a));
       return alternativas.some(a => tokens.includes(a));
     });
-    if (cumple) return { skus: grupo.skus, conceptoTokens };
+    if (cumple) {
+      (grupo.opcionales || []).forEach(a => conceptoTokens.add(a));
+      // En un Set: algunas listas se arman recorriendo todo el catálogo, y acá se consulta por cada fila
+      return { skus: new Set(grupo.skus.map(x => String(x).trim())), conceptoTokens, coincide: grupo.coincide };
+    }
   }
   return null;
 }
@@ -12463,8 +12662,13 @@ function _candidatosSinonimos(t) {
   return candidatos;
 }
 
+// "Composites" es lo mismo que "composite", y junto a composite "fluido/a" es lo mismo que "flow".
+function _normBusquedaComposite(q){
+  const t = String(q || '').replace(/\bc[oó]mposites\b/g, 'composite');
+  return /\bc[oó]mposite\b/.test(t) ? t.replace(/\bfluid[oa]s?\b/g, 'flow') : t;
+}
 function applyFilters() {
-  const q = $("search").value.toLowerCase().trim();
+  const q = _normBusquedaComposite($("search").value.toLowerCase().trim());
 
   // ── Atajo: SKU manual reservado (885–889) → fila editable para un producto que no está en la lista ──
   if (MANUAL_SKUS.includes(q) && !allData.some(r => String(r.SKU||'').trim().toLowerCase() === q)) {
@@ -12486,14 +12690,13 @@ function applyFilters() {
   const marcaSel = $("marca-filter").value;
   const ofertaSel = $("oferta-filter").value;
   const tokens = q.split(/\s+/).filter(Boolean);
-  const _sinAcentosTok = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const tokensSinAcentos = tokens.map(_sinAcentosTok);
-  const _grupoActivo = _buscarGrupoEspecial(tokensSinAcentos);
-  const _tokensRestantes = _grupoActivo ? tokens.filter(t => {
-    const tSinAcentos = _sinAcentosTok(t);
-    const tSinPunt = tSinAcentos.replace(/[-/.]/g, '');
-    return !_grupoActivo.conceptoTokens.has(tSinAcentos) && !_STOPWORDS_BUSQUEDA.has(tSinPunt);
-  }) : [];
+  // Para los atajos, "p/barra" o "ball-attach" cuentan como dos palabras (las medidas como "1.8" quedan enteras).
+  const tokensGrupo = q.split(/\s+/).flatMap(t => /[a-z]/.test(t) ? t.split(/[-\/;:()]+|(?<!\d)[.,]|[.,](?!\d)/) : [t]).filter(Boolean).map(_sinPuntGlobal);
+  const _grupoActivo = _buscarGrupoEspecial(tokensGrupo);
+  const _tokensRestantes = _grupoActivo ? tokensGrupo.filter(t => !_grupoActivo.conceptoTokens.has(t) && !_STOPWORDS_BUSQUEDA.has(t)) : [];
+  // "Composite" no muestra los Flow: esos aparecen solo si la búsqueda dice "flow" ("composite flow").
+  const tokensNorm = tokens.map(_sinPuntGlobal);
+  const _ocultarFlow = tokensNorm.some(t => /^composites?$/.test(t)) && !tokensNorm.some(t => /^(?:flow|fluid)/.test(t));
   filtered = allData.filter(r => {
     // Excluir productos restringidos
     const rKey = String(r.SKU || '') || String(r.Nombre || '');
@@ -12502,17 +12705,19 @@ function applyFilters() {
       const idx = _getSearchIdx(r);
       const fields = [idx[0], idx[1], idx[2]];
       const fieldsSinPunt = [idx[3], idx[4], idx[5]];
-      const _sinPunt = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[-/.]/g, "");
+      const _sinPunt = _sinPuntGlobal;
+      if (_ocultarFlow && idx[4].includes('flow')) return false;
 
       // Grupo especial (ej: acrílico/polímero + rosa, o adhesivo + composite): abre toda la
       // lista fija de esa familia, y las palabras que sobran filtran adentro.
       if (_grupoActivo) {
         const skuR = String(r.SKU || '').trim();
-        if (!_grupoActivo.skus.includes(skuR)) return false;
+        if (!_grupoActivo.skus.has(skuR)) return false;
         if (_tokensRestantes.length) {
           const okRestantes = _tokensRestantes.every(t => {
             const candidatos = _candidatosSinonimos(t);
-            return candidatos.some(c => fields.some(f => f.includes(c)) || fieldsSinPunt.some(f => f.includes(_sinPunt(c))));
+            return candidatos.some(c => fields.some(f => f.includes(c)) || fieldsSinPunt.some(f => f.includes(_sinPunt(c)))) ||
+              (_grupoActivo.coincide && _grupoActivo.coincide(t, r));
           });
           if (!okRestantes) return false;
         }
@@ -12637,6 +12842,13 @@ function applyFilters() {
       }
       return priceSort === "asc" ? va - vb : vb - va;
     });
+  }
+  // Con una búsqueda escrita, primero van los productos cuyo nombre EMPIEZA con la primera palabra buscada
+  // Si se eligió ordenar por una columna, por precio o por "frecuentes", manda ese orden.
+  const _primeraPalabra = tokensNorm.find(t => !_STOPWORDS_BUSQUEDA.has(t));
+  if (_primeraPalabra && !sortField && !["frecuentes", "asc", "desc"].includes(priceSort)) {
+    const _empieza = r => _getSearchIdx(r)[4].startsWith(_primeraPalabra) ? 0 : 1;
+    filtered.sort((a, b) => _empieza(a) - _empieza(b));
   }
   // ── Inyectar SKUs personalizados de Ofertas ──
   // Se agregan siempre al principio (destacados) y se filtran por la búsqueda actual
