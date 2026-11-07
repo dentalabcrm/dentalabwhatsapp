@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.342</title>
+<title>Dentalab Whatsapp CRM · v25.343</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -9310,7 +9310,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </select>
       <span class="lista-hint">Seleccioná la lista antes de usar ＋</span>
     </div>
-    <span class="results-count" id="results-count"></span>
+    <span class="results-count" id="results-count"></span><label title="Si lo que escribís no encuentra nada, busca la palabra más parecida (ej.: anestecia → anestesia)" style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;margin-left:10px;cursor:pointer;opacity:.85"><input type="checkbox" id="chk-ac-lp" checked onchange="_acToggleCRM(this.checked)"> ✨ Autocorrector</label><div id="ac-lp-nota" style="display:none"></div>
   </div>
 
   <div id="select-page-bar" style="display:flex;align-items:center;justify-content:space-between;padding:4px 0 4px 0;gap:8px;">
@@ -12962,7 +12962,21 @@ function _normBusquedaComposite(q){
   const t = String(q || '').replace(/\bc[oó]mposites\b/g, 'composite');
   return /\bc[oó]mposite\b/.test(t) ? t.replace(/\bfluid[oa]s?\b/g, 'flow') : t;
 }
+// Autocorrector: si la búsqueda de Lista de Precios no encuentra nada, se reintenta con la palabra corregida
 function applyFilters() {
+  _applyFiltersBase();
+  const inp = $("search"); const raw = inp ? inp.value : ''; const txt = raw.trim();
+  if (typeof window._acPintarNotaLista === 'function') window._acPintarNotaLista(null);
+  if (window._acIgnorarLista !== null && window._acIgnorarLista !== txt) window._acIgnorarLista = null;
+  if (!txt || (filtered && filtered.length) || typeof window._acCorregirTexto !== 'function' || !window._acActivo() || window._acIgnorarLista === txt) return;
+  const corr = window._acCorregirTexto(txt, window._acVocabLista());
+  if (!corr) return;
+  inp.value = corr;
+  try { _applyFiltersBase(); } finally { inp.value = raw; }
+  if (filtered && filtered.length) window._acPintarNotaLista({ orig: txt, corr });
+  else _applyFiltersBase();
+}
+function _applyFiltersBase() {
   const q = _normBusquedaComposite($("search").value.toLowerCase().trim());
 
   // ── Atajo: SKU manual reservado (885–889) → fila editable para un producto que no está en la lista ──
@@ -43801,7 +43815,7 @@ function fltEliminar(id) {
     if (tab === 'clientes')  renderClientesPanel();
   }
 
-  function buildResults(q) {
+  function buildResults(q, _acInfo) {
     if (!q || q.length < 2) { results.style.display = 'none'; return; }
     const hits = [];
 
@@ -43866,6 +43880,10 @@ function fltEliminar(id) {
       }
     } catch(e){}
 
+    if (!hits.length && !_acInfo && typeof window._acCorregirTexto === 'function' && window._acActivo()) {
+      const _c = window._acCorregirTexto(q, window._acVocabGlobal());
+      if (_c && _c !== q) return buildResults(_c, { orig: q });
+    }
     if (!hits.length) {
       results.innerHTML = `<div style="padding:20px;text-align:center;color:#64748b;font-size:13px;">Sin resultados para "<strong style="color:#94a3b8">${escHtml(q)}</strong>"</div>`;
       results.style.display = 'block';
@@ -43873,7 +43891,7 @@ function fltEliminar(id) {
     }
 
     const MAX = 10;
-    results.innerHTML = hits.slice(0, MAX).map((h, i) => `
+    results.innerHTML = (_acInfo ? `<div style="padding:8px 16px;font-size:12px;color:#facc15;background:rgba(250,204,21,.10);border-bottom:1px solid rgba(255,255,255,.06);">✨ No se encontró <b>"${escHtml(_acInfo.orig)}"</b> — mostrando resultados para <b>"${escHtml(q)}"</b></div>` : '') + hits.slice(0, MAX).map((h, i) => `
       <div class="gsearch-item" data-idx="${i}" style="
         display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;
         border-bottom:1px solid rgba(255,255,255,.05);transition:background .1s;
@@ -45124,7 +45142,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.342';
+  const LATEST_VERSION = 'v25.343';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45137,6 +45155,15 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.343',
+      fecha: '2026-11-07',
+      titulo: 'Autocorrector en los buscadores',
+      items: [
+        { tipo: 'nuevo', texto: 'Autocorrector en el buscador de Lista de Precios y en el buscador general (Ctrl+K): si lo que se escribió no encuentra nada, busca la palabra más parecida que exista en los productos, marcas o clientes (ej.: "anestecia" → anestesia, "clamo" → clamp, "compocite" → composite) y avisa "Mostrando resultados para…". Si lo escrito ya encuentra algo, no se toca.' },
+        { tipo: 'nuevo', texto: 'Se puede desactivar con la casilla "✨ Autocorrector" junto al contador de resultados de Lista de Precios (o desde el aviso). "Buscar exactamente" muestra lo que se escribió, sin corregir.' },
+      ]
+    },
     {
       version: 'v25.342',
       fecha: '2026-11-07',
@@ -62268,6 +62295,104 @@ function _registrarUsoFrecuente(sku, nombre) {
 </div>
 
 
+<script>
+// ══════════════════════════════════════════════════════
+//  AUTOCORRECTOR DE BÚSQUEDA (se puede desactivar)
+//  Si lo escrito no encuentra nada, prueba con la palabra más parecida que exista en los
+//  productos / marcas / clientes y avisa "Mostrando resultados para…". La preferencia se guarda
+//  en este navegador (dentalab_autocorrector = '0' desactivado).
+// ══════════════════════════════════════════════════════
+(function(){
+  if (window._acCorregirTexto) return;
+  const LS = 'dentalab_autocorrector';
+  window._acActivo = () => { try { return localStorage.getItem(LS) !== '0'; } catch (e) { return true; } };
+  window._acSetActivo = on => { try { localStorage.setItem(LS, on ? '1' : '0'); } catch (e) {} };
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  function dist(a, b) { // Damerau-Levenshtein (transposiciones incluidas: "anesetsia")
+    const m = a.length, n = b.length, d = [];
+    for (let i = 0; i <= m; i++) { d[i] = [i]; }
+    for (let j = 0; j <= n; j++) d[0][j] = j;
+    for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) {
+      const c = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+    return d[m][n];
+  }
+  const cache = {};
+  // getTexts(add) llama add(texto) por cada texto del que se aprenden palabras; sig cambia cuando cambian los datos
+  window._acVocab = (key, sig, getTexts) => {
+    let c = cache[key];
+    if (c && c.sig === sig) return c;
+    const f = new Map();
+    try { getTexts(t => { norm(t).split(/[^a-z0-9]+/).forEach(w => { if (w.length >= 3 && /[a-z]/.test(w) && !/\d/.test(w)) f.set(w, (f.get(w) || 0) + 1); }); }); } catch (e) {}
+    c = { sig, f, blob: ' ' + [...f.keys()].join(' ') + ' ' };
+    cache[key] = c;
+    return c;
+  };
+  function corrPalabra(t, V) {
+    if (t.length < 3 || /\d/.test(t) || V.blob.includes(t)) return t; // ya existe (o es medida/código): no se toca
+    const max = t.length <= 4 ? 1.5 : 2.5;
+    let best = null, bd = 99, bf = 0;
+    for (const [w, fq] of V.f) {
+      if (w.length < t.length - 2) continue;
+      let d = Math.abs(w.length - t.length) <= 2 ? dist(t, w) : 99;
+      if (w.length > t.length) { const p = dist(t, w.slice(0, t.length)) + 0.5; if (p < d) d = p; } // palabra a medio escribir (cuenta un poco menos que la palabra entera)
+      if (d <= max && (d < bd || (d === bd && fq > bf))) { best = w; bd = d; bf = fq; }
+    }
+    return best || t;
+  }
+  window._acCorregirTexto = (texto, V) => {
+    if (!V || !V.f.size) return null;
+    const parts = norm(texto).trim().split(/\s+/).filter(Boolean);
+    let cambio = false;
+    const out = parts.map(p => { const c = corrPalabra(p, V); if (c !== p) cambio = true; return c; });
+    return cambio ? out.join(' ') : null;
+  };
+  window._acNotaHTML = (orig, corr, onExacto, onOff) => {
+    const e = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    return `✨ No se encontró <b>"${e(orig)}"</b> — mostrando resultados para <b>"${e(corr)}"</b>` +
+      (onExacto ? ` · <a href="#" onclick="${onExacto};return false" style="color:inherit;text-decoration:underline">Buscar exactamente "${e(orig)}"</a>` : '') +
+      (onOff ? ` · <a href="#" onclick="${onOff};return false" style="color:inherit;opacity:.8;text-decoration:underline">Desactivar autocorrector</a>` : '');
+  };
+})();
+
+// ── Autocorrector en el CRM: Lista de Precios y buscador general (Ctrl+K) ──
+(function(){
+  window._acVocabLista = () => {
+    const d = (typeof allData !== 'undefined' && Array.isArray(allData)) ? allData : [];
+    return window._acVocab('lista', d.length, add => d.forEach(r => { add(r.Nombre); add(r.Proveedor); }));
+  };
+  window._acVocabGlobal = () => {
+    const d = (typeof allData !== 'undefined' && Array.isArray(allData)) ? allData : [];
+    const cl = (typeof cliClientes !== 'undefined' && Array.isArray(cliClientes)) ? cliClientes : [];
+    let env = []; try { env = (typeof loadEnvios === 'function' ? loadEnvios() : []) || []; } catch (e) {}
+    return window._acVocab('global', d.length + '|' + cl.length + '|' + env.length, add => {
+      d.forEach(r => { add(r.Nombre); add(r.Proveedor); });
+      cl.forEach(c => add(c.nombre));
+      env.forEach(e => add(e.clienteNombre));
+    });
+  };
+  window._acIgnorarLista = null;
+  window._acPintarNotaLista = info => {
+    const el = document.getElementById('ac-lp-nota'); if (!el) return;
+    if (!info) { el.innerHTML = ''; el.style.display = 'none'; return; }
+    el.style.cssText = 'display:block;margin:6px 0 0;padding:8px 12px;border-radius:8px;background:rgba(250,204,21,.14);border:1px solid rgba(250,204,21,.45);color:#facc15;font-size:12.5px;line-height:1.45;';
+    if (document.body.classList.contains('light-mode')) { el.style.color = '#713f12'; el.style.background = '#fef9c3'; }
+    el.innerHTML = window._acNotaHTML(info.orig, info.corr, '_acBuscarExactoLista()', '_acToggleCRM(false)');
+  };
+  window._acBuscarExactoLista = () => { const i = document.getElementById('search'); window._acIgnorarLista = i ? i.value.trim() : null; applyFilters(); };
+  window._acToggleCRM = on => {
+    window._acSetActivo(on);
+    const c = document.getElementById('chk-ac-lp'); if (c) c.checked = on;
+    try { applyFilters(); } catch (e) {}
+    if (typeof showToast === 'function') showToast(on ? '✨ Autocorrector activado' : 'Autocorrector desactivado', 'ok');
+  };
+  const init = () => { const c = document.getElementById('chk-ac-lp'); if (c) c.checked = window._acActivo(); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+
+</script>
 <script>
 
 // ══════════════════════════════════════════════════════
