@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.319</title>
+<title>Dentalab Whatsapp CRM · v25.320</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -5867,6 +5867,130 @@
 </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>if(typeof pdfjsLib!=="undefined")pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";</script>
+<style>
+
+  /* ══════════ ESTADÍSTICA WHATSAPP (pestaña 📊 Estadística) ══════════ */
+  #panel-estadistica { --est-ok:#22c55e; --est-warn:#f59e0b; --est-bad:#ef4444; --est-acc:var(--green); }
+  body.light-mode #panel-estadistica { --est-ok:#15803d; --est-warn:#b45309; --est-bad:#b91c1c; }
+  .est-wrap { padding:20px 28px 60px; display:grid; gap:18px; font-family:'DM Sans',sans-serif; color:var(--text); }
+  .est-top { display:flex; flex-wrap:wrap; align-items:center; gap:12px 18px; justify-content:space-between; }
+  .est-top h2 { margin:0; font-size:20px; font-weight:800; color:var(--text); }
+  .est-top p { margin:2px 0 0; font-size:12.5px; color:var(--text3); }
+  .est-month { display:flex; align-items:center; gap:4px; background:var(--surface); border:1px solid var(--border2); border-radius:999px; padding:4px; }
+  .est-month button { border:0; background:transparent; color:var(--text); width:32px; height:32px; border-radius:999px; font-size:18px; cursor:pointer; }
+  .est-month button:hover { background:var(--surface2); }
+  .est-month span { min-width:150px; text-align:center; font-weight:800; text-transform:capitalize; color:var(--text); }
+  .est-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .est-btn { border:1px solid var(--border2); background:var(--surface); color:var(--text); padding:7px 14px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:'DM Sans',sans-serif; }
+  .est-btn:hover { border-color:var(--est-acc); }
+  .est-btn.primary { background:var(--est-acc); border-color:var(--est-acc); color:#fff; }
+  .est-btn.ghost { background:transparent; }
+  .est-notice { padding:10px 14px; border-radius:8px; background:rgba(245,158,11,.12); color:var(--est-warn); font-size:13px; border:1px solid rgba(245,158,11,.3); display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .est-tiles { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+  .est-tile { background:var(--surface); border:1px solid var(--border2); border-radius:10px; padding:14px 16px; display:grid; gap:4px; min-width:0; }
+  .est-tile .l { font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--text3); font-weight:700; }
+  .est-tile .b { font-family:'DM Mono',ui-monospace,monospace; font-size:27px; font-weight:600; line-height:1.1; color:var(--text); }
+  .est-tile .s { font-size:12px; color:var(--text3); }
+  .est-tile.hero { background:linear-gradient(135deg,#10b981,#059669); border-color:#059669; }
+  .est-tile.hero .l, .est-tile.hero .b, .est-tile.hero .s { color:#fff; }
+  .est-pill { display:inline-flex; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  .est-pill.good { background:rgba(34,197,94,.15); color:var(--est-ok); }
+  .est-pill.bad { background:rgba(239,68,68,.15); color:var(--est-bad); }
+  .est-pill.reg { background:rgba(245,158,11,.15); color:var(--est-warn); }
+  .est-tile.hero .est-pill { background:rgba(255,255,255,.22); color:#fff; }
+  .est-facts { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:12.5px; color:var(--text3); }
+  .est-facts b { color:var(--text); }
+  .est-sheet { background:var(--surface); border:1px solid var(--border2); border-radius:12px; overflow:hidden; }
+  .est-tw { overflow-x:auto; }
+  table.est-grid { border-collapse:separate; border-spacing:0; width:100%; min-width:640px; }
+  .est-grid th, .est-grid td { border-bottom:1px solid var(--border2); padding:0; text-align:center; }
+  .est-grid thead th { background:var(--surface2); color:var(--text2); font-size:11px; letter-spacing:.06em; text-transform:uppercase; font-weight:800; padding:10px 8px; position:sticky; top:0; z-index:1; }
+  .est-grid thead th small { display:block; font-size:10px; text-transform:none; letter-spacing:0; font-weight:500; color:var(--text3); }
+  .est-grid thead th:first-child { text-align:left; padding-left:14px; width:180px; }
+  .est-grid tr.wk td { border-top:2px solid var(--border); }
+  .est-day { width:100%; border:0; background:transparent; color:var(--text); text-align:left; padding:8px 14px; font-weight:700; white-space:nowrap; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:13px; }
+  .est-day:hover { color:var(--est-acc); }
+  .est-tag { font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; margin-left:6px; color:var(--est-acc); }
+  .est-tag.note { color:var(--est-warn); }
+  .est-cell { width:100%; border:0; background:transparent; color:var(--text); padding:8px 6px; font-family:'DM Mono',ui-monospace,monospace; font-size:13.5px; min-height:36px; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer; }
+  .est-cell:hover { background:rgba(16,185,129,.12); }
+  .est-cell.empty { color:var(--text3); }
+  .est-cell.auto { font-weight:800; }
+  .est-dot { width:7px; height:7px; border-radius:50%; flex:none; display:inline-block; }
+  .est-dot.ok { background:var(--est-ok); } .est-dot.partial { background:var(--est-warn); } .est-dot.over { background:var(--est-bad); }
+  .est-grid td.off { background:var(--surface2); color:var(--text3); font-size:11px; font-weight:800; letter-spacing:.08em; }
+  .est-grid tr.offrow .est-day { color:var(--text3); }
+  .est-grid tr.offrow td:first-child { background:var(--surface2); }
+  .est-grid tfoot th, .est-grid tfoot td { background:var(--surface2); font-size:12.5px; padding:8px 6px; font-family:'DM Mono',ui-monospace,monospace; color:var(--text); }
+  .est-grid tfoot th { text-align:left; padding-left:14px; font-family:'DM Sans',sans-serif; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--text3); white-space:nowrap; }
+  .est-grid tfoot tr.tot th, .est-grid tfoot tr.tot td { background:linear-gradient(135deg,#10b981,#059669); color:#fff; font-weight:800; }
+  .est-legend { display:flex; flex-wrap:wrap; gap:6px 16px; padding:10px 14px; font-size:12px; color:var(--text3); border-top:1px solid var(--border2); }
+  .est-legend span { display:inline-flex; align-items:center; gap:6px; }
+  .est-detail h3 { margin:0 0 2px; font-size:16px; font-weight:800; color:var(--text); }
+  .est-detail > p { margin:0 0 12px; font-size:12.5px; color:var(--text3); }
+  .est-dgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,500px),1fr)); gap:14px; }
+  .est-card { background:var(--surface); border:1px solid var(--border2); border-radius:12px; padding:14px 16px; display:grid; gap:12px; min-width:0; }
+  .est-card h4 { margin:0; font-size:14.5px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; color:var(--text); }
+  .est-card h4 span { font-size:12px; color:var(--text3); font-weight:500; }
+  .est-gt { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--text3); font-weight:800; margin-bottom:4px; }
+  .est-dt { overflow-x:auto; }
+  .est-dt table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:420px; }
+  .est-dt th { font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--text3); font-weight:700; text-align:right; padding:4px 6px; border-bottom:1px solid var(--border2); }
+  .est-dt td { padding:6px; border-bottom:1px solid var(--border2); text-align:right; font-family:'DM Mono',ui-monospace,monospace; color:var(--text); }
+  .est-dt th:first-child, .est-dt td:first-child { text-align:left; }
+  .est-dt td:first-child { font-family:'DM Sans',sans-serif; font-weight:700; }
+  .est-dt tr.un td { color:var(--text3); font-style:italic; }
+  .est-bar { display:inline-block; height:6px; border-radius:3px; vertical-align:middle; margin-right:6px; }
+  .est-empty { margin:0; font-size:12.5px; color:var(--text3); }
+  .est-scrim[hidden], .est-drawer[hidden] { display:none !important; }
+  .est-scrim { position:fixed; inset:0; background:rgba(2,8,20,.55); z-index:10040; }
+  .est-drawer { position:fixed; top:0; right:0; bottom:0; width:min(440px,100%); background:var(--surface); border-left:1px solid var(--border2); z-index:10041; box-shadow:-20px 0 60px rgba(0,0,0,.35); display:flex; flex-direction:column; font-family:'DM Sans',sans-serif; color:var(--text); }
+  .est-dh { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:18px 20px 12px; border-bottom:1px solid var(--border2); }
+  .est-dh p { margin:0; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--est-acc); font-weight:800; }
+  .est-dh h3 { margin:2px 0 0; font-size:19px; font-weight:800; color:var(--text); }
+  .est-x { border:0; background:var(--surface2); color:var(--text); width:34px; height:34px; border-radius:8px; font-size:20px; cursor:pointer; }
+  .est-db { flex:1; overflow-y:auto; padding:16px 20px; display:grid; gap:18px; align-content:start; margin:0; }
+  .est-df { border-top:1px solid var(--border2); padding:12px 20px; display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap; }
+  .est-df .msg { margin-right:auto; font-size:12px; color:var(--text3); }
+  .est-tb { background:var(--surface2); border-radius:10px; padding:14px; display:grid; gap:8px; }
+  .est-tb label, .est-lbl { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--text3); }
+  .est-step { display:flex; align-items:center; gap:6px; }
+  .est-step button { width:34px; height:34px; border-radius:8px; border:1px solid var(--border2); background:var(--surface); color:var(--text); font-size:17px; flex:none; cursor:pointer; }
+  .est-step input { width:84px; height:34px; border:1px solid var(--border2); border-radius:8px; background:var(--bg); color:var(--text); text-align:center; font-family:'DM Mono',ui-monospace,monospace; font-size:15px; }
+  .est-step.big input { width:120px; height:44px; font-size:22px; font-weight:700; }
+  .est-step.big button { width:44px; height:44px; }
+  .est-step input[readonly] { background:transparent; border-color:transparent; }
+  .est-auto { font-family:'DM Mono',ui-monospace,monospace; font-size:13px; color:var(--text3); }
+  .est-auto b { color:var(--text); font-size:22px; }
+  .est-split { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .est-group { display:grid; gap:8px; }
+  .est-gh { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .est-gh h4 { margin:0; font-size:14px; font-weight:800; color:var(--text); }
+  .est-gs { font-size:12px; font-weight:700; font-family:'DM Mono',ui-monospace,monospace; }
+  .est-gs.ok { color:var(--est-ok); } .est-gs.partial { color:var(--est-warn); } .est-gs.over { color:var(--est-bad); } .est-gs.none { color:var(--text3); }
+  .est-meter { height:6px; border-radius:3px; background:var(--surface2); overflow:hidden; display:flex; }
+  .est-meter i { display:block; height:100%; }
+  .est-orow { display:flex; align-items:center; gap:8px; justify-content:space-between; padding:6px 0; border-bottom:1px dashed var(--border2); }
+  .est-ol { flex:1; min-width:0; font-weight:600; display:flex; align-items:center; gap:8px; color:var(--text); font-size:13px; }
+  .est-sw { width:10px; height:10px; border-radius:3px; flex:none; }
+  .est-rest { border:0; background:transparent; color:var(--est-acc); font-size:11.5px; font-weight:800; padding:4px 6px; border-radius:6px; cursor:pointer; }
+  .est-rest:hover { background:rgba(16,185,129,.12); }
+  .est-add { display:flex; gap:6px; }
+  .est-in { flex:1; min-width:0; height:32px; border:1px solid var(--border2); border-radius:8px; background:var(--bg); color:var(--text); padding:0 10px; font:inherit; font-size:13px; }
+  .est-link { border:0; background:transparent; color:var(--est-acc); font-weight:800; font-size:12.5px; padding:4px 0; text-align:left; cursor:pointer; font-family:'DM Sans',sans-serif; }
+  .est-radios { display:grid; gap:8px; }
+  .est-radios label { display:flex; gap:10px; align-items:center; padding:10px 12px; border:1px solid var(--border2); border-radius:8px; font-weight:700; cursor:pointer; color:var(--text); }
+  .est-radios label:has(input:checked) { border-color:var(--est-acc); background:rgba(16,185,129,.1); }
+  .est-ta { width:100%; border:1px solid var(--border2); border-radius:8px; background:var(--bg); color:var(--text); padding:8px 10px; font:inherit; font-size:13px; resize:vertical; box-sizing:border-box; }
+  .est-cfgm { border:1px solid var(--border2); border-radius:10px; padding:12px; display:grid; gap:10px; }
+  .est-cfgg { background:var(--surface2); border-radius:8px; padding:10px; display:grid; gap:6px; }
+  .est-row { display:flex; gap:6px; align-items:center; }
+  .est-del { border:0; background:transparent; color:var(--est-bad); width:30px; height:30px; border-radius:6px; font-size:16px; flex:none; cursor:pointer; }
+  .est-small { font-size:12px; color:var(--text3); margin:0; }
+  .est-who { font-size:11px; color:var(--text3); }
+  @media (max-width:900px){ .est-tiles { grid-template-columns:repeat(2,minmax(0,1fr)); } .est-wrap { padding:16px 14px 50px; } }
+
+</style>
 </head>
 <body>
 <div id="file-protocol-warning" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999999;background:#dc2626;color:#fff;padding:12px 20px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.3);">
@@ -6127,6 +6251,9 @@ if (location.protocol === 'file:') {
   <button class="tab-btn" data-tab="faltante" id="tab-faltante">
     🔍 Mercadería Faltante
     <span class="tab-badge" id="faltante-badge" style="background:#f97316;display:none">0</span>
+  </button>
+  <button class="tab-btn" data-tab="estadistica" id="tab-estadistica">
+    📊 Estadística
   </button>
   <button class="tab-btn" data-tab="clientes" id="tab-clientes">
     👥 Clientes
@@ -9350,6 +9477,11 @@ document.addEventListener('DOMContentLoaded', () => {
   <div id="panel-restringidos-inner"></div>
 </div>
 
+<!-- ════════ PANEL: ESTADÍSTICA WHATSAPP ════════ -->
+<div class="tab-panel" id="panel-estadistica">
+  <div id="panel-estadistica-inner"><!-- renderizado por JS (renderEstadisticaPanel) --></div>
+</div>
+
 <!-- ════════ PANEL: MERCADERÍA FALTANTE ════════ -->
 <div class="tab-panel" id="panel-faltante">
   <div style="padding:24px 32px;" id="panel-faltante-inner">
@@ -10270,6 +10402,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (tab === 'novedades') renderNovedadesPanel();
     if (tab === 'restringidos') renderRestringidosPanel();
     if (tab === 'faltante') renderFaltantePanel();
+    if (tab === 'estadistica' && typeof renderEstadisticaPanel === 'function') renderEstadisticaPanel();
     if (tab === 'clientes') { cliFilter = 'vip'; renderClientesPanel(); }
     if (tab === 'chat') { chatMarkAllRead(); renderChatInputArea(); }
     if (tab === 'mail') { mailPanelInit(); }
@@ -39724,6 +39857,7 @@ const ALL_TABS = [
   { id:'novedades',        label:'Novedades',               icon:'🆕', desc:'Novedades de lista de precios' },
   { id:'restringidos',     label:'Restringidos',            icon:'🚫', desc:'Productos bloqueados de la lista' },
   { id:'faltante',         label:'Mercadería Faltante',     icon:'🔍', desc:'Productos pedidos por clientes sin stock',   defaultOn:true },
+  { id:'estadistica',      label:'Estadística',             icon:'📊', desc:'Estadística diaria de ventas por WhatsApp (chats, consultas, pedidos)', defaultOn:true },
   { id:'clientes',         label:'Clientes',                icon:'👥', desc:'Base de datos de clientes' },
   { id:'chat',             label:'Chat Interno',            icon:'💬', desc:'Mensajería interna del equipo',              defaultOn:true },
   { id:'mail',             label:'Mail',                    icon:'✉',  desc:'Bandeja de entrada y envío de Gmail',        defaultOn:true },
@@ -44836,7 +44970,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.319';
+  const LATEST_VERSION = 'v25.320';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -44849,6 +44983,18 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.320',
+      fecha: '2026-11-06',
+      titulo: 'Nueva pestaña 📊 Estadística: carga diaria de WhatsApp con reparto por tipo',
+      items: [
+        { tipo: 'nuevo', texto: 'Nueva pestaña "📊 Estadística" con la planilla diaria de WhatsApp: Pedidos (envíos + retiros, se calcula solo), Chats totales, Consultas, Envíos y Retiros. Se guarda en Firebase y la ven todos al instante.' },
+        { tipo: 'nuevo', texto: 'Al tocar una celda se abre un panel para cargar el total del día y repartirlo por tipo: consultas (general, sillones odontológicos…), chats (llegan con el pedido hecho / hay que orientar) y pedidos (tipo, tomado por Juan o Federico, origen). Avisa cuánto falta repartir y tiene botón "resto".' },
+        { tipo: 'nuevo', texto: 'Por mes: total, promedio diario, mínimo y máximo de cada columna, pedidos por chat y por consulta, % enviados/retirados, días récord y comparación con el mes anterior (Bueno / Regular / Malo). Debajo, el desglose del mes por cada tipo con sus porcentajes.' },
+        { tipo: 'nuevo', texto: 'Tocando el día se marca feriado / no laboral y se puede dejar una nota. "⚙ Columnas y tipos" permite renombrar, agregar o borrar tipos. "⬇ Exportar Excel" baja el mes.' },
+        { tipo: 'nuevo', texto: 'Botón "Importar historial" (solo admin) para cargar enero a noviembre 2026 desde la planilla anterior de Google Sheets.' },
+      ]
+    },
     {
       version: 'v25.319',
       fecha: '2026-10-26',
@@ -61772,6 +61918,350 @@ function _registrarUsoFrecuente(sku, nombre) {
 </div>
 
 
+<script>
+
+// ══════════════════════════════════════════════════════
+//  ESTADÍSTICA WHATSAPP — pestaña 📊 Estadística
+//  Datos en Firebase: dentalab/estadistica_wa/dias/{AAAA-MM-DD} y dentalab/estadistica_wa/config
+// ══════════════════════════════════════════════════════
+(function(){
+  const EST_FB = 'dentalab/estadistica_wa';
+  const EST_HIST = {"2026-01-01":{"status":"feriado"},"2026-01-05":{"note":"Problemas con whatsapp"},"2026-01-06":{"note":"Las etiquetas de meta se bugean por lo cual no sabemos si los datos son exactos","v":{"chats":{"t":67},"consultas":{"t":37},"envios":{"t":6},"retiros":{"t":6}}},"2026-01-07":{"v":{"chats":{"t":70},"consultas":{"t":34},"envios":{"t":6},"retiros":{"t":3}}},"2026-01-08":{"note":"Al final del dia recuperamos whatsapp web","v":{"chats":{"t":63},"consultas":{"t":2},"envios":{"t":5},"retiros":{"t":1}}},"2026-01-09":{"v":{"chats":{"t":64},"consultas":{"t":28},"envios":{"t":4},"retiros":{"t":4}}},"2026-01-10":{"v":{"chats":{"t":19},"consultas":{"t":10},"envios":{"t":1},"retiros":{"t":0}}},"2026-01-12":{"v":{"chats":{"t":78},"consultas":{"t":41},"envios":{"t":5},"retiros":{"t":2}}},"2026-01-13":{"v":{"chats":{"t":71},"consultas":{"t":33},"envios":{"t":3},"retiros":{"t":1}}},"2026-01-14":{"v":{"chats":{"t":82},"consultas":{"t":40},"envios":{"t":3},"retiros":{"t":1}}},"2026-01-15":{"v":{"chats":{"t":59},"consultas":{"t":39},"envios":{"t":1},"retiros":{"t":3}}},"2026-01-16":{"v":{"chats":{"t":50},"consultas":{"t":30},"envios":{"t":3},"retiros":{"t":5}}},"2026-01-17":{"v":{"chats":{"t":20},"consultas":{"t":7},"envios":{"t":1},"retiros":{"t":3}}},"2026-01-19":{"v":{"chats":{"t":62},"consultas":{"t":38},"envios":{"t":6},"retiros":{"t":7}}},"2026-01-20":{"v":{"chats":{"t":61},"consultas":{"t":33},"envios":{"t":1},"retiros":{"t":5}}},"2026-01-21":{"v":{"chats":{"t":60},"consultas":{"t":35},"envios":{"t":2},"retiros":{"t":3}}},"2026-01-22":{"v":{"chats":{"t":51},"consultas":{"t":30},"envios":{"t":6},"retiros":{"t":2}}},"2026-01-23":{"v":{"chats":{"t":54},"consultas":{"t":25},"envios":{"t":3},"retiros":{"t":5}}},"2026-01-24":{"v":{"chats":{"t":7},"consultas":{"t":6},"envios":{"t":0},"retiros":{"t":0}}},"2026-01-26":{"v":{"chats":{"t":74},"consultas":{"t":32},"envios":{"t":1},"retiros":{"t":3}}},"2026-01-27":{"v":{"chats":{"t":87},"consultas":{"t":31},"envios":{"t":6},"retiros":{"t":6}}},"2026-01-28":{"v":{"chats":{"t":70},"consultas":{"t":19},"envios":{"t":1},"retiros":{"t":3}}},"2026-01-29":{"v":{"chats":{"t":56},"consultas":{"t":23},"envios":{"t":3},"retiros":{"t":3}}},"2026-02-02":{"v":{"chats":{"t":72},"consultas":{"t":15},"envios":{"t":3},"retiros":{"t":2}}},"2026-02-03":{"v":{"chats":{"t":70},"consultas":{"t":22},"envios":{"t":4},"retiros":{"t":4}}},"2026-02-04":{"v":{"chats":{"t":69},"consultas":{"t":18},"envios":{"t":1},"retiros":{"t":1}}},"2026-02-05":{"v":{"chats":{"t":67},"consultas":{"t":25},"envios":{"t":1},"retiros":{"t":1}}},"2026-02-06":{"v":{"chats":{"t":67},"consultas":{"t":15},"envios":{"t":2},"retiros":{"t":1}}},"2026-02-07":{"v":{"chats":{"t":16},"consultas":{"t":4},"envios":{"t":0},"retiros":{"t":0}}},"2026-02-09":{"v":{"chats":{"t":93},"consultas":{"t":39},"envios":{"t":1},"retiros":{"t":2}}},"2026-02-10":{"v":{"chats":{"t":88},"consultas":{"t":17},"envios":{"t":2},"retiros":{"t":2}}},"2026-02-11":{"v":{"chats":{"t":79},"consultas":{"t":29},"envios":{"t":4},"retiros":{"t":3}}},"2026-02-12":{"v":{"chats":{"t":80},"consultas":{"t":28},"envios":{"t":2},"retiros":{"t":2}}},"2026-02-13":{"v":{"chats":{"t":85},"consultas":{"t":36},"envios":{"t":0},"retiros":{"t":4}}},"2026-02-14":{"v":{"chats":{"t":13},"consultas":{"t":8},"envios":{"t":1},"retiros":{"t":0}}},"2026-02-16":{"status":"feriado"},"2026-02-17":{"status":"feriado"},"2026-02-18":{"v":{"chats":{"t":90},"consultas":{"t":49},"envios":{"t":1},"retiros":{"t":9}}},"2026-02-19":{"v":{"chats":{"t":60},"consultas":{"t":26},"envios":{"t":4},"retiros":{"t":3}}},"2026-02-20":{"v":{"chats":{"t":82},"consultas":{"t":33},"envios":{"t":5},"retiros":{"t":11}}},"2026-02-21":{"v":{"chats":{"t":27},"consultas":{"t":12},"envios":{"t":0},"retiros":{"t":0}}},"2026-02-23":{"v":{"chats":{"t":96},"consultas":{"t":44},"envios":{"t":3},"retiros":{"t":7}}},"2026-02-24":{"v":{"chats":{"t":94},"consultas":{"t":45},"envios":{"t":5},"retiros":{"t":4}}},"2026-02-25":{"v":{"chats":{"t":74},"consultas":{"t":29},"envios":{"t":5},"retiros":{"t":5}}},"2026-02-26":{"v":{"chats":{"t":80},"consultas":{"t":40},"envios":{"t":2},"retiros":{"t":8}}},"2026-02-27":{"v":{"consultas":{"t":35},"envios":{"t":3},"retiros":{"t":5}}},"2026-02-28":{"v":{"chats":{"t":22},"consultas":{"t":8},"envios":{"t":2},"retiros":{"t":1}}},"2026-03-02":{"v":{"chats":{"t":110},"consultas":{"t":53},"envios":{"t":5},"retiros":{"t":7}}},"2026-03-03":{"v":{"chats":{"t":109},"consultas":{"t":53},"envios":{"t":4},"retiros":{"t":7}}},"2026-03-04":{"v":{"chats":{"t":105},"consultas":{"t":53},"envios":{"t":1},"retiros":{"t":5}}},"2026-03-05":{"v":{"chats":{"t":104},"consultas":{"t":54},"envios":{"t":5},"retiros":{"t":8}}},"2026-03-06":{"v":{"chats":{"t":92},"consultas":{"t":60},"envios":{"t":1},"retiros":{"t":2}}},"2026-03-07":{"v":{"chats":{"t":23},"consultas":{"t":16},"envios":{"t":0},"retiros":{"t":2}}},"2026-03-09":{"v":{"chats":{"t":93},"consultas":{"t":50},"envios":{"t":1},"retiros":{"t":8}}},"2026-03-10":{"v":{"chats":{"t":116},"consultas":{"t":68},"envios":{"t":1},"retiros":{"t":7}}},"2026-03-11":{"v":{"chats":{"t":116},"consultas":{"t":60},"envios":{"t":6},"retiros":{"t":9}}},"2026-03-12":{"v":{"chats":{"t":122},"consultas":{"t":63},"envios":{"t":7},"retiros":{"t":12}}},"2026-03-13":{"v":{"chats":{"t":114},"consultas":{"t":56},"envios":{"t":3},"retiros":{"t":4}}},"2026-03-14":{"v":{"chats":{"t":35},"consultas":{"t":22},"envios":{"t":0},"retiros":{"t":2}}},"2026-03-16":{"v":{"chats":{"t":137},"consultas":{"t":66},"envios":{"t":2},"retiros":{"t":8}}},"2026-03-17":{"v":{"chats":{"t":106},"consultas":{"t":51},"envios":{"t":4},"retiros":{"t":5}}},"2026-03-18":{"v":{"chats":{"t":117},"consultas":{"t":37},"envios":{"t":3},"retiros":{"t":6}}},"2026-03-19":{"v":{"chats":{"t":108},"consultas":{"t":51},"envios":{"t":5},"retiros":{"t":1}}},"2026-03-20":{"v":{"chats":{"t":105},"consultas":{"t":54},"envios":{"t":3},"retiros":{"t":9}}},"2026-03-21":{"v":{"chats":{"t":47},"consultas":{"t":36},"envios":{"t":2},"retiros":{"t":1}}},"2026-03-23":{"v":{"chats":{"t":70},"consultas":{"t":41},"envios":{"t":4},"retiros":{"t":3}}},"2026-03-24":{"status":"feriado"},"2026-03-25":{"v":{"chats":{"t":129},"consultas":{"t":60},"envios":{"t":5},"retiros":{"t":9}}},"2026-03-26":{"v":{"chats":{"t":122},"consultas":{"t":43},"envios":{"t":5},"retiros":{"t":3}}},"2026-03-27":{"v":{"chats":{"t":108},"consultas":{"t":46},"envios":{"t":2},"retiros":{"t":3}}},"2026-03-28":{"v":{"chats":{"t":43},"consultas":{"t":19},"envios":{"t":0},"retiros":{"t":1}}},"2026-03-30":{"v":{"chats":{"t":108},"consultas":{"t":36},"envios":{"t":2},"retiros":{"t":7}}},"2026-03-31":{"v":{"chats":{"t":115},"consultas":{"t":57},"envios":{"t":6},"retiros":{"t":4}}},"2026-04-01":{"v":{"chats":{"t":130},"consultas":{"t":69},"envios":{"t":1},"retiros":{"t":4}}},"2026-04-02":{"status":"feriado"},"2026-04-03":{"status":"feriado"},"2026-04-06":{"v":{"chats":{"t":131},"consultas":{"t":58},"envios":{"t":2},"retiros":{"t":8}}},"2026-04-07":{"v":{"chats":{"t":110},"consultas":{"t":51},"envios":{"t":4},"retiros":{"t":5}}},"2026-04-08":{"v":{"chats":{"t":114},"consultas":{"t":62},"envios":{"t":6},"retiros":{"t":8}}},"2026-04-09":{"v":{"chats":{"t":119},"consultas":{"t":48},"envios":{"t":2},"retiros":{"t":5}}},"2026-04-10":{"v":{"chats":{"t":90},"consultas":{"t":51},"envios":{"t":2},"retiros":{"t":7}}},"2026-04-11":{"v":{"chats":{"t":40},"consultas":{"t":16},"envios":{"t":0},"retiros":{"t":2}}},"2026-04-13":{"v":{"chats":{"t":133},"consultas":{"t":54},"envios":{"t":4},"retiros":{"t":6}}},"2026-04-14":{"v":{"chats":{"t":104},"consultas":{"t":62},"envios":{"t":3},"retiros":{"t":4}}},"2026-04-15":{"v":{"chats":{"t":115},"consultas":{"t":39},"envios":{"t":3},"retiros":{"t":7}}},"2026-04-16":{"v":{"chats":{"t":111},"consultas":{"t":45},"envios":{"t":3},"retiros":{"t":8}}},"2026-04-17":{"v":{"chats":{"t":98},"consultas":{"t":46},"envios":{"t":3},"retiros":{"t":5}}},"2026-04-18":{"v":{"chats":{"t":52},"consultas":{"t":24},"envios":{"t":0},"retiros":{"t":0}}},"2026-04-20":{"v":{"chats":{"t":124},"consultas":{"t":81},"envios":{"t":4},"retiros":{"t":10}}},"2026-04-21":{"v":{"chats":{"t":94},"consultas":{"t":38},"envios":{"t":2},"retiros":{"t":6}}},"2026-04-22":{"v":{"chats":{"t":114},"consultas":{"t":57},"envios":{"t":7},"retiros":{"t":8}}},"2026-04-23":{"v":{"chats":{"t":126},"consultas":{"t":55},"envios":{"t":5},"retiros":{"t":7}}},"2026-04-24":{"v":{"chats":{"t":117},"consultas":{"t":58},"envios":{"t":5},"retiros":{"t":7}}},"2026-04-25":{"v":{"chats":{"t":40},"consultas":{"t":12},"envios":{"t":1},"retiros":{"t":3}}},"2026-04-27":{"v":{"chats":{"t":113},"consultas":{"t":56},"envios":{"t":2},"retiros":{"t":5}}},"2026-04-28":{"v":{"chats":{"t":81},"consultas":{"t":47},"envios":{"t":4},"retiros":{"t":6}}},"2026-04-29":{"v":{"chats":{"t":85},"consultas":{"t":35},"envios":{"t":4},"retiros":{"t":5}}},"2026-04-30":{"v":{"chats":{"t":85},"consultas":{"t":65},"envios":{"t":3},"retiros":{"t":7}}},"2026-05-01":{"status":"feriado"},"2026-05-04":{"v":{"chats":{"t":84},"consultas":{"t":65},"envios":{"t":3},"retiros":{"t":7}}},"2026-05-05":{"v":{"chats":{"t":134},"consultas":{"t":73},"envios":{"t":6},"retiros":{"t":5}}},"2026-05-06":{"v":{"chats":{"t":109},"consultas":{"t":53},"envios":{"t":7},"retiros":{"t":5}}},"2026-05-07":{"v":{"chats":{"t":102},"consultas":{"t":49},"envios":{"t":4},"retiros":{"t":5}}},"2026-05-08":{"v":{"chats":{"t":113},"consultas":{"t":53},"envios":{"t":3},"retiros":{"t":12}}},"2026-05-09":{"v":{"chats":{"t":28},"consultas":{"t":15},"envios":{"t":2},"retiros":{"t":1}}},"2026-05-11":{"v":{"chats":{"t":85},"consultas":{"t":53},"envios":{"t":2},"retiros":{"t":8}}},"2026-05-12":{"v":{"chats":{"t":118},"consultas":{"t":50},"envios":{"t":4},"retiros":{"t":9}}},"2026-05-13":{"v":{"chats":{"t":107},"consultas":{"t":60},"envios":{"t":3},"retiros":{"t":9}}},"2026-05-14":{"v":{"chats":{"t":86},"consultas":{"t":47},"envios":{"t":8},"retiros":{"t":7}}},"2026-05-15":{"v":{"chats":{"t":89},"consultas":{"t":45},"envios":{"t":2},"retiros":{"t":1}}},"2026-05-16":{"v":{"chats":{"t":27},"consultas":{"t":14},"envios":{"t":2},"retiros":{"t":0}}},"2026-05-18":{"v":{"chats":{"t":97},"consultas":{"t":52},"envios":{"t":2},"retiros":{"t":3}}},"2026-05-19":{"v":{"chats":{"t":89},"consultas":{"t":43},"envios":{"t":3},"retiros":{"t":4}}},"2026-05-20":{"v":{"chats":{"t":86},"consultas":{"t":53},"envios":{"t":2},"retiros":{"t":2}}},"2026-05-21":{"v":{"chats":{"t":84},"consultas":{"t":48},"envios":{"t":0},"retiros":{"t":1}}},"2026-05-22":{"v":{"chats":{"t":91},"consultas":{"t":57},"envios":{"t":2},"retiros":{"t":4}}},"2026-05-23":{"v":{"chats":{"t":27},"consultas":{"t":17},"envios":{"t":0},"retiros":{"t":0}}},"2026-05-25":{"status":"feriado"},"2026-05-26":{"v":{"chats":{"t":134},"consultas":{"t":55},"envios":{"t":4},"retiros":{"t":7}}},"2026-05-27":{"v":{"chats":{"t":127},"consultas":{"t":64},"envios":{"t":6},"retiros":{"t":8}}},"2026-05-28":{"v":{"chats":{"t":141},"consultas":{"t":75},"envios":{"t":0},"retiros":{"t":8}}},"2026-05-29":{"v":{"chats":{"t":125},"consultas":{"t":83},"envios":{"t":2},"retiros":{"t":10}}},"2026-06-08":{"v":{"chats":{"t":119},"consultas":{"t":82},"envios":{"t":2},"retiros":{"t":10}}},"2026-06-09":{"v":{"chats":{"t":143},"consultas":{"t":60},"envios":{"t":3},"retiros":{"t":4}}},"2026-06-10":{"v":{"chats":{"t":124},"consultas":{"t":63},"envios":{"t":3},"retiros":{"t":7}}},"2026-06-11":{"v":{"chats":{"t":127},"consultas":{"t":70},"envios":{"t":3},"retiros":{"t":6}}},"2026-06-12":{"v":{"chats":{"t":83},"consultas":{"t":49},"envios":{"t":3},"retiros":{"t":3}}},"2026-06-13":{"v":{"chats":{"t":21},"consultas":{"t":6},"envios":{"t":3},"retiros":{"t":1}}},"2026-06-15":{"v":{"chats":{"t":76},"consultas":{"t":44},"envios":{"t":6},"retiros":{"t":4}}},"2026-06-16":{"v":{"chats":{"t":117},"consultas":{"t":60},"envios":{"t":6},"retiros":{"t":4}}},"2026-06-17":{"v":{"chats":{"t":104},"consultas":{"t":58},"envios":{"t":3},"retiros":{"t":3}}},"2026-06-18":{"v":{"chats":{"t":118},"consultas":{"t":59},"envios":{"t":3},"retiros":{"t":8}}},"2026-06-19":{"v":{"chats":{"t":90},"consultas":{"t":46},"envios":{"t":5},"retiros":{"t":6}}},"2026-06-20":{"v":{"chats":{"t":22},"consultas":{"t":9},"envios":{"t":0},"retiros":{"t":2}}},"2026-06-23":{"v":{"chats":{"t":117},"consultas":{"t":47},"envios":{"t":1},"retiros":{"t":6}}},"2026-06-25":{"v":{"chats":{"t":167},"consultas":{"t":85},"envios":{"t":2},"retiros":{"t":7}}},"2026-06-26":{"v":{"chats":{"t":111},"consultas":{"t":62},"envios":{"t":4},"retiros":{"t":4}}},"2026-06-29":{"v":{"chats":{"t":86},"consultas":{"t":63},"envios":{"t":4},"retiros":{"t":4}}},"2026-06-30":{"v":{"chats":{"t":103},"consultas":{"t":57},"envios":{"t":8},"retiros":{"t":2}}},"2026-07-01":{"v":{"chats":{"t":105},"consultas":{"t":49},"envios":{"t":4},"retiros":{"t":8}}},"2026-07-02":{"v":{"chats":{"t":95},"consultas":{"t":46},"envios":{"t":6},"retiros":{"t":4}}},"2026-07-03":{"v":{"chats":{"t":83},"consultas":{"t":40},"envios":{"t":2},"retiros":{"t":4}}},"2026-07-04":{"v":{"chats":{"t":26},"consultas":{"t":3},"envios":{"t":1},"retiros":{"t":0}}},"2026-07-06":{"note":"No funciona etiquetas de envio y de consulta","v":{"chats":{"t":86},"consultas":{"t":18},"envios":{"t":7},"retiros":{"t":1}}},"2026-07-07":{"v":{"chats":{"t":76},"consultas":{"t":18},"envios":{"t":1},"retiros":{"t":1}}},"2026-07-08":{"v":{"chats":{"t":82},"consultas":{"t":44},"envios":{"t":6},"retiros":{"t":4}}},"2026-07-09":{"status":"feriado"},"2026-07-10":{"v":{"chats":{"t":53},"consultas":{"t":27},"envios":{"t":4},"retiros":{"t":2}}},"2026-07-11":{"v":{"chats":{"t":10},"consultas":{"t":6},"envios":{"t":0},"retiros":{"t":1}}},"2026-07-13":{"v":{"chats":{"t":107},"consultas":{"t":48},"envios":{"t":5},"retiros":{"t":11}}},"2026-07-14":{"v":{"chats":{"t":105},"consultas":{"t":51},"envios":{"t":7},"retiros":{"t":5}}},"2026-07-15":{"v":{"chats":{"t":76},"consultas":{"t":35},"envios":{"t":2},"retiros":{"t":2}}},"2026-07-16":{"v":{"chats":{"t":101},"consultas":{"t":39},"envios":{"t":3},"retiros":{"t":8}}},"2026-07-17":{"v":{"chats":{"t":105},"consultas":{"t":44},"envios":{"t":6},"retiros":{"t":3}}},"2026-07-18":{"v":{"chats":{"t":25},"consultas":{"t":8},"envios":{"t":2},"retiros":{"t":0}}},"2026-07-20":{"v":{"chats":{"t":83},"consultas":{"t":38},"envios":{"t":4},"retiros":{"t":6}}},"2026-07-21":{"v":{"chats":{"t":102},"consultas":{"t":48},"envios":{"t":2},"retiros":{"t":3}}},"2026-07-22":{"v":{"chats":{"t":109},"consultas":{"t":46},"envios":{"t":2},"retiros":{"t":10}}},"2026-07-23":{"v":{"chats":{"t":106},"consultas":{"t":48},"envios":{"t":0},"retiros":{"t":2}}},"2026-07-24":{"v":{"chats":{"t":78},"consultas":{"t":35},"envios":{"t":8},"retiros":{"t":7}}},"2026-07-25":{"v":{"chats":{"t":24},"consultas":{"t":9},"envios":{"t":2},"retiros":{"t":2}}},"2026-07-27":{"v":{"chats":{"t":100},"consultas":{"t":50},"envios":{"t":4},"retiros":{"t":8}}},"2026-07-28":{"v":{"chats":{"t":101},"consultas":{"t":46},"envios":{"t":10},"retiros":{"t":9}}},"2026-07-29":{"v":{"chats":{"t":119},"consultas":{"t":60},"envios":{"t":6},"retiros":{"t":5}}},"2026-07-30":{"v":{"chats":{"t":89},"consultas":{"t":45},"envios":{"t":2},"retiros":{"t":5}}},"2026-07-31":{"v":{"chats":{"t":99},"consultas":{"t":42},"envios":{"t":3},"retiros":{"t":4}}},"2026-08-01":{"v":{"chats":{"t":37},"consultas":{"t":15},"envios":{"t":2},"retiros":{"t":1}}},"2026-08-03":{"v":{"chats":{"t":105},"consultas":{"t":79},"envios":{"t":2},"retiros":{"t":7}}},"2026-08-04":{"v":{"chats":{"t":117},"consultas":{"t":43},"envios":{"t":6},"retiros":{"t":7}}},"2026-08-05":{"v":{"chats":{"t":134},"consultas":{"t":52},"envios":{"t":3},"retiros":{"t":3}}},"2026-08-06":{"v":{"chats":{"t":101},"consultas":{"t":40},"envios":{"t":2},"retiros":{"t":5}}},"2026-08-07":{"v":{"chats":{"t":108},"consultas":{"t":44},"envios":{"t":2},"retiros":{"t":3}}},"2026-08-08":{"v":{"chats":{"t":23},"consultas":{"t":16},"envios":{"t":1},"retiros":{"t":1}}},"2026-08-10":{"v":{"chats":{"t":124},"consultas":{"t":63},"envios":{"t":2},"retiros":{"t":9}}},"2026-08-11":{"v":{"chats":{"t":95},"consultas":{"t":42},"envios":{"t":2},"retiros":{"t":4}}},"2026-08-12":{"v":{"chats":{"t":103},"consultas":{"t":64},"envios":{"t":6},"retiros":{"t":11}}},"2026-08-13":{"v":{"chats":{"t":125},"consultas":{"t":56},"envios":{"t":1},"retiros":{"t":4}}},"2026-08-14":{"v":{"chats":{"t":114},"consultas":{"t":69},"envios":{"t":5},"retiros":{"t":5}}},"2026-08-15":{"v":{"chats":{"t":31},"consultas":{"t":11},"envios":{"t":0},"retiros":{"t":0}}},"2026-08-17":{"status":"feriado"},"2026-08-18":{"v":{"chats":{"t":160},"consultas":{"t":82},"envios":{"t":2},"retiros":{"t":5}}},"2026-08-19":{"v":{"chats":{"t":152},"consultas":{"t":59},"envios":{"t":7},"retiros":{"t":3}}},"2026-08-20":{"v":{"chats":{"t":158},"consultas":{"t":76},"envios":{"t":4},"retiros":{"t":6}}},"2026-08-21":{"v":{"chats":{"t":137},"consultas":{"t":77},"envios":{"t":1},"retiros":{"t":8}}},"2026-08-22":{"v":{"chats":{"t":39},"consultas":{"t":16},"envios":{"t":3},"retiros":{"t":0}}},"2026-08-24":{"v":{"chats":{"t":97},"consultas":{"t":72},"envios":{"t":7},"retiros":{"t":11}}},"2026-08-25":{"v":{"chats":{"t":136},"consultas":{"t":77},"envios":{"t":7},"retiros":{"t":5}}},"2026-08-26":{"v":{"chats":{"t":136},"consultas":{"t":67},"envios":{"t":1},"retiros":{"t":2}}},"2026-08-27":{"v":{"chats":{"t":123},"consultas":{"t":54},"envios":{"t":0},"retiros":{"t":4}}},"2026-08-28":{"v":{"chats":{"t":84},"consultas":{"t":46},"envios":{"t":3},"retiros":{"t":4}}},"2026-08-29":{"v":{"chats":{"t":37},"consultas":{"t":19},"envios":{"t":0},"retiros":{"t":1}}},"2026-09-01":{"v":{"chats":{"t":96},"consultas":{"t":44},"envios":{"t":6},"retiros":{"t":5}}},"2026-09-02":{"v":{"chats":{"t":75},"consultas":{"t":50},"envios":{"t":5},"retiros":{"t":10}}},"2026-09-03":{"v":{"chats":{"t":90},"consultas":{"t":47},"envios":{"t":2},"retiros":{"t":5}}},"2026-09-04":{"v":{"chats":{"t":87},"consultas":{"t":45},"envios":{"t":1},"retiros":{"t":5}}},"2026-09-05":{"v":{"chats":{"t":23},"consultas":{"t":15},"envios":{"t":1},"retiros":{"t":1}}},"2026-09-07":{"v":{"chats":{"t":88},"consultas":{"t":47},"envios":{"t":2},"retiros":{"t":6}}},"2026-09-08":{"v":{"chats":{"t":122},"consultas":{"t":22},"envios":{"t":0},"retiros":{"t":1}}},"2026-09-09":{"v":{"chats":{"t":134},"consultas":{"t":31},"envios":{"t":5},"retiros":{"t":6}}},"2026-09-10":{"v":{"chats":{"t":123},"consultas":{"t":62},"envios":{"t":9},"retiros":{"t":10}}},"2026-09-11":{"v":{"chats":{"t":166},"consultas":{"t":87},"envios":{"t":6},"retiros":{"t":8}}},"2026-09-12":{"v":{"chats":{"t":59},"consultas":{"t":25},"envios":{"t":0},"retiros":{"t":1}}},"2026-09-14":{"v":{"chats":{"t":129},"consultas":{"t":70},"envios":{"t":8},"retiros":{"t":9}}},"2026-09-15":{"v":{"chats":{"t":95},"consultas":{"t":50},"envios":{"t":2},"retiros":{"t":8}}},"2026-09-16":{"v":{"chats":{"t":100},"consultas":{"t":44},"envios":{"t":2},"retiros":{"t":7}}},"2026-09-17":{"v":{"chats":{"t":95},"consultas":{"t":50},"envios":{"t":4},"retiros":{"t":5}}},"2026-09-18":{"v":{"chats":{"t":86},"consultas":{"t":37},"envios":{"t":3},"retiros":{"t":6}}},"2026-09-19":{"v":{"chats":{"t":22},"consultas":{"t":10},"envios":{"t":0},"retiros":{"t":4}}},"2026-09-21":{"v":{"chats":{"t":111},"consultas":{"t":53},"envios":{"t":7},"retiros":{"t":8}}},"2026-09-22":{"v":{"chats":{"t":114},"consultas":{"t":57},"envios":{"t":0},"retiros":{"t":2}}},"2026-09-23":{"v":{"chats":{"t":109},"consultas":{"t":59},"envios":{"t":9},"retiros":{"t":5}}},"2026-09-24":{"v":{"chats":{"t":103},"consultas":{"t":3},"envios":{"t":0},"retiros":{"t":6}}},"2026-09-25":{"v":{"chats":{"t":93},"consultas":{"t":55},"envios":{"t":0},"retiros":{"t":3}}},"2026-09-26":{"v":{"chats":{"t":33},"consultas":{"t":14},"envios":{"t":1},"retiros":{"t":1}}},"2026-09-28":{"v":{"chats":{"t":128},"consultas":{"t":72},"envios":{"t":2},"retiros":{"t":5}}},"2026-09-29":{"v":{"chats":{"t":109},"consultas":{"t":56},"envios":{"t":7},"retiros":{"t":4}}},"2026-09-30":{"v":{"chats":{"t":110},"consultas":{"t":52},"envios":{"t":6},"retiros":{"t":4}}},"2026-10-01":{"v":{"chats":{"t":123},"consultas":{"t":46},"envios":{"t":3},"retiros":{"t":4}}},"2026-10-02":{"v":{"chats":{"t":87},"consultas":{"t":48},"envios":{"t":2},"retiros":{"t":4}}},"2026-10-03":{"v":{"chats":{"t":26},"consultas":{"t":7},"envios":{"t":0},"retiros":{"t":1}}},"2026-10-05":{"v":{"chats":{"t":118},"consultas":{"t":64},"envios":{"t":1},"retiros":{"t":6}}},"2026-10-06":{"v":{"chats":{"t":143},"consultas":{"t":68},"envios":{"t":4},"retiros":{"t":9}}},"2026-10-07":{"v":{"chats":{"t":105},"consultas":{"t":56},"envios":{"t":5},"retiros":{"t":4}}},"2026-10-08":{"v":{"chats":{"t":118},"consultas":{"t":53},"envios":{"t":6},"retiros":{"t":8}}},"2026-10-09":{"v":{"chats":{"t":92},"consultas":{"t":36},"envios":{"t":6},"retiros":{"t":9}}},"2026-10-10":{"v":{"chats":{"t":63},"consultas":{"t":7},"envios":{"t":0},"retiros":{"t":1}}},"2026-10-12":{"status":"feriado"},"2026-10-13":{"v":{"chats":{"t":140},"consultas":{"t":72},"envios":{"t":7},"retiros":{"t":6}}},"2026-10-14":{"v":{"chats":{"t":122},"consultas":{"t":61},"envios":{"t":5},"retiros":{"t":7}}},"2026-10-15":{"v":{"chats":{"t":111},"consultas":{"t":52},"envios":{"t":6},"retiros":{"t":5}}},"2026-10-16":{"v":{"chats":{"t":102},"consultas":{"t":46},"envios":{"t":2},"retiros":{"t":5}}},"2026-10-17":{"v":{"chats":{"t":25},"consultas":{"t":3},"envios":{"t":2},"retiros":{"t":2}}},"2026-10-19":{"v":{"chats":{"t":101},"consultas":{"t":42},"envios":{"t":2},"retiros":{"t":9}}},"2026-10-20":{"v":{"chats":{"t":97},"consultas":{"t":41},"envios":{"t":2},"retiros":{"t":8}}},"2026-10-21":{"v":{"chats":{"t":108},"consultas":{"t":63},"envios":{"t":5},"retiros":{"t":4}}},"2026-10-22":{"v":{"chats":{"t":105},"consultas":{"t":54},"envios":{"t":3},"retiros":{"t":4}}},"2026-10-23":{"v":{"chats":{"t":77},"consultas":{"t":37},"envios":{"t":5},"retiros":{"t":8}}},"2026-10-24":{"v":{"chats":{"t":26},"consultas":{"t":9},"retiros":{"t":2}}},"2026-10-26":{"v":{"chats":{"t":98},"consultas":{"t":54},"envios":{"t":6},"retiros":{"t":4}}},"2026-10-27":{"v":{"chats":{"t":142},"consultas":{"t":64},"envios":{"t":4},"retiros":{"t":5}}},"2026-10-28":{"v":{"chats":{"t":136},"consultas":{"t":65},"envios":{"t":3},"retiros":{"t":7}}},"2026-10-29":{"v":{"chats":{"t":125},"consultas":{"t":56},"envios":{"t":3},"retiros":{"t":7}}},"2026-10-30":{"v":{"chats":{"t":111},"consultas":{"t":41},"envios":{"t":3},"retiros":{"t":6}}},"2026-10-31":{"v":{"chats":{"t":25},"consultas":{"t":7},"envios":{"t":1},"retiros":{"t":2}}},"2026-11-02":{"v":{"chats":{"t":99},"consultas":{"t":52,"g":{"tipo":{"general":50,"sillones":2}}},"envios":{"t":7},"retiros":{"t":3}}},"2026-11-03":{"v":{"chats":{"t":101},"consultas":{"t":58},"envios":{"t":2},"retiros":{"t":8}}},"2026-11-04":{"v":{"chats":{"t":94},"consultas":{"t":49},"envios":{"t":0},"retiros":{"t":4}}},"2026-11-05":{"v":{"chats":{"t":97},"consultas":{"t":37},"envios":{"t":3},"retiros":{"t":7}}},"2026-11-06":{"v":{"chats":{"t":92},"consultas":{"t":42},"envios":{"t":4},"retiros":{"t":6}}}}; // historial 2026 (ene–nov) importado de la planilla de Google Sheets
+  const MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const DOW=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const PAL=['#10b981','#3b82f6','#f59e0b','#8b5cf6','#ec4899','#84cc16','#06b6d4','#f97316'];
+  const DEFAULT_CONFIG={metrics:[
+    {key:'pedidos',label:'Pedidos',auto:true,groups:[
+      {id:'tipo',label:'Tipo de pedido',options:[{id:'muntal',label:'Muntal'},{id:'otros',label:'Otros'}]},
+      {id:'vendedor',label:'Tomado por',options:[{id:'juan',label:'Juan'},{id:'federico',label:'Federico'}]},
+      {id:'origen',label:'Origen del pedido',options:[{id:'difusion',label:'Lista de difusión'},{id:'estados',label:'Estados'},{id:'chatbot',label:'Chatbot'}]}]},
+    {key:'chats',label:'Chats totales',groups:[
+      {id:'tipo',label:'Tipo de chat',options:[{id:'pedido_hecho',label:'Llegan con el pedido hecho'},{id:'orientar',label:'Hay que orientar / pasar precios'}]}]},
+    {key:'consultas',label:'Consultas',groups:[
+      {id:'tipo',label:'Tipo de consulta',options:[{id:'general',label:'Consulta general'},{id:'sillones',label:'Sillones odontológicos'}]}]},
+    {key:'envios',label:'Envíos',groups:[]},
+    {key:'retiros',label:'Retiros',groups:[]}
+  ]};
+  const clone=o=>JSON.parse(JSON.stringify(o));
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const pad=n=>String(n).padStart(2,'0');
+  const fmtN=n=>n==null?'':new Intl.NumberFormat('es-AR',{maximumFractionDigits:1}).format(n);
+  const fmtP=n=>n==null||!isFinite(n)?'—':new Intl.NumberFormat('es-AR',{style:'percent',maximumFractionDigits:1}).format(n);
+  const num=v=>(typeof v==='number'&&isFinite(v))?v:null;
+  const uid=()=>Math.random().toString(36).slice(2,8);
+  const arr=x=>Array.isArray(x)?x.filter(Boolean):(x&&typeof x==='object'?Object.values(x).filter(Boolean):[]);
+  function normConfig(c){
+    const out={metrics:arr(c&&c.metrics).map(m=>({key:m.key,label:m.label||m.key,auto:!!m.auto,groups:arr(m.groups).map(g=>({id:g.id,label:g.label||'Reparto',options:arr(g.options).map(o=>({id:o.id,label:o.label||'Tipo'}))}))}))};
+    for(const dm of DEFAULT_CONFIG.metrics) if(!out.metrics.find(m=>m.key===dm.key)) out.metrics.push(clone(dm));
+    return out;
+  }
+
+  let config=clone(DEFAULT_CONFIG), days={}, loaded=false, started=false;
+  const now=new Date();
+  let cur={y:now.getFullYear(),m:now.getMonth()};
+  const todayKey=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  let root=null, drawer=null, pendingRender=false;
+
+  const dkey=(y,m,d)=>`${y}-${pad(m+1)}-${pad(d)}`;
+  const dim=(y,m)=>new Date(y,m+1,0).getDate();
+  const metric=k=>config.metrics.find(x=>x.key===k);
+  const userName=()=>{ try { return (typeof authCurrentUser!=='undefined'&&authCurrentUser)?(authCurrentUser.name||authCurrentUser.username||''):''; } catch(e){ return ''; } };
+  const isAdmin=()=>{ try { return typeof authCurrentUser!=='undefined'&&authCurrentUser&&(authCurrentUser.role==='admin'||(typeof ADMIN_USER!=='undefined'&&authCurrentUser.name===ADMIN_USER)); } catch(e){ return false; } };
+  const toast=(m,t)=>{ try { showToast(m,t||'ok'); } catch(e){} };
+  const fbStatus=(s,t)=>{ try { setFbStatus(s,t); } catch(e){} };
+
+  function status(k,dow){const d=days[k];if(d&&d.status)return d.status;return dow===0?'nolaboral':'laboral'}
+  function total(day,mk){
+    if(!day||!day.v)return null;
+    if(mk==='pedidos'){const e=num(day.v.envios&&day.v.envios.t),r=num(day.v.retiros&&day.v.retiros.t);if(e==null&&r==null)return null;return (e||0)+(r||0)}
+    return num(day.v[mk]&&day.v[mk].t);
+  }
+  function optVal(day,mk,gid,oid){const gv=day&&day.v&&day.v[mk]&&day.v[mk].g&&day.v[mk].g[gid];return gv?num(gv[oid]):null}
+  function groupSum(day,mk,g){let s=0,any=false;for(const o of g.options){const x=optVal(day,mk,g.id,o.id);if(x!=null){s+=x;any=true}}return any?s:null}
+  function cellState(day,mk){
+    const t=total(day,mk);if(t==null)return 'empty';
+    const m=metric(mk);if(!m.groups.length)return 'none';
+    let all=true,any=false;for(const g of m.groups){const s=groupSum(day,mk,g);if(s!=null)any=true;if(s!=null&&s>t)return 'over';if(s!==t)all=false}
+    if(!any)return 'none';
+    return all?'ok':'partial';
+  }
+  function monthStats(y,m){
+    const n=dim(y,m),res={};
+    for(const mt of config.metrics){
+      const vals=[];
+      for(let d=1;d<=n;d++){const k=dkey(y,m,d);const t=total(days[k],mt.key);if(t!=null)vals.push({d,k,t})}
+      const sum=vals.reduce((a,b)=>a+b.t,0),cnt=vals.length;
+      let mx=null,mn=null;for(const v of vals){if(mx==null||v.t>mx)mx=v.t;if(mn==null||v.t<mn)mn=v.t}
+      const groups=mt.groups.map(g=>{
+        const det=vals.filter(v=>groupSum(days[v.k],mt.key,g)!=null);
+        const denom=det.reduce((a,b)=>a+b.t,0);
+        const opts=g.options.map(o=>{
+          const xs=det.map(v=>optVal(days[v.k],mt.key,g.id,o.id)||0);const s=xs.reduce((a,b)=>a+b,0);
+          return {o,sum:s,avg:det.length?s/det.length:null,min:xs.length?Math.min(...xs):null,max:xs.length?Math.max(...xs):null,pct:denom?s/denom:null};
+        });
+        return {g,det:det.length,denom,opts,un:denom-opts.reduce((a,b)=>a+b.sum,0)};
+      });
+      res[mt.key]={sum,cnt,avg:cnt?sum/cnt:null,max:mx,min:mn,maxDays:vals.filter(v=>v.t===mx).map(v=>v.d),groups};
+    }
+    return res;
+  }
+
+  /* ---------- Firebase ---------- */
+  function start(){
+    if(started)return; started=true;
+    if(typeof db==='undefined'){ loaded=true; render(); return; }
+    db.ref(EST_FB+'/dias').on('value',snap=>{ days=snap.val()||{}; loaded=true; render(); },err=>{ console.error('[Estadística]',err); loaded=true; render(); toast('⚠ No se pudo leer la estadística de Firebase','warn'); });
+    db.ref(EST_FB+'/config').on('value',snap=>{ const c=snap.val(); config=c?normConfig(c):clone(DEFAULT_CONFIG); render(); },()=>{});
+  }
+  async function fbSet(path,data){
+    if(typeof db==='undefined'){ toast('⚠ Sin conexión a Firebase','warn'); return false; }
+    fbStatus('syncing','↑ Guardando…');
+    try{ if(data==null) await db.ref(path).remove(); else await db.ref(path).set(data); fbStatus('online','☁ Sincronizado'); return true; }
+    catch(e){ console.error('[Estadística] Error al guardar',e); fbStatus('offline','⚠ Error al guardar'); toast('⚠ No se pudo guardar: '+(e&&e.message||e),'warn'); return false; }
+  }
+  async function importHist(){
+    const missing={};let n=0;
+    for(const [k,v] of Object.entries(EST_HIST)) if(!days[k]){ missing[k]=v; n++; }
+    if(!n){ toast('El historial ya estaba cargado','ok'); return; }
+    fbStatus('syncing','↑ Guardando…');
+    try{ await db.ref(EST_FB+'/dias').update(missing); fbStatus('online','☁ Sincronizado'); toast(`✓ Historial importado: ${n} días`,'ok'); }
+    catch(e){ fbStatus('offline','⚠ Error al guardar'); toast('⚠ No se pudo importar: '+(e&&e.message||e),'warn'); }
+  }
+
+  /* ---------- render ---------- */
+  const dayLabel=(y,m,d)=>DOW[new Date(y,m,d).getDay()]+' '+d;
+  function cmpPill(a,b,label){
+    if(a==null||b==null||!b)return '';
+    const r=a/b-1;const cls=Math.abs(r)<0.005?'reg':(r>0?'good':'bad');const txt=cls==='reg'?'Regular':(r>0?'Bueno':'Malo');
+    return `<span class="est-pill ${cls}" title="Promedio diario vs ${esc(label)}">${txt} ${r>0?'+':''}${fmtP(r)}</span>`;
+  }
+  function render(){
+    root=document.getElementById('panel-estadistica-inner'); if(!root)return;
+    // Si hay un panel abierto, no redibujar (se perdería lo que se está escribiendo); se redibuja al cerrarlo
+    if(drawer&&root.querySelector('.est-drawer:not([hidden])')){ pendingRender=true; return; }
+    pendingRender=false;
+    const {y,m}=cur, st=monthStats(y,m), pm=m===0?{y:y-1,m:11}:{y,m:m-1}, ps=monthStats(pm.y,pm.m), pl=MONTHS[pm.m];
+    const P=st.pedidos,C=st.chats,Q=st.consultas,E=st.envios,R=st.retiros;
+    const histCount=Object.keys(EST_HIST).filter(k=>!days[k]).length;
+    const showImport=loaded&&isAdmin()&&histCount>0&&Object.keys(days).length<Object.keys(EST_HIST).length;
+    let hecho='';const cg=st.chats.groups[0];if(cg&&cg.det&&cg.opts[0])hecho=`<br>${fmtP(cg.opts[0].pct)} ${esc(cg.opts[0].o.label.toLowerCase())}`;
+    const md=s=>s.maxDays.length?s.maxDays.map(d=>dayLabel(y,m,d)).join(', '):'—';
+    let h=`<div class="est-wrap">
+      <div class="est-top">
+        <div><h2>📊 Estadística WhatsApp</h2><p>Carga diaria de chats, consultas y pedidos. Tocá una celda para cargar y repartir por tipo.</p></div>
+        <div class="est-month"><button data-est="prev" aria-label="Mes anterior">‹</button><span>${MONTHS[m]} ${y}</span><button data-est="next" aria-label="Mes siguiente">›</button></div>
+        <div class="est-actions"><button class="est-btn" data-est="today">Hoy</button><button class="est-btn" data-est="config">⚙ Columnas y tipos</button><button class="est-btn" data-est="xlsx">⬇ Exportar Excel</button></div>
+      </div>`;
+    if(!loaded) h+=`<div class="est-notice">Cargando datos de Firebase…</div>`;
+    if(showImport) h+=`<div class="est-notice"><span>Hay ${histCount} días del historial 2026 (enero a noviembre, de la planilla de Google Sheets) que todavía no están en el CRM.</span><button class="est-btn primary" data-est="import">Importar historial</button></div>`;
+    h+=`<div class="est-tiles">
+        <div class="est-tile hero"><span class="l">${esc(metric('pedidos').label)} del mes</span><span class="b">${fmtN(P.sum)}</span><span class="s">${P.avg!=null?fmtN(P.avg)+' por día':'Sin datos todavía'} ${cmpPill(P.avg,ps.pedidos.avg,pl)}</span></div>
+        <div class="est-tile"><span class="l">${esc(metric('chats').label)}</span><span class="b">${fmtN(C.sum)}</span><span class="s">${C.avg!=null?fmtN(C.avg)+' por día':'—'} ${cmpPill(C.avg,ps.chats.avg,pl)}${hecho}</span></div>
+        <div class="est-tile"><span class="l">${esc(metric('consultas').label)}</span><span class="b">${fmtN(Q.sum)}</span><span class="s">${Q.avg!=null?fmtN(Q.avg)+' por día':'—'} ${cmpPill(Q.avg,ps.consultas.avg,pl)}</span></div>
+        <div class="est-tile"><span class="l">Pedidos por chat</span><span class="b">${fmtP(C.sum?P.sum/C.sum:null)}</span><span class="s">Pedidos por consulta: ${fmtP(Q.sum?P.sum/Q.sum:null)}</span></div>
+      </div>
+      <div class="est-facts"><span>Enviados <b>${fmtP(P.sum?E.sum/P.sum:null)}</b> · Retirados <b>${fmtP(P.sum?R.sum/P.sum:null)}</b></span><span>Día con más pedidos: <b>${esc(md(P))}</b></span><span>Más chats: <b>${esc(md(C))}</b></span><span>Más consultas: <b>${esc(md(Q))}</b></span></div>`;
+    // tabla
+    const ms=config.metrics,n=dim(y,m);
+    h+=`<div class="est-sheet"><div class="est-tw"><table class="est-grid"><thead><tr><th>Día</th>${ms.map(x=>`<th>${esc(x.label)}${x.auto?'<small>envíos + retiros</small>':''}</th>`).join('')}</tr></thead><tbody>`;
+    for(let d=1;d<=n;d++){
+      const k=dkey(y,m,d),dow=new Date(y,m,d).getDay(),s=status(k,dow),day=days[k];
+      const hasData=ms.some(x=>total(day,x.key)!=null);
+      h+=`<tr class="${dow===1&&d>1?'wk':''} ${s!=='laboral'?'offrow':''}"><td><button class="est-day" data-day="${k}" title="${day&&day.by?'Últ. carga: '+esc(day.by):''}">${DOW[dow]} ${d}${k===todayKey?'<span class="est-tag">hoy</span>':''}${day&&day.note?`<span class="est-tag note" title="${esc(day.note)}">nota</span>`:''}</button></td>`;
+      if(s!=='laboral'&&!hasData) h+=`<td class="off" colspan="${ms.length}">${s==='feriado'?'FERIADO':'DÍA NO LABORAL'}</td>`;
+      else for(const x of ms){const t=total(day,x.key),cs=cellState(day,x.key);
+        h+=`<td><button class="est-cell ${t==null?'empty':''} ${x.auto?'auto':''}" data-k="${k}" data-m="${x.key}">${t==null?'·':fmtN(t)}${cs==='ok'||cs==='partial'||cs==='over'?`<i class="est-dot ${cs}"></i>`:''}</button></td>`;}
+      h+='</tr>';
+    }
+    const row=(lbl,f,cls)=>`<tr class="${cls||''}"><th>${lbl}</th>${ms.map(x=>`<td>${f(st[x.key],x)}</td>`).join('')}</tr>`;
+    h+='</tbody><tfoot>'+row('Total del mes',s=>fmtN(s.sum),'tot')+row('Promedio diario',s=>s.avg==null?'—':fmtN(s.avg))+row('Mínimo en un día',s=>s.min==null?'—':fmtN(s.min))+row('Máximo en un día',s=>s.max==null?'—':fmtN(s.max))
+      +row('% del total de pedidos',(s,x)=>x.key==='envios'||x.key==='retiros'?fmtP(P.sum?s.sum/P.sum:null):'')+row('vs '+pl,(s,x)=>cmpPill(s.avg,ps[x.key].avg,pl)||'—')+'</tfoot></table></div>';
+    h+=`<div class="est-legend"><span>Tocá el día para marcar feriado o dejar una nota.</span><span><i class="est-dot ok"></i>repartido completo</span><span><i class="est-dot partial"></i>falta repartir</span><span><i class="est-dot over"></i>el reparto supera el total</span></div></div>`;
+    // desglose
+    const cards=ms.filter(x=>x.groups.length).map(x=>{const s=st[x.key];
+      const gs=s.groups.map(G=>{
+        if(!G.det)return `<div><div class="est-gt">${esc(G.g.label)}</div><p class="est-empty">Todavía no se cargó este reparto en ${MONTHS[m]}.</p></div>`;
+        const rows=G.opts.map((o,i)=>`<tr><td><span class="est-bar" style="width:${Math.round((o.pct||0)*60)}px;background:${PAL[i%PAL.length]}"></span>${esc(o.o.label)}</td><td>${fmtN(o.sum)}</td><td>${fmtN(o.avg)}</td><td>${fmtN(o.min)}</td><td>${fmtN(o.max)}</td><td>${fmtP(o.pct)}</td></tr>`).join('');
+        const un=G.un>0?`<tr class="un"><td>Sin repartir</td><td>${fmtN(G.un)}</td><td></td><td></td><td></td><td>${fmtP(G.denom?G.un/G.denom:null)}</td></tr>`:'';
+        return `<div><div class="est-gt">${esc(G.g.label)} · detalle en ${G.det} de ${s.cnt} días</div><div class="est-dt"><table><thead><tr><th>Tipo</th><th>Total mes</th><th>Prom. diario</th><th>Mín. día</th><th>Máx. día</th><th>%</th></tr></thead><tbody>${rows}${un}</tbody></table></div></div>`;
+      }).join('');
+      return `<div class="est-card"><h4>${esc(x.label)} <span>${fmtN(s.sum)} en el mes</span></h4>${gs}</div>`;}).join('');
+    h+=`<div class="est-detail"><h3>Desglose del mes</h3><p>Total, promedio diario, mínimo y máximo de cada tipo. Se calcula sobre los días en que se cargó el reparto.</p><div class="est-dgrid">${cards||'<p class="est-empty">No hay columnas con tipos.</p>'}</div></div></div>`;
+    h+=`<div class="est-scrim" data-est="close" hidden></div><aside class="est-drawer" hidden role="dialog" aria-modal="true"><div class="est-dh"><div><p id="est-eyebrow"></p><h3 id="est-title"></h3></div><button class="est-x" data-est="close" aria-label="Cerrar">×</button></div><form class="est-db" id="est-dbody" autocomplete="off"></form><div class="est-df" id="est-dfoot"></div></aside>`;
+    root.innerHTML=h;
+  }
+
+  /* ---------- panel lateral ---------- */
+  const prettyDate=k=>{const [y,m,d]=k.split('-').map(Number);return `${DOW[new Date(y,m-1,d).getDay()]} ${d} de ${MONTHS[m-1]}`};
+  function draftV(mk){const v=drawer.draft.v||(drawer.draft.v={});return v[mk]||(v[mk]={})}
+  const stepper=(id,val,big)=>`<div class="est-step ${big?'big':''}"><button type="button" data-step="-1" data-for="${id}" aria-label="Restar">−</button><input id="${id}" type="number" inputmode="numeric" min="0" step="1" value="${val==null?'':val}"><button type="button" data-step="1" data-for="${id}" aria-label="Sumar">+</button></div>`;
+  function gStatus(dr,mk,g,t){
+    const s=groupSum(dr,mk,g),tt=t||0;
+    const cls=s==null?'none':(s>tt?'over':(s===tt?'ok':'partial'));
+    const txt=s==null?'Sin repartir':(s===tt?`Completo: ${s} de ${tt}`:(s>tt?`Te pasaste: ${s} de ${tt}`:`Faltan ${tt-s} (${s} de ${tt})`));
+    const meter=g.options.map((o,i)=>{const v=optVal(dr,mk,g.id,o.id)||0;const w=tt?Math.min(100,v/Math.max(tt,s||0)*100):0;return `<i style="width:${w}%;background:${PAL[i%PAL.length]}"></i>`}).join('');
+    return {cls,txt,meter};
+  }
+  function openDrawer(kind,payload){ drawer={kind,...payload}; showDrawer(true); }
+  function showDrawer(focus){
+    if(!root)return;
+    root.querySelector('.est-scrim').hidden=false; root.querySelector('.est-drawer').hidden=false;
+    drawRender();
+    if(focus) setTimeout(()=>{const f=root.querySelector('#est-dbody input:not([readonly])');if(f){f.focus();f.select&&f.select();}},30);
+  }
+  function closeDrawer(){ drawer=null; if(!root)return; const s=root.querySelector('.est-scrim'),d=root.querySelector('.est-drawer'); if(s)s.hidden=true; if(d)d.hidden=true; if(pendingRender)render(); }
+  function drawRender(){
+    const b=root.querySelector('#est-dbody'),f=root.querySelector('#est-dfoot'),eb=root.querySelector('#est-eyebrow'),ti=root.querySelector('#est-title');
+    const foot=lbl=>`<span class="msg" id="est-msg"></span><button type="button" class="est-btn ghost" data-est="close">Cancelar</button><button type="submit" form="est-dbody" class="est-btn primary">${lbl||'Guardar'}</button>`;
+    if(drawer.kind==='cell'){
+      const mk=drawer.m,mt=metric(mk),dr=drawer.draft,t=total(dr,mk);
+      eb.textContent=prettyDate(drawer.k); ti.textContent=mt.label;
+      let h='';
+      if(mt.auto) h+=`<div class="est-tb"><label>Total del día</label><div class="est-auto"><b id="est-autotot">${t==null?0:t}</b> = envíos + retiros</div><div class="est-split"><div><label for="est-in-envios">${esc(metric('envios').label)}</label>${stepper('est-in-envios',num(dr.v&&dr.v.envios&&dr.v.envios.t))}</div><div><label for="est-in-retiros">${esc(metric('retiros').label)}</label>${stepper('est-in-retiros',num(dr.v&&dr.v.retiros&&dr.v.retiros.t))}</div></div></div>`;
+      else h+=`<div class="est-tb"><label for="est-in-total">Total del día</label>${stepper('est-in-total',t,true)}</div>`;
+      mt.groups.forEach((g,gi)=>{
+        const r=gStatus(dr,mk,g,t);
+        h+=`<div class="est-group"><div class="est-gh"><h4>${esc(g.label)}</h4><span class="est-gs ${r.cls}" id="est-gs-${gi}">${r.txt}</span></div><div class="est-meter" id="est-gm-${gi}">${r.meter}</div>`;
+        g.options.forEach((o,i)=>{h+=`<div class="est-orow"><span class="est-ol"><span class="est-sw" style="background:${PAL[i%PAL.length]}"></span>${esc(o.label)}</span><button type="button" class="est-rest" data-rest="${gi}|${o.id}" title="Poner lo que falta para llegar al total">resto</button>${stepper(`est-o-${gi}-${o.id}`,optVal(dr,mk,g.id,o.id))}</div>`});
+        h+=drawer.adding===gi?`<div class="est-add"><input type="text" class="est-in" id="est-newopt" placeholder="Nombre del nuevo tipo" maxlength="40"><button type="button" class="est-btn primary" data-addok="${gi}">Agregar</button></div>`:`<button type="button" class="est-link" data-add="${gi}">+ Agregar tipo</button>`;
+        h+='</div>';
+      });
+      if(!mt.groups.length) h+=`<p class="est-small">Esta columna no tiene tipos. Podés agregarle desde "⚙ Columnas y tipos".</p>`;
+      const by=days[drawer.k]&&days[drawer.k].by; if(by) h+=`<p class="est-who">Última carga: ${esc(by)}</p>`;
+      b.innerHTML=h; f.innerHTML=foot();
+    } else if(drawer.kind==='day'){
+      const [y,m,d]=drawer.k.split('-').map(Number),s=drawer.draft.status||status(drawer.k,new Date(y,m-1,d).getDay());
+      eb.textContent='Día'; ti.textContent=prettyDate(drawer.k);
+      b.innerHTML=`<div class="est-radios">${[['laboral','Día laboral'],['feriado','Feriado'],['nolaboral','Día no laboral']].map(([v,l])=>`<label><input type="radio" name="est-st" value="${v}" ${s===v?'checked':''}> ${l}</label>`).join('')}</div>
+        <div class="est-group"><label class="est-lbl" for="est-note">Nota del día</label><textarea id="est-note" class="est-ta" rows="3" maxlength="500" placeholder="Ej.: problemas con WhatsApp">${esc(drawer.draft.note||'')}</textarea></div>
+        <p class="est-small">Los domingos quedan como no laborales automáticamente. Los feriados y días no laborales no cuentan para el promedio.</p>`;
+      f.innerHTML=foot();
+    } else if(drawer.kind==='config'){
+      const c=drawer.cfg; eb.textContent='Configuración'; ti.textContent='Columnas y tipos';
+      b.innerHTML=`<p class="est-small">Cambiá los nombres, agregá o borrá tipos. Los cambios los ven todos. Si borrás un tipo, sus números dejan de contarse en el desglose.</p>`+c.metrics.map((mt,mi)=>`
+        <div class="est-cfgm"><div class="est-row"><input type="text" class="est-in" data-cm="${mi}" value="${esc(mt.label)}" maxlength="30" style="font-weight:800"></div>
+        ${mt.groups.map((g,gi)=>`<div class="est-cfgg"><div class="est-row"><input type="text" class="est-in" data-cg="${mi}|${gi}" value="${esc(g.label)}" maxlength="40" style="font-weight:700"><button type="button" class="est-del" data-delg="${mi}|${gi}" title="Borrar este reparto">🗑</button></div>
+          ${g.options.map((o,oi)=>`<div class="est-row"><input type="text" class="est-in" data-co="${mi}|${gi}|${oi}" value="${esc(o.label)}" maxlength="40"><button type="button" class="est-del" data-delo="${mi}|${gi}|${oi}" title="Borrar tipo">×</button></div>`).join('')}
+          <button type="button" class="est-link" data-addo="${mi}|${gi}">+ Agregar tipo</button></div>`).join('')}
+        <button type="button" class="est-link" data-addg="${mi}">+ Agregar otro reparto a ${esc(mt.label)}</button></div>`).join('');
+      f.innerHTML=foot('Guardar cambios');
+    }
+  }
+  function updateLive(){
+    const mk=drawer.m,mt=metric(mk),dr=drawer.draft,t=total(dr,mk);
+    const a=root.querySelector('#est-autotot');if(a)a.textContent=t==null?0:t;
+    mt.groups.forEach((g,gi)=>{const r=gStatus(dr,mk,g,t),s=root.querySelector('#est-gs-'+gi),m=root.querySelector('#est-gm-'+gi);if(s){s.className='est-gs '+r.cls;s.textContent=r.txt}if(m)m.innerHTML=r.meter});
+  }
+  function readInputs(){
+    if(!drawer||!root)return;
+    const iv=id=>{const el=root.querySelector('#'+id);if(!el)return undefined;const v=el.value.trim();if(v==='')return null;const n=Math.max(0,Math.round(Number(v)));return isFinite(n)?n:null};
+    if(drawer.kind==='cell'){
+      const mk=drawer.m,mt=metric(mk);
+      if(mt.auto){for(const k of ['envios','retiros']){const v=iv('est-in-'+k);if(v!==undefined)draftV(k).t=v}}
+      else{const v=iv('est-in-total');if(v!==undefined)draftV(mk).t=v}
+      mt.groups.forEach((g,gi)=>{const dv=draftV(mk);dv.g=dv.g||{};dv.g[g.id]=dv.g[g.id]||{};g.options.forEach(o=>{const v=iv(`est-o-${gi}-${o.id}`);if(v!==undefined)dv.g[g.id][o.id]=v})});
+    } else if(drawer.kind==='day'){
+      const r=root.querySelector('input[name=est-st]:checked');if(r)drawer.draft.status=r.value;
+      const nt=root.querySelector('#est-note');if(nt)drawer.draft.note=nt.value;
+    } else if(drawer.kind==='config'){
+      const c=drawer.cfg;
+      root.querySelectorAll('[data-cm]').forEach(el=>{const m=c.metrics[+el.dataset.cm];m.label=el.value.trim()||m.label});
+      root.querySelectorAll('[data-cg]').forEach(el=>{const [a,b]=el.dataset.cg.split('|').map(Number);c.metrics[a].groups[b].label=el.value.trim()||'Reparto'});
+      root.querySelectorAll('[data-co]').forEach(el=>{const [a,b,o]=el.dataset.co.split('|').map(Number);c.metrics[a].groups[b].options[o].label=el.value.trim()||'Tipo'});
+    }
+  }
+  function cleanDay(d){
+    const out={};
+    if(d.status&&d.status!==(new Date(d.date+'T12:00:00').getDay()===0?'nolaboral':'laboral'))out.status=d.status;
+    if(d.note&&String(d.note).trim())out.note=String(d.note).trim().slice(0,500);
+    const v={};
+    for(const [mk,mv] of Object.entries(d.v||{})){
+      const o={};if(num(mv&&mv.t)!=null)o.t=mv.t;
+      if(mv&&mv.g){const g={};for(const [gid,gv] of Object.entries(mv.g)){const x={};for(const [oid,val] of Object.entries(gv||{}))if(num(val)!=null)x[oid]=val;if(Object.keys(x).length)g[gid]=x}if(Object.keys(g).length)o.g=g}
+      if(Object.keys(o).length)v[mk]=o;
+    }
+    if(Object.keys(v).length)out.v=v;
+    if(!Object.keys(out).length)return null;
+    out.by=userName()||'—'; out.at=Date.now();
+    return out;
+  }
+  async function save(){
+    readInputs();
+    const msg=root.querySelector('#est-msg');if(msg)msg.textContent='Guardando…';
+    if(drawer.kind==='cell'||drawer.kind==='day'){
+      const k=drawer.k,data=cleanDay({...drawer.draft,date:k});
+      if(await fbSet(`${EST_FB}/dias/${k}`,data)){closeDrawer();toast('✓ Estadística guardada','ok');} else if(msg)msg.textContent='No se guardó';
+    } else if(drawer.kind==='config'){
+      if(await fbSet(`${EST_FB}/config`,drawer.cfg)){closeDrawer();toast('✓ Columnas y tipos actualizados','ok');} else if(msg)msg.textContent='No se guardó';
+    }
+  }
+  async function addOption(gi,label){
+    label=(label||'').trim();if(!label)return;
+    readInputs();
+    const c=clone(config);const g=c.metrics.find(x=>x.key===drawer.m).groups[gi];g.options.push({id:'t'+uid(),label});
+    drawer.adding=null;
+    if(await fbSet(`${EST_FB}/config`,c)){config=c;drawRender();}
+  }
+  function exportXlsx(){
+    const {y,m}=cur,n=dim(y,m),ms=config.metrics,head=['Fecha','Día','Estado'];
+    for(const x of ms){head.push(x.label);for(const g of x.groups)for(const o of g.options)head.push(`${x.label} - ${g.label} - ${o.label}`)}
+    head.push('Nota');
+    const rows=[head];
+    for(let d=1;d<=n;d++){
+      const k=dkey(y,m,d),dow=new Date(y,m,d).getDay(),s=status(k,dow),day=days[k];
+      const r=[`${pad(d)}/${pad(m+1)}/${y}`,DOW[dow],s==='laboral'?'Laboral':(s==='feriado'?'Feriado':'No laboral')];
+      for(const x of ms){const t=total(day,x.key);r.push(t==null?'':t);for(const g of x.groups)for(const o of g.options){const v=optVal(day,x.key,g.id,o.id);r.push(v==null?'':v)}}
+      r.push(day&&day.note||'');rows.push(r);
+    }
+    const name=`Estadistica_WhatsApp_${MONTHS[m]}_${y}`;
+    try{ if(typeof XLSX!=='undefined'){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),(MONTHS[m]+' '+y).slice(0,31));XLSX.writeFile(wb,name+'.xlsx');return;} }catch(e){console.warn(e)}
+    const csv='﻿'+rows.map(r=>r.map(v=>{const s=String(v);return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(';')).join('\r\n');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=name+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+  }
+
+  /* ---------- eventos (solo dentro del panel) ---------- */
+  function bind(){
+    const panel=document.getElementById('panel-estadistica'); if(!panel||panel._estBound)return; panel._estBound=true;
+    panel.addEventListener('click',e=>{
+      const t=e.target.closest('button,[data-est]');if(!t||!panel.contains(t))return;
+      const a=t.dataset.est;
+      if(a==='prev'){cur.m--;if(cur.m<0){cur.m=11;cur.y--}render();return}
+      if(a==='next'){cur.m++;if(cur.m>11){cur.m=0;cur.y++}render();return}
+      if(a==='today'){cur={y:now.getFullYear(),m:now.getMonth()};render();return}
+      if(a==='config'){openDrawer('config',{cfg:clone(config)});return}
+      if(a==='xlsx'){exportXlsx();return}
+      if(a==='import'){importHist();return}
+      if(a==='close'){closeDrawer();return}
+      if(t.dataset.k&&t.dataset.m){openDrawer('cell',{k:t.dataset.k,m:t.dataset.m,draft:clone(days[t.dataset.k]||{v:{}})});return}
+      if(t.dataset.day){openDrawer('day',{k:t.dataset.day,draft:clone(days[t.dataset.day]||{v:{}})});return}
+      if(!drawer)return;
+      if(t.dataset.step){const el=root.querySelector('#'+t.dataset.for);if(!el)return;el.value=Math.max(0,(Number(el.value)||0)+Number(t.dataset.step));if(drawer.kind==='cell'){readInputs();updateLive()}return}
+      if(t.dataset.rest){readInputs();const [gi,oid]=t.dataset.rest.split('|');const g=metric(drawer.m).groups[+gi];const tt=total(drawer.draft,drawer.m)||0;let others=0;for(const o of g.options)if(o.id!==oid)others+=optVal(drawer.draft,drawer.m,g.id,o.id)||0;const dv=draftV(drawer.m);dv.g=dv.g||{};dv.g[g.id]=dv.g[g.id]||{};dv.g[g.id][oid]=Math.max(0,tt-others);drawRender();return}
+      if(t.dataset.add){readInputs();drawer.adding=+t.dataset.add;drawRender();const n=root.querySelector('#est-newopt');if(n)n.focus();return}
+      if(t.dataset.addok){addOption(+t.dataset.addok,(root.querySelector('#est-newopt')||{}).value);return}
+      const c=drawer.cfg;if(!c)return;
+      readInputs();
+      if(t.dataset.delo){const [a1,b,o]=t.dataset.delo.split('|').map(Number);c.metrics[a1].groups[b].options.splice(o,1)}
+      else if(t.dataset.delg){const [a1,b]=t.dataset.delg.split('|').map(Number);c.metrics[a1].groups.splice(b,1)}
+      else if(t.dataset.addo){const [a1,b]=t.dataset.addo.split('|').map(Number);c.metrics[a1].groups[b].options.push({id:'t'+uid(),label:'Nuevo tipo'})}
+      else if(t.dataset.addg){const a1=+t.dataset.addg;c.metrics[a1].groups.push({id:'g'+uid(),label:'Nuevo reparto',options:[{id:'t'+uid(),label:'Tipo 1'},{id:'t'+uid(),label:'Tipo 2'}]})}
+      else return;
+      drawRender();
+    });
+    panel.addEventListener('submit',e=>{
+      if(e.target.id!=='est-dbody')return; e.preventDefault();
+      const ae=document.activeElement;
+      if(drawer&&drawer.adding!=null&&ae&&ae.id==='est-newopt'){addOption(drawer.adding,ae.value);return}
+      save();
+    });
+    panel.addEventListener('input',e=>{ if(drawer&&drawer.kind==='cell'&&e.target.type==='number'){readInputs();updateLive()} });
+    document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&drawer&&panel.classList.contains('active')){e.stopPropagation();closeDrawer()} },true);
+  }
+
+  window.renderEstadisticaPanel=function(){ bind(); start(); render(); };
+})();
+
+</script>
 </body>
 
 <script>
