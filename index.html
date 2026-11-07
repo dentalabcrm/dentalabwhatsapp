@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.341</title>
+<title>Dentalab Whatsapp CRM · v25.342</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -6137,6 +6137,9 @@
   body.light-mode #panel-estadistica .est-fltst.pendiente { color:var(--est-bad); } body.light-mode #panel-estadistica .est-fltst.notificado { color:var(--est-warn); } body.light-mode #panel-estadistica .est-fltst.ingresado { color:var(--est-ok); }
   .est-flt td:nth-child(2), .est-flt td:nth-child(3) { text-align:center; }
   .est-flt td small { opacity:.7; font-family:'DM Mono',ui-monospace,monospace; }
+  .est-subh { margin:6px 0 -4px; font-size:14px; font-weight:800; color:var(--text2); text-transform:uppercase; letter-spacing:.05em; }
+  .est-ing th:nth-child(2), .est-ing td:nth-child(2) { text-align:left !important; font-family:'DM Sans',sans-serif; }
+  .est-ing td:nth-child(3) { text-align:center; }
 
 </style>
 </head>
@@ -45121,7 +45124,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.341';
+  const LATEST_VERSION = 'v25.342';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45134,6 +45137,15 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.342',
+      fecha: '2026-11-07',
+      titulo: 'Estadística: ingresos de faltantes confirmados en el mes',
+      items: [
+        { tipo: 'nuevo', texto: 'La sección de Mercadería faltante del Informe (y su PDF) suma "Ingresos confirmados en el mes": los faltantes que ingresaron ese mes según la fecha de ingreso, aunque se hayan anotado antes, con la espera promedio, la espera más larga y la lista de clientes y productos.' },
+        { tipo: 'nuevo', texto: 'El diagnóstico avisa si algún faltante tardó más de 30 días en reponerse (para revisar el proveedor con Compras) y destaca cuando la reposición fue rápida.' },
+      ]
+    },
     {
       version: 'v25.341',
       fecha: '2026-11-07',
@@ -62472,6 +62484,25 @@ function _registrarUsoFrecuente(sku, nombre) {
     const rep=items.filter(f=>f.fechaIngreso&&fltFecha(f)).map(f=>(new Date(f.fechaIngreso)-new Date(fltFecha(f)))/86400000).filter(x=>x>=0);
     return {items,perDay,prods,registros:items.length,clientes,est,top:topArr,repAvg:rep.length?rep.reduce((a,b)=>a+b,0)/rep.length:null,repN:rep.length};
   }
+  // Ingresos confirmados en el mes: según la fecha de ingreso, sin importar cuándo se anotó
+  function fltIngresosMes(y,m){
+    const pref=`${y}-${pad(m+1)}`;
+    const its=fltItems().filter(f=>{ if(!f.fechaIngreso)return false; const d=new Date(f.fechaIngreso); return !isNaN(d)&&dkey(d.getFullYear(),d.getMonth(),d.getDate()).startsWith(pref); })
+      .map(f=>{ const c=fltFecha(f); const dias=c?Math.max(0,Math.round((new Date(f.fechaIngreso)-new Date(c))/86400000)):null; return {f,dias}; })
+      .sort((a,b)=>(b.dias||0)-(a.dias||0));
+    const ds=its.map(x=>x.dias).filter(x=>x!=null);
+    return {its,n:its.length,resueltos:its.filter(x=>x.f.estado==='ingresado').length,porAvisar:its.filter(x=>x.f.estado==='notificado').length,
+      avg:ds.length?ds.reduce((a,b)=>a+b,0)/ds.length:null,max:ds.length?Math.max(...ds):null,largos:its.filter(x=>x.dias!=null&&x.dias>30)};
+  }
+  function fltIngresosHTML(y,m){
+    const I=fltIngresosMes(y,m); if(!I.n) return '';
+    const mx=I.its[0];
+    const rows=I.its.slice(0,8).map(x=>`<tr><td>${esc(x.f.cliente||'—')}</td><td>${esc(fltProds(x.f).map(p=>p.descripcion||p.sku||'—').join(', '))}</td><td>${x.dias!=null?x.dias+' días':'—'}</td><td>${FLT_EST[x.f.estado]||esc(x.f.estado||'')}</td></tr>`).join('');
+    return `<h4 class="est-subh">Ingresos confirmados en ${MONTHS[m]}</h4>
+      <div class="est-tiles est-t3"><div class="est-tile"><span class="l">Faltantes que ingresaron</span><span class="b">${fmtN(I.n)}</span><span class="s">${fmtN(I.resueltos)} resueltos · ${fmtN(I.porAvisar)} por avisar</span></div><div class="est-tile"><span class="l">Espera promedio</span><span class="b">${I.avg!=null?fmtN(I.avg):'—'}</span><span class="s">días desde que se anotó</span></div><div class="est-tile"><span class="l">Espera más larga</span><span class="b ${I.max!=null&&I.max>30?'est-red':''}">${I.max!=null?fmtN(I.max):'—'}</span><span class="s">${mx?esc(mx.f.cliente||'')+' · '+esc((fltProds(mx.f)[0]||{}).descripcion||''):''}</span></div></div>
+      <div class="est-dt"><table class="est-wk est-flt est-ing"><thead><tr><th>Cliente</th><th>Producto</th><th>Esperó</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="est-small">Se cuentan por la fecha en que se marcó el ingreso, aunque se hayan anotado en otro mes.${I.n>8?` Se muestran las 8 esperas más largas de ${I.n}.`:''}</p>`;
+  }
   function fltAbiertos(){
     const all=fltItems(), hoy=Date.now();
     const notif=all.filter(f=>f.estado==='notificado');
@@ -62481,18 +62512,21 @@ function _registrarUsoFrecuente(sku, nombre) {
   function fltIrAPestana(){ closeDrawer(); const b=document.querySelector('.tab-btn[data-tab="faltante"]'); if(b) b.click(); }
   function fltNuevo(){ closeDrawer(); if(typeof openFaltanteModal==='function') openFaltanteModal(); else toast('⚠ No se encontró el formulario de Mercadería Faltante','warn'); }
   function fltMonthHTML(y,m,forPdf){
-    const F=fltMonth(y,m), mes=MONTHS[m];
-    if(!F.registros) return forPdf?'':`<section class="est-sec"><p class="est-eyebrow">Mercadería faltante</p><h3>Productos pedidos sin stock</h3><p class="est-small">No se anotaron faltantes en ${mes}. Cuando un cliente pida algo que no hay, anotalo con "＋ Faltante" (o en la pestaña 🔍 Mercadería Faltante) y va a aparecer acá.</p></section>`;
+    const F=fltMonth(y,m), mes=MONTHS[m], ING=fltIngresosHTML(y,m);
+    if(!F.registros) return forPdf?'':`<section class="est-sec"><p class="est-eyebrow">Mercadería faltante</p><h3>Productos pedidos sin stock</h3><p class="est-small">No se anotaron faltantes en ${mes}. Cuando un cliente pida algo que no hay, anotalo con "＋ Faltante" (o en la pestaña 🔍 Mercadería Faltante) y va a aparecer acá.</p>${ING}</section>`;
     const conStock=F.est.notificado+F.est.ingresado;
     const tiles=`<div class="est-tiles"><div class="est-tile"><span class="l">Productos anotados</span><span class="b">${fmtN(F.prods)}</span><span class="s">en ${fmtN(F.registros)} pedido${F.registros===1?'':'s'} de ${fmtN(F.clientes)} cliente${F.clientes===1?'':'s'}</span></div><div class="est-tile"><span class="l">Siguen sin stock</span><span class="b est-red">${fmtN(F.est.pendiente)}</span><span class="s">pendientes</span></div><div class="est-tile"><span class="l">Ya ingresó stock</span><span class="b">${fmtN(conStock)}</span><span class="s">${fmtN(F.est.notificado)} por avisar / ${fmtN(F.est.ingresado)} resueltos</span></div><div class="est-tile"><span class="l">Reposición</span><span class="b">${F.repAvg!=null?fmtN(F.repAvg):'—'}</span><span class="s">${F.repAvg!=null?`días en promedio (${F.repN} casos)`:'todavía sin reposiciones'}</span></div></div>`;
     const rows=F.top.slice(0,8).map(t=>`<tr><td>${esc(t.desc)}${t.sku?` <small>${esc(t.sku)}</small>`:''}</td><td>${t.n}</td><td>${t.cli.size}</td><td>${Object.keys(t.est).map(e=>FLT_EST[e]||e).join(' · ')}</td></tr>`).join('');
     const tabla=`<div class="est-dt"><table class="est-wk est-flt"><thead><tr><th>Producto más pedido sin stock</th><th>Veces</th><th>Clientes</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-    return `<section class="est-sec"><p class="est-eyebrow">Mercadería faltante</p><h3>Productos pedidos sin stock</h3>${tiles}${tabla}<p class="est-small">Se toma de la pestaña 🔍 Mercadería Faltante (lo anotado en ${mes}). "Por avisar" = ingresó el stock y el pedido sigue en Notificado.</p></section>`;
+    return `<section class="est-sec"><p class="est-eyebrow">Mercadería faltante</p><h3>Productos pedidos sin stock</h3><h4 class="est-subh">Anotados en ${mes}</h4>${tiles}${tabla}<p class="est-small">Se toma de la pestaña 🔍 Mercadería Faltante (lo anotado en ${mes}). "Por avisar" = ingresó el stock y el pedido sigue en Notificado.</p>${ING}</section>`;
   }
   function fltRecs(y,m,good,polish,improve){
     const F=fltMonth(y,m), A=fltAbiertos();
     if(A.notif.length) improve.push({t:`${A.notif.length} faltante${A.notif.length===1?'':'s'} con stock para avisar`,d:`Ya ingresó la mercadería y siguen en "Notificado": ${A.notif.slice(0,3).map(f=>f.cliente||'—').join(', ')}${A.notif.length>3?'…':''}.`,a:'Avisarles hoy por WhatsApp (el mensaje ya está armado en Mercadería Faltante) y pasarlos a Ingresado.'});
     if(A.viejos.length) polish.push({t:`${A.viejos.length} cliente${A.viejos.length===1?'':'s'} esperando hace más de 7 días`,d:`Productos todavía sin stock: ${A.viejos.slice(0,3).map(f=>fltProds(f)[0].descripcion||f.cliente||'—').join(', ')}${A.viejos.length>3?'…':''}.`,a:'Revisar con Compras la fecha de llegada y avisarle al cliente cuándo lo tendría, o ofrecerle una alternativa.'});
+    const I=fltIngresosMes(y,m);
+    if(I.largos.length) polish.push({t:`${I.largos.length} faltante${I.largos.length===1?'':'s'} tardó más de 30 días en reponerse`,d:`La espera más larga fue de ${I.max} días (${I.its[0].f.cliente||'—'} · ${(fltProds(I.its[0].f)[0]||{}).descripcion||''}).`,a:'Revisar con Compras esos proveedores: buscar uno alternativo o pedir antes para no hacer esperar tanto al cliente.'});
+    else if(I.n>=3&&I.avg!=null&&I.avg<=7) good.push({t:'Reposición rápida',d:`${I.n} faltantes ingresaron en ${MONTHS[m]} con ${fmtN(I.avg)} días de espera promedio.`,a:''});
     const rep=F.top.filter(t=>t.n>=3);
     if(rep.length) improve.push({t:`${rep[0].desc} se pidió ${rep[0].n} veces sin stock`,d:rep.length>1?`También: ${rep.slice(1,3).map(t=>`${t.desc} (${t.n})`).join(', ')}.`:`En ${MONTHS[m]}, ${rep[0].cli.size} cliente${rep[0].cli.size===1?'':'s'} distinto${rep[0].cli.size===1?'':'s'}.`,a:'Subir el stock mínimo o la cantidad de compra de ese producto: se están perdiendo ventas.'});
     const pm=m===0?{y:y-1,m:11}:{y,m:m-1}, Fp=fltMonth(pm.y,pm.m);
@@ -62843,6 +62877,8 @@ function _registrarUsoFrecuente(sku, nombre) {
     const FF=fltMonth(y,m);
     if(FF.registros){ const conS=FF.est.notificado+FF.est.ingresado;
       slides.push(frame('Mercadería faltante','Productos pedidos sin stock',`<div class="ep-grid4">${card('Productos anotados',fmtN(FF.prods),`${fmtN(FF.clientes)} cliente${FF.clientes===1?'':'s'}`)}${card('Siguen sin stock',fmtN(FF.est.pendiente),'pendientes','red')}${card('Ya ingresó stock',fmtN(conS),`${fmtN(FF.est.notificado)} por avisar · ${fmtN(FF.est.ingresado)} resueltos`)}${card('Reposición',FF.repAvg!=null?fmtN(FF.repAvg):'—',FF.repAvg!=null?'días en promedio':'sin reposiciones aún')}</div><table class="ep-tb ep-flt"><thead><tr><th>Producto más pedido sin stock</th><th>Veces</th><th>Clientes</th><th>Estado</th></tr></thead><tbody>${FF.top.slice(0,6).map(t=>`<tr><td>${esc(t.desc)}</td><td>${t.n}</td><td>${t.cli.size}</td><td>${Object.keys(t.est).map(e=>FLT_EST[e]||e).join(' · ')}</td></tr>`).join('')}</tbody></table>`)); }
+    const II=fltIngresosMes(y,m);
+    if(II.n){ slides.push(frame('Mercadería faltante',`Ingresos confirmados en ${MONTHS[m]}`,`<div class="ep-grid3">${card('Faltantes que ingresaron',fmtN(II.n),`${fmtN(II.resueltos)} resueltos · ${fmtN(II.porAvisar)} por avisar`)}${card('Espera promedio',II.avg!=null?fmtN(II.avg):'—','días desde que se anotó')}${card('Espera más larga',II.max!=null?fmtN(II.max):'—',esc((II.its[0].f.cliente||'')+' · '+((fltProds(II.its[0].f)[0]||{}).descripcion||'')),II.max>30?'red':'')}</div><table class="ep-tb ep-flt"><thead><tr><th>Cliente</th><th>Producto</th><th>Esperó</th><th>Estado</th></tr></thead><tbody>${II.its.slice(0,6).map(x=>`<tr><td>${esc(x.f.cliente||'—')}</td><td>${esc(fltProds(x.f).map(p=>p.descripcion||p.sku||'—').join(', '))}</td><td>${x.dias!=null?x.dias+' días':'—'}</td><td>${FLT_EST[x.f.estado]||esc(x.f.estado||'')}</td></tr>`).join('')}</tbody></table><p class="ep-note">Se cuentan por la fecha en que se marcó el ingreso, aunque se hayan anotado en otro mes.</p>`)); }
     // repartos
     const reps=config.metrics.flatMap(mt=>st[mt.key].groups.filter(G=>G.det).map(G=>({mt,G})));
     for(let i=0;i<reps.length;i+=4){ const chunk=reps.slice(i,i+4);
