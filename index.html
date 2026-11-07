@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.337</title>
+<title>Dentalab Whatsapp CRM · v25.338</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45108,7 +45108,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.337';
+  const LATEST_VERSION = 'v25.338';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45121,6 +45121,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.338',
+      fecha: '2026-11-07',
+      titulo: 'Estadística: comparaciones con "Leve suba" y "Leve baja"',
+      items: [
+        { tipo: 'mejora', texto: 'Las comparaciones ahora tienen cuatro niveles: ▲ Mejoró (suba de 2 % o más, verde), ↗ Leve suba / ↘ Leve baja (menos de 2 %, amarillo), = Sin cambios (0 %) y ▼ Empeoró (baja de 2 % o más, rojo). Siempre se muestra el porcentaje, salvo cuando no hubo cambio.' },
+      ]
+    },
     {
       version: 'v25.337',
       fecha: '2026-11-06',
@@ -62338,7 +62346,7 @@ function _registrarUsoFrecuente(sku, nombre) {
   function cmpPill(a,b,label){
     if(a==null||b==null||!b)return '';
     const x=rateLabel(a,b);
-    return `<span class="est-pill ${x.cls}" title="Promedio por día hábil vs ${esc(label)}">${x.txt}${x.cls==='reg'?'':' '+(x.r>0?'+':'')+fmtP(x.r)}</span>`;
+    return `<span class="est-pill ${x.cls}" title="Promedio por día hábil vs ${esc(label)}">${x.txt}${x.zero?'':' '+(x.r>0?'+':'')+fmtP(x.r)}</span>`;
   }
   function render(){
     root=document.getElementById('panel-estadistica-inner'); if(!root)return;
@@ -62497,7 +62505,7 @@ function _registrarUsoFrecuente(sku, nombre) {
     const cutM=now.getMonth(),cutD=now.getDate();
     const ytd=years.map(y=>({y,a:yearAgg(y,cutM,cutD)}));
     const fechaCorte=`${cutD} de ${MONTHS[cutM]}`;
-    const pill=(a,b)=>{const r=rateLabel(a,b);return r?`<span class="est-pill ${r.cls}">${r.txt}${r.cls==='reg'?'':' '+(r.r>0?'+':'')+fmtP(r.r)}</span>`:''};
+    const pill=(a,b)=>{const r=rateLabel(a,b);return r?`<span class="est-pill ${r.cls}">${r.txt}${r.zero?'':' '+(r.r>0?'+':'')+fmtP(r.r)}</span>`:''};
     let h=`<div class="est-rep">`;
     // 1. resumen por año (completo)
     const rowY=(lbl,f,fv)=>`<tr><td>${lbl}</td>${full.map((o,i)=>`<td>${f(o.a)}${i>0&&fv?'<br>'+pill(fv(o.a),fv(full[i-1].a)):''}</td>`).join('')}</tr>`;
@@ -62536,9 +62544,9 @@ function _registrarUsoFrecuente(sku, nombre) {
     const leg=`<div class="est-leg">${years.map(y=>`<span><i class="ln" style="background:${col(y)}"></i>${y}</span>`).join('')}<span>○ ${MONTHS[cutM]} ${Y1}: mes en curso (${cutD} días, no se une a la línea)</span></div>`;
     h+=`<section class="est-sec"><p class="est-eyebrow">Mes a mes</p><h3>Cómo vino cada año</h3>${leg}<div class="est-grid1">${chart('pedidos','Pedidos por mes')}${chart('chats','Chats por mes')}${chart('consultas','Consultas por mes')}</div></section>`;
     // 4. tabla mes x año (pedidos)
-    h+=`<section class="est-sec"><p class="est-eyebrow">Pedidos</p><h3>Pedidos por mes y año</h3><div class="est-dt"><table class="est-cmp est-anual est-mxy"><thead><tr><th>Mes</th>${years.map(y=>`<th>${y}</th>`).join('')}</tr></thead><tbody>${MONTHS.map((mn,i)=>`<tr><td>${mn.charAt(0).toUpperCase()+mn.slice(1)}</td>${years.map((y,yi)=>{const st=mStats[y][i];if(!st||!st.pedidos.cnt)return '<td class="na">—</td>';const prevSt=yi>0?mStats[years[yi-1]][i]:null;const r=prevSt&&prevSt.pedidos.cnt?rateLabel(st.pedidos.avg,prevSt.pedidos.avg):null;return `<td class="${r?r.cls:''}">${fmtN(st.pedidos.sum)}${y===Y1&&i===cutM?' <small>(en curso)</small>':''}${r&&r.cls!=='reg'?` <small>${r.r>0?'+':''}${fmtP(r.r)}</small>`:''}</td>`}).join('')}</tr>`).join('')}
+    h+=`<section class="est-sec"><p class="est-eyebrow">Pedidos</p><h3>Pedidos por mes y año</h3><div class="est-dt"><table class="est-cmp est-anual est-mxy"><thead><tr><th>Mes</th>${years.map(y=>`<th>${y}</th>`).join('')}</tr></thead><tbody>${MONTHS.map((mn,i)=>`<tr><td>${mn.charAt(0).toUpperCase()+mn.slice(1)}</td>${years.map((y,yi)=>{const st=mStats[y][i];if(!st||!st.pedidos.cnt)return '<td class="na">—</td>';const prevSt=yi>0?mStats[years[yi-1]][i]:null;const r=prevSt&&prevSt.pedidos.cnt?rateLabel(st.pedidos.avg,prevSt.pedidos.avg):null;return `<td class="${r?r.cls:''}">${fmtN(st.pedidos.sum)}${y===Y1&&i===cutM?' <small>(en curso)</small>':''}${r&&!r.zero?` <small>${r.r>0?'+':''}${fmtP(r.r)}</small>`:''}</td>`}).join('')}</tr>`).join('')}
       <tr class="est-tot-row"><td>Total</td>${full.map(o=>`<td>${fmtN(o.a.ped)}</td>`).join('')}</tr></tbody></table></div>
-      <p class="est-small">El color compara el promedio por día hábil de ese mes contra el mismo mes del año anterior (verde mejoró, rojo empeoró, amarillo sin cambios).</p></section>`;
+      <p class="est-small">El color compara el promedio por día hábil de ese mes contra el mismo mes del año anterior (verde mejoró, rojo empeoró, amarillo leve suba o baja de menos del 2 %).</p></section>`;
     // 5. diagnóstico anual
     const good=[],polish=[],improve=[];
     const cur=ytd.find(o=>o.y===Y1).a, prv=ytd.find(o=>o.y===Y1-1);
@@ -62573,9 +62581,12 @@ function _registrarUsoFrecuente(sku, nombre) {
 
   /* ---------- INFORME DEL MES (gráficos y resumen) ---------- */
   function niceMax(v){ if(!v||v<=0)return 10; const p=Math.pow(10,Math.floor(Math.log10(v))); for(const f of [1,1.5,2,2.5,3,4,5,6,8,10]) if(f*p>=v) return f*p; return 10*p; }
-  // Comparación: ▲ Mejoró / = Sin cambios (±2 %) / ▼ Empeoró
+  // Comparación: ▲ Mejoró (≥ +2 %) · ↗ Leve suba / ↘ Leve baja (menos de 2 %) · = Sin cambios (0 %) · ▼ Empeoró (≤ −2 %)
   const EST_SIN_CAMBIOS=0.02;
-  function rateLabel(a,b){ if(a==null||b==null||!b)return null; const r=a/b-1; const cls=Math.abs(r)<EST_SIN_CAMBIOS?'reg':(r>0?'good':'bad'); return {cls,txt:cls==='reg'?'= Sin cambios':(cls==='good'?'▲ Mejoró':'▼ Empeoró'),r}; }
+  function rateLabel(a,b){ if(a==null||b==null||!b)return null; const r=a/b-1; const zero=Math.abs(r)<0.0005;
+    const cls=Math.abs(r)<EST_SIN_CAMBIOS?'reg':(r>0?'good':'bad');
+    const txt=zero?'= Sin cambios':(cls==='reg'?(r>0?'↗ Leve suba':'↘ Leve baja'):(cls==='good'?'▲ Mejoró':'▼ Empeoró'));
+    return {cls,txt,r,zero}; }
   function informeHTML(y,m,st){
     const n=dim(y,m), rows=[];
     for(let d=1;d<=n;d++){ const k=dkey(y,m,d),dow=new Date(y,m,d).getDay(),s=status(k,dow),day=days[k];
@@ -62643,14 +62654,14 @@ function _registrarUsoFrecuente(sku, nombre) {
     // 8. Comparación
     const pm=m===0?{y:y-1,m:11}:{y,m:m-1}, ps=monthStats(pm.y,pm.m), py=monthStats(y-1,m);
     const ind=[['pedidos','Pedidos'],['chats','Chats'],['consultas','Consultas'],['envios','Envíos'],['retiros','Retiros']];
-    const cell=(a,b)=>{const r=rateLabel(a,b);return r?`<td class="cmp ${r.cls}">${r.txt}${r.cls==='reg'?'':` <small>${r.r>0?'+':''}${fmtP(r.r)}</small>`}</td>`:`<td class="cmp na">Sin datos</td>`};
+    const cell=(a,b)=>{const r=rateLabel(a,b);return r?`<td class="cmp ${r.cls}">${r.txt}${r.zero?'':` <small>${r.r>0?'+':''}${fmtP(r.r)}</small>`}</td>`:`<td class="cmp na">Sin datos</td>`};
     const res=ind.map(([k,l])=>({k,l,a:rateLabel(st[k].avg,ps[k].avg),b:rateLabel(st[k].avg,py[k].avg)}));
     const goodBoth=res.filter(x=>x.a&&x.b&&x.a.cls==='good'&&x.b.cls==='good').map(x=>x.l), badBoth=res.filter(x=>x.a&&x.b&&x.a.cls==='bad'&&x.b.cls==='bad').map(x=>x.l);
     const goodA=res.filter(x=>x.a&&x.a.cls==='good').map(x=>x.l), badA=res.filter(x=>x.a&&x.a.cls==='bad').map(x=>x.l);
     h+=`<section class="est-sec"><p class="est-eyebrow">Contra otros períodos</p><h3>Comparación del mes</h3><div class="est-two">
       <div class="est-dt"><table class="est-cmp"><thead><tr><th>Indicador</th><th>vs ${MONTHS[pm.m]} ${pm.y}</th><th>vs ${MONTHS[m]} ${y-1}</th></tr></thead><tbody>${ind.map(([k,l])=>`<tr><td>${l}</td>${cell(st[k].avg,ps[k].avg)}${cell(st[k].avg,py[k].avg)}</tr>`).join('')}</tbody></table></div>
       <div class="est-card est-notes">${goodBoth.length?`<p><b class="est-blue">${goodBoth.join(', ')}</b><br>Mejor que en los dos períodos.</p>`:(goodA.length?`<p><b class="est-blue">${goodA.join(', ')}</b><br>Mejor que el mes pasado.</p>`:'')}${badBoth.length?`<p><b class="est-red">${badBoth.join(', ')}</b><br>Peor que en los dos períodos.</p>`:(badA.length?`<p><b class="est-red">${badA.join(', ')}</b><br>Peor que el mes pasado.</p>`:'')}${!goodA.length&&!badA.length?'<p class="est-small">Todavía no hay datos para comparar.</p>':''}</div></div>
-      <p class="est-small">▲ Mejoró · = Sin cambios (diferencia menor al 2 %) · ▼ Empeoró. Se compara el promedio por día hábil, así un mes en curso o con feriados no queda en desventaja.</p></section>`;
+      <p class="est-small">▲ Mejoró (suba de 2 % o más) · ↗ Leve suba / ↘ Leve baja (menos de 2 %) · = Sin cambios (0 %) · ▼ Empeoró (baja de 2 % o más). Se compara el promedio por día hábil, así un mes en curso o con feriados no queda en desventaja.</p></section>`;
     // 9. Récords
     const rec=(lbl,s)=>{const r=s.max!=null?s.maxDays.map(d=>dayLabel(y,m,d)).join(', '):'—';return `<div class="est-tile"><span class="l">${lbl}</span><span class="b">${s.max!=null?fmtN(s.max):'—'}</span><span class="s">${esc(r)}</span></div>`};
     const mins=[['pedidos',P],['chats',C],['consultas',Q]].filter(([,s])=>s.min!=null).map(([l,s])=>`${fmtN(s.min)} ${l} (${s.min!=null?rows.filter(r=>total(days[r.k],l)===s.min).map(r=>dayLabel(y,m,r.d)).slice(0,2).join(', '):''})`);
@@ -62731,8 +62742,8 @@ function _registrarUsoFrecuente(sku, nombre) {
     // comparación
     const pm=m===0?{y:y-1,m:11}:{y,m:m-1},ps=monthStats(pm.y,pm.m),py=monthStats(y-1,m);
     const ind=[['pedidos','Pedidos'],['chats','Chats'],['consultas','Consultas'],['envios','Envíos'],['retiros','Retiros']];
-    const cc=(a,b)=>{const r=rateLabel(a,b);if(!r)return `<td class="na">Sin datos</td>`;return `<td class="${r.cls}">${r.txt}${r.cls==='reg'?'':` ${r.r>0?'+':''}${fmtP(r.r)}`}</td>`};
-    slides.push(frame('Contra otros períodos','Comparación del mes',`<table class="ep-tb ep-cmp"><thead><tr><th>Indicador</th><th>vs ${MONTHS[pm.m]} ${pm.y}</th><th>vs ${MONTHS[m]} ${y-1}</th></tr></thead><tbody>${ind.map(([k,l])=>`<tr><td>${l}</td>${cc(st[k].avg,ps[k].avg)}${cc(st[k].avg,py[k].avg)}</tr>`).join('')}</tbody></table><p class="ep-note">▲ Mejoró · = Sin cambios (diferencia menor al 2 %) · ▼ Empeoró. Se compara el promedio por día hábil.</p>`));
+    const cc=(a,b)=>{const r=rateLabel(a,b);if(!r)return `<td class="na">Sin datos</td>`;return `<td class="${r.cls}">${r.txt}${r.zero?'':` ${r.r>0?'+':''}${fmtP(r.r)}`}</td>`};
+    slides.push(frame('Contra otros períodos','Comparación del mes',`<table class="ep-tb ep-cmp"><thead><tr><th>Indicador</th><th>vs ${MONTHS[pm.m]} ${pm.y}</th><th>vs ${MONTHS[m]} ${y-1}</th></tr></thead><tbody>${ind.map(([k,l])=>`<tr><td>${l}</td>${cc(st[k].avg,ps[k].avg)}${cc(st[k].avg,py[k].avg)}</tr>`).join('')}</tbody></table><p class="ep-note">▲ Mejoró (suba de 2 % o más) · ↗ Leve suba / ↘ Leve baja (menos de 2 %) · = Sin cambios (0 %) · ▼ Empeoró (baja de 2 % o más). Se compara el promedio por día hábil.</p>`));
     // récords
     const rc=(l,s)=>`<div class="ep-card"><span class="l">${l}</span><span class="b">${s.max!=null?fmtN(s.max):'—'}</span><span class="s">${esc(s.max!=null?s.maxDays.map(d=>dayLabel(y,m,d)).join(', '):'')}</span></div>`;
     const mins=[['pedidos',P],['chats',C],['consultas',Q]].filter(([,s])=>s.min!=null).map(([l,s])=>`${fmtN(s.min)} ${l}`);
@@ -62806,19 +62817,19 @@ function _registrarUsoFrecuente(sku, nombre) {
     const {years,full,ytd,mStats,good,polish,improve,cutM,fechaCorte,Y1}=A, col=y=>YCOL[(y-EST_ANIO_DESDE)%YCOL.length];
     const per=`${years[0]} – ${Y1}`; const slides=[]; let pg=1;
     const frame=(eyebrow,title,body,opt={})=>{ pg++; return `<div class="ep-slide ${opt.dark?'dark':''}">${opt.dark?`<div class="ep-logo-badge"><img src="${EST_LOGO}"></div>`:`<img class="ep-logo" src="${EST_LOGO}">`}<p class="ep-eye">${eyebrow}</p><h2>${title}</h2>${body}<div class="ep-foot"><span>Comparativa anual de WhatsApp · ${per}</span><span>${pg}</span></div></div>`; };
-    const pill=(a,b)=>{const r=rateLabel(a,b);return r?`<span class="ep-pill ${r.cls}">${r.txt}${r.cls==='reg'?'':' '+(r.r>0?'+':'')+fmtP(r.r)}</span>`:''};
+    const pill=(a,b)=>{const r=rateLabel(a,b);return r?`<span class="ep-pill ${r.cls}">${r.txt}${r.zero?'':' '+(r.r>0?'+':'')+fmtP(r.r)}</span>`:''};
     const leg=`<div class="ep-leg">${years.map(y=>`<span><i style="background:${col(y)}"></i>${y}</span>`).join('')}<span>○ ${MONTHS[cutM]} ${Y1}: mes en curso</span></div>`;
     slides.push(`<div class="ep-slide cover"><img class="ep-cover-logo" src="${EST_LOGO}"><div class="ep-dia d1"></div><div class="ep-dia d2"></div><div class="ep-dia d3"></div><div class="ep-dia d4"></div><div class="ep-dia d5"></div><p class="ep-eye">Informe anual</p><h1>Comparativa<br>anual de WhatsApp</h1><div class="ep-rule"></div><p class="ep-per">${per}</p><p class="ep-cap">Pedidos, chats y consultas año por año · Datos al ${fechaCorte} de ${Y1}</p></div>`);
     const tb=(rows,heads)=>`<table class="ep-tb ep-ytb"><thead><tr><th>Indicador</th>${heads.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
     const rowY=(arr,lbl,f,fv)=>`<tr><td>${lbl}</td>${arr.map((o,i)=>`<td>${f(o.a)}${i>0&&fv?' '+pill(fv(o.a),fv(arr[i-1].a)):''}</td>`).join('')}</tr>`;
     slides.push(frame('Año por año','Resumen de cada año',tb(
       rowY(full,'Pedidos',a=>fmtN(a.ped))+rowY(full,'Pedidos por día hábil',a=>fmtN(a.pedDia),a=>a.pedDia)+rowY(full,'Chats',a=>fmtN(a.ch))+rowY(full,'Consultas',a=>fmtN(a.co))+rowY(full,'Conversión',a=>fmtP(a.conv),a=>a.conv)+rowY(full,'Envíos / Retiros',a=>(a.en+a.re)?`${fmtP(a.envShare)} / ${fmtP(1-a.envShare)}`:'—')+rowY(full,'Días hábiles con datos',a=>fmtN(a.dias)),
-      years.map(y=>y===Y1?`${y} (hasta hoy)`:String(y)))+`<p class="ep-note">▲ Mejoró · = Sin cambios (menos de 2 %) · ▼ Empeoró, comparando el promedio por día hábil contra el año anterior.</p>`));
+      years.map(y=>y===Y1?`${y} (hasta hoy)`:String(y)))+`<p class="ep-note">▲ Mejoró (2 % o más) · ↗ Leve suba / ↘ Leve baja (menos de 2 %) · = Sin cambios (0 %) · ▼ Empeoró (2 % o más), comparando el promedio por día hábil contra el año anterior.</p>`));
     slides.push(frame('Mismo período',`Del 1 de enero al ${fechaCorte} de cada año`,tb(
       rowY(ytd,'Pedidos',a=>fmtN(a.ped),a=>a.ped)+rowY(ytd,'Chats',a=>fmtN(a.ch),a=>a.ch)+rowY(ytd,'Consultas',a=>fmtN(a.co),a=>a.co)+rowY(ytd,'Envíos',a=>fmtN(a.en),a=>a.en)+rowY(ytd,'Retiros',a=>fmtN(a.re),a=>a.re),
       years.map(String))+`<p class="ep-note">Compara lo acumulado en el mismo tramo del año, así ${Y1} se mide de igual a igual contra los anteriores.</p>`));
     [['pedidos','Pedidos por mes'],['chats','Chats por mes'],['consultas','Consultas por mes']].forEach(([k,t])=>slides.push(frame('Mes a mes',t,leg+pdfYearLine(A,k))));
-    const mrows=MONTHS.map((mn,i)=>`<tr><td>${mn.charAt(0).toUpperCase()+mn.slice(1)}</td>${years.map((y,yi)=>{const st=mStats[y][i];if(!st||!st.pedidos.cnt)return '<td class="na">—</td>';const pv=yi>0?mStats[years[yi-1]][i]:null;const r=pv&&pv.pedidos.cnt?rateLabel(st.pedidos.avg,pv.pedidos.avg):null;return `<td class="${r?r.cls:''}">${fmtN(st.pedidos.sum)}${y===Y1&&i===cutM?' (en curso)':''}${r&&r.cls!=='reg'?` <small>${r.r>0?'+':''}${fmtP(r.r)}</small>`:''}</td>`}).join('')}</tr>`).join('');
+    const mrows=MONTHS.map((mn,i)=>`<tr><td>${mn.charAt(0).toUpperCase()+mn.slice(1)}</td>${years.map((y,yi)=>{const st=mStats[y][i];if(!st||!st.pedidos.cnt)return '<td class="na">—</td>';const pv=yi>0?mStats[years[yi-1]][i]:null;const r=pv&&pv.pedidos.cnt?rateLabel(st.pedidos.avg,pv.pedidos.avg):null;return `<td class="${r?r.cls:''}">${fmtN(st.pedidos.sum)}${y===Y1&&i===cutM?' (en curso)':''}${r&&!r.zero?` <small>${r.r>0?'+':''}${fmtP(r.r)}</small>`:''}</td>`}).join('')}</tr>`).join('');
     slides.push(frame('Pedidos','Pedidos por mes y año',`<table class="ep-tb ep-cmp ep-mxy"><thead><tr><th>Mes</th>${years.map(y=>`<th>${y}</th>`).join('')}</tr></thead><tbody>${mrows}<tr class="tot"><td>Total</td>${full.map(o=>`<td>${fmtN(o.a.ped)}</td>`).join('')}</tr></tbody></table>`));
     const li=x=>`<li><b>${esc(x.t)}</b><span>${esc(x.d)}</span>${x.a?`<em>${esc(x.a)}</em>`:''}</li>`;
     const cc=(c,t,a,e)=>`<div class="ep-rc" style="border-top-color:${c}"><h4>${t}</h4>${a.length?`<ul>${a.slice(0,3).map(li).join('')}</ul>`:`<p>${e}</p>`}</div>`;
