@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.339</title>
+<title>Dentalab Whatsapp CRM · v25.340</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45108,7 +45108,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.339';
+  const LATEST_VERSION = 'v25.340';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45121,6 +45121,15 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.340',
+      fecha: '2026-11-07',
+      titulo: 'Avisos: cartelitos que se pueden mover y agrandar',
+      items: [
+        { tipo: 'nuevo', texto: 'Los cartelitos de avisos (📢) se pueden arrastrar a cualquier lugar de la pantalla (agarrándolos desde el ⠿ o el borde) y agrandar o achicar con el tirador ◢ de la esquina; la letra crece o se achica junto con el cartel.' },
+        { tipo: 'nuevo', texto: 'La posición y el tamaño de cada aviso se recuerdan en esa computadora, también después de F5. Doble clic en el ⠿ lo vuelve a su lugar y tamaño original. El texto del aviso se puede seleccionar y copiar.' },
+      ]
+    },
     {
       version: 'v25.339',
       fecha: '2026-11-07',
@@ -72106,6 +72115,7 @@ function _avisosVistosSyncInit(nombre) {
 }
 window._cerrarAvisoBanner = function(id) {
   _avisosVistosAdd(id);
+  _avisoPosSet(id, null);
   document.getElementById('aviso-banner-' + id)?.remove();
   if (document.getElementById('avisos-admin-lista')) _renderListaAvisosAdmin();
 };
@@ -72131,6 +72141,30 @@ function _sonarAvisoNotificacion() {
   } catch (e) { /* si el navegador bloquea el audio hasta que haya una interacción, no pasa nada */ }
 }
 
+// (v25.340) Cartelitos que se pueden mover y agrandar/achicar. Posición y tamaño se guardan por aviso en este navegador.
+function _avisoPosGet() { try { return JSON.parse(localStorage.getItem('dentalab_avisos_pos') || '{}'); } catch (e) { return {}; } }
+function _avisoPosSet(id, v) { try { const all = _avisoPosGet(); if (v) all[id] = v; else delete all[id]; localStorage.setItem('dentalab_avisos_pos', JSON.stringify(all)); } catch (e) {} }
+function _avisoAplicarEscala(el) {
+  // la letra crece o se achica junto con el ancho del cartel
+  const w = el.getBoundingClientRect().width || 380;
+  const fs = Math.max(12, Math.min(34, w / 30));
+  const t = el.querySelector('.aviso-txt'), a = el.querySelector('.aviso-autor'), ic = el.querySelector('.aviso-ic');
+  if (t) t.style.fontSize = fs.toFixed(1) + 'px';
+  if (a) a.style.fontSize = (fs * 0.78).toFixed(1) + 'px';
+  if (ic) ic.style.fontSize = (fs * 1.35).toFixed(1) + 'px';
+}
+function _avisoSoltar(el) {
+  // pasa el cartel del apilado automático a posición libre en la pantalla
+  if (el.dataset.libre === '1') return;
+  const r = el.getBoundingClientRect();
+  el.dataset.libre = '1';
+  document.body.appendChild(el);
+  Object.assign(el.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', maxWidth: 'none', zIndex: 999999, margin: '0' });
+}
+function _avisoGuardar(el, id) {
+  const r = el.getBoundingClientRect();
+  _avisoPosSet(id, { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) });
+}
 function _mostrarAvisoBanner(aviso) {
   if (document.getElementById('aviso-banner-' + aviso.id)) return; // ya se está mostrando
   _sonarAvisoNotificacion();
@@ -72143,16 +72177,70 @@ function _mostrarAvisoBanner(aviso) {
   }
   const el = document.createElement('div');
   el.id = 'aviso-banner-' + aviso.id;
-  el.style.cssText = 'pointer-events:auto;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border-radius:12px;padding:12px 16px;box-shadow:0 8px 24px rgba(0,0,0,.35);display:flex;align-items:flex-start;gap:10px;max-width:480px;';
+  el.style.cssText = 'pointer-events:auto;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border-radius:12px;padding:12px 16px 14px 12px;box-shadow:0 8px 24px rgba(0,0,0,.35);display:flex;align-items:flex-start;gap:10px;width:440px;max-width:480px;box-sizing:border-box;position:relative;touch-action:none;user-select:none;cursor:grab;overflow:hidden;';
   el.innerHTML = `
-    <span style="font-size:18px;flex-shrink:0;">📢</span>
-    <div style="flex:1;">
-      <div style="font-size:13px;font-weight:700;line-height:1.4;white-space:pre-wrap;">${String(aviso.texto || '').replace(/</g, '&lt;')}</div>
-      <div style="font-size:10.5px;opacity:.85;margin-top:4px;">— ${String(aviso.autor || 'Admin').replace(/</g, '&lt;')}</div>
+    <span class="aviso-drag" title="Arrastrá para mover · doble clic para volver a su lugar" style="font-size:14px;line-height:1;opacity:.75;cursor:grab;flex-shrink:0;padding-top:3px;">⠿</span>
+    <span class="aviso-ic" style="font-size:18px;flex-shrink:0;">📢</span>
+    <div style="flex:1;min-width:0;">
+      <div class="aviso-txt" style="font-size:13px;font-weight:700;line-height:1.4;white-space:pre-wrap;word-break:break-word;user-select:text;cursor:text;">${String(aviso.texto || '').replace(/</g, '&lt;')}</div>
+      <div class="aviso-autor" style="font-size:10.5px;opacity:.85;margin-top:4px;">— ${String(aviso.autor || 'Admin').replace(/</g, '&lt;')}</div>
     </div>
-    <button onclick="_cerrarAvisoBanner('${aviso.id}')" style="background:rgba(255,255,255,.25);border:none;border-radius:6px;width:22px;height:22px;color:#fff;font-size:12px;cursor:pointer;flex-shrink:0;">✕</button>
+    <button onclick="_cerrarAvisoBanner('${aviso.id}')" title="Cerrar aviso" style="background:rgba(255,255,255,.25);border:none;border-radius:6px;width:22px;height:22px;color:#fff;font-size:12px;cursor:pointer;flex-shrink:0;">✕</button>
+    <span class="aviso-resize" title="Arrastrá para agrandar o achicar" style="position:absolute;right:2px;bottom:1px;width:16px;height:16px;cursor:nwse-resize;font-size:11px;line-height:16px;text-align:center;opacity:.8;">◢</span>
   `;
-  stack.appendChild(el);
+  const pos = _avisoPosGet()[aviso.id];
+  if (pos) {
+    el.dataset.libre = '1';
+    const w = Math.max(220, Math.min(pos.w || 440, window.innerWidth - 16));
+    Object.assign(el.style, { position: 'fixed', zIndex: 999999, maxWidth: 'none', width: w + 'px',
+      left: Math.max(4, Math.min(pos.x, window.innerWidth - 80)) + 'px', top: Math.max(4, Math.min(pos.y, window.innerHeight - 40)) + 'px' });
+    if (pos.h) el.style.height = Math.max(60, pos.h) + 'px';
+    document.body.appendChild(el);
+  } else {
+    stack.appendChild(el);
+  }
+  _avisoAplicarEscala(el);
+
+  // Mover: arrastrando el cartel (no desde el texto, la ✕ ni el tirador)
+  el.addEventListener('pointerdown', function(e) {
+    if (e.button !== 0 || e.target.closest('button') || e.target.closest('.aviso-resize') || e.target.closest('.aviso-txt')) return;
+    const r0 = el.getBoundingClientRect(), sx = e.clientX, sy = e.clientY;
+    let moved = false;
+    const mv = function(ev) {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+      if (!moved) { moved = true; _avisoSoltar(el); el.style.cursor = 'grabbing'; }
+      el.style.left = Math.max(0, Math.min(r0.left + dx, window.innerWidth - 60)) + 'px';
+      el.style.top = Math.max(0, Math.min(r0.top + dy, window.innerHeight - 30)) + 'px';
+    };
+    const up = function() {
+      document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up);
+      el.style.cursor = 'grab';
+      if (moved) _avisoGuardar(el, aviso.id);
+    };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  });
+  // Agrandar / achicar: tirador de la esquina
+  el.querySelector('.aviso-resize').addEventListener('pointerdown', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    _avisoSoltar(el);
+    const r0 = el.getBoundingClientRect(), sx = e.clientX, sy = e.clientY;
+    const mv = function(ev) {
+      el.style.width = Math.max(220, Math.min(r0.width + ev.clientX - sx, window.innerWidth - r0.left - 4)) + 'px';
+      el.style.height = Math.max(60, Math.min(r0.height + ev.clientY - sy, window.innerHeight - r0.top - 4)) + 'px';
+      _avisoAplicarEscala(el);
+    };
+    const up = function() { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); _avisoGuardar(el, aviso.id); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  });
+  // Doble clic en ⠿: vuelve a su lugar y tamaño original
+  el.querySelector('.aviso-drag').addEventListener('dblclick', function() {
+    _avisoPosSet(aviso.id, null);
+    el.remove();
+    const vol = Object.assign({}, aviso);
+    const snd = _sonarAvisoNotificacion; _sonarAvisoNotificacion = function() {}; // sin sonido al reubicar
+    try { _mostrarAvisoBanner(vol); } finally { _sonarAvisoNotificacion = snd; }
+  });
 }
 
 // Se guarda el último dato recibido de Firebase para poder re-chequear los avisos apenas
