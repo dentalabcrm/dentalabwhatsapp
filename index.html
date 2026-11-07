@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.343</title>
+<title>Dentalab Whatsapp CRM · v25.344</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12924,6 +12924,22 @@ function _skusPeliculasRx(){
 }
 const _STOPWORDS_BUSQUEDA = new Set(['para','de','del','la','el','los','las','p','y','o','con','sin','en','al','a']);
 
+// ── Atajos que SUMAN productos a la búsqueda normal (no la reemplazan) ──
+// Al escribir una de las "palabras", además de lo que se encuentra normalmente, aparecen estos SKU.
+// Si se escriben más palabras, esas filtran dentro de estos SKU (ej: "cofia 31125").
+const EXTRAS_BUSQUEDA = [
+  // "Cofia / Cofias" → además de las cofias descartables, los Attache HE (cofias/teflones para ball attach)
+  { palabras: ['cofia', 'cofias'],
+    skus: ['31111-A', '31111-T', '31125-A', '31125-T', '31130-A', '31130-T', '31143-A', '31143-T', '31150-A', '31150-T'] },
+];
+function _extrasBusqueda(tokens){
+  const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const tn = tokens.map(norm);
+  const skus = new Set(), triggers = new Set();
+  EXTRAS_BUSQUEDA.forEach(e => { if (e.palabras.some(p => tn.includes(p))) { e.skus.forEach(s => skus.add(String(s).trim().toUpperCase())); e.palabras.forEach(p => triggers.add(p)); } });
+  return skus.size ? { skus, triggers, norm } : null;
+}
+
 function _buscarGrupoEspecial(tokens){
   for (const grupo of GRUPOS_ESPECIALES) {
     const conceptoTokens = new Set();
@@ -13034,10 +13050,13 @@ function _applyFiltersBase() {
         // Además del match exacto, probar ignorando guiones/barras/puntos y tildes/ñ
         // (para que "ocryl" encuentre "O-cryl", "acrilico" encuentre "Acrílico", etc.)
         // y probar también los sinónimos del grupo de cada término (ej: "irrigador" → "Duchador").
-        const tokensOk = tokens.every(t => {
+        const _okT = t => {
           const candidatos = _candidatosSinonimos(t);
           return candidatos.some(c => fields.some(f => f.includes(c)) || fieldsSinPunt.some(f => f.includes(_sinPunt(c))));
-        });
+        };
+        let tokensOk = tokens.every(_okT);
+        // Atajo que suma productos (ej: "cofia" → también los Attache HE)
+        if (!tokensOk) { const _ex = _extrasBusqueda(tokens); tokensOk = !!(_ex && _ex.skus.has(String(r.SKU || '').trim().toUpperCase()) && tokens.every(t => _ex.triggers.has(_ex.norm(t)) || _okT(t))); }
         if (!tokensOk) return false;
       }
     }
@@ -45142,7 +45161,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.343';
+  const LATEST_VERSION = 'v25.344';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45155,6 +45174,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.344',
+      fecha: '2026-11-07',
+      titulo: 'Atajo de búsqueda: "Cofia" suma los Attache HE',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "Cofia" o "Cofias" en Lista de Precios, además de las cofias descartables aparecen los Attache HE (31111, 31125, 31130, 31143 y 31150, en A y T). Si se agrega otra palabra (ej.: "cofia 31125") filtra dentro de esos.' },
+      ]
+    },
     {
       version: 'v25.343',
       fecha: '2026-11-07',
