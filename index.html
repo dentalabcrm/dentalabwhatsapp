@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.338</title>
+<title>Dentalab Whatsapp CRM · v25.339</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45108,7 +45108,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.338';
+  const LATEST_VERSION = 'v25.339';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45121,6 +45121,15 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.339',
+      fecha: '2026-11-07',
+      titulo: 'Avisos: el cartelito ya no se borra con F5',
+      items: [
+        { tipo: 'corrección', texto: 'Los avisos (📢) ya no desaparecen al recargar la página: el cartel queda en pantalla hasta que se toca la ✕, también para quien lo envió (antes se marcaba como visto apenas se mandaba y por eso se perdía con F5).' },
+        { tipo: 'mejora', texto: 'Qué avisos cerró cada usuario ahora se guarda en Firebase: si lo cerrás en una compu se cierra en todas tus sesiones, y no vuelve a aparecer en otro navegador o en el celular.' },
+      ]
+    },
     {
       version: 'v25.338',
       fecha: '2026-11-07',
@@ -72012,7 +72021,7 @@ window._enviarAvisoAdmin = async function() {
   const autor = (typeof authCurrentUser !== 'undefined' && authCurrentUser?.name) || 'Admin';
   try {
     await db.ref('dentalab/avisos_admin/' + id).set({ id, texto, autor, creadoAt: Date.now(), destinatarios, activo: true });
-    _avisosVistosAdd(id); // el admin no necesita ver su propio cartelito
+    // (v25.339) ya no se marca como visto al enviar: el cartel queda hasta que se cierre con ✕, también tras F5
     { const _ta = document.getElementById('aviso-texto'); _ta.value = ''; _ta.style.height = 'auto'; }
     if (typeof showToast === 'function') showToast('✅ Aviso enviado', 'ok');
     _renderListaAvisosAdmin();
@@ -72069,6 +72078,31 @@ function _avisosVistosAdd(id) {
     const vistos = _avisosVistosGet();
     if (!vistos.includes(id)) { vistos.push(id); localStorage.setItem('dentalab_avisos_vistos', JSON.stringify(vistos)); }
   } catch (e) {}
+  // (v25.339) también en Firebase, por usuario, para que valga en todas sus sesiones y navegadores
+  try {
+    const nombre = typeof authCurrentUser !== 'undefined' && authCurrentUser?.name;
+    if (nombre) db.ref('dentalab/avisos_vistos/' + _avisoUserKey(nombre) + '/' + id).set(Date.now());
+  } catch (e) {}
+}
+function _avisoUserKey(n) { return String(n).replace(/[.#$\[\]\/]/g, '_'); }
+let _avisosVistosSyncUser = null;
+function _avisosVistosSyncInit(nombre) {
+  if (_avisosVistosSyncUser === nombre) return;
+  _avisosVistosSyncUser = nombre;
+  try {
+    db.ref('dentalab/avisos_vistos/' + _avisoUserKey(nombre)).on('value', function(snap) {
+      const remotos = Object.keys(snap.val() || {});
+      if (!remotos.length) return;
+      try {
+        const vistos = _avisosVistosGet();
+        let cambio = false;
+        remotos.forEach(id => { if (!vistos.includes(id)) { vistos.push(id); cambio = true; } });
+        if (cambio) localStorage.setItem('dentalab_avisos_vistos', JSON.stringify(vistos));
+      } catch (e) {}
+      // si se cerró en otra sesión, se saca también de esta pantalla
+      remotos.forEach(id => document.getElementById('aviso-banner-' + id)?.remove());
+    });
+  } catch (e) { console.warn('[Avisos] no se pudo sincronizar vistos:', e); }
 }
 window._cerrarAvisoBanner = function(id) {
   _avisosVistosAdd(id);
@@ -72132,6 +72166,7 @@ function _chequearAvisosAdminPendientes() {
   const vistos = _avisosVistosGet();
   const nombre = typeof authCurrentUser !== 'undefined' && authCurrentUser?.name;
   if (!nombre) return; // todavía no inició sesión — no sabemos a quién mostrarle
+  _avisosVistosSyncInit(nombre);
   Object.values(_avisosAdminUltimoSnapshot).forEach(aviso => {
     if (aviso.activo === false) return;
     const dest = aviso.destinatarios || [];
