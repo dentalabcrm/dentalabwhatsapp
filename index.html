@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.340</title>
+<title>Dentalab Whatsapp CRM · v25.341</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -6127,6 +6127,16 @@
   .est-mxy td small { font-size:10.5px; opacity:.85; }
   .est-mxy tr.est-tot-row td { font-weight:800; border-top:2px solid var(--text3); }
   .est-anual th small, body.light-mode #panel-estadistica .est-anual th small { color:#fff !important; }
+  .est-grid thead th.est-flt-th { background:#7c2d12; border-bottom-color:#f97316; }
+  body.light-mode #panel-estadistica .est-grid thead th.est-flt-th { background:#9a3412; }
+  .est-grid td.est-flt-td .est-cell:not(.empty) { color:#f97316; font-weight:800; }
+  body.light-mode #panel-estadistica .est-grid td.est-flt-td .est-cell:not(.empty) { color:#c2410c; }
+  .est-fltit { border:1px solid var(--border2); border-radius:8px; padding:10px 12px; display:grid; gap:4px; background:var(--bg); }
+  .est-fltst { font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:99px; margin-left:6px; }
+  .est-fltst.pendiente { background:rgba(239,68,68,.14); color:var(--est-bad); } .est-fltst.notificado { background:rgba(245,158,11,.16); color:var(--est-warn); } .est-fltst.ingresado { background:rgba(34,197,94,.15); color:var(--est-ok); }
+  body.light-mode #panel-estadistica .est-fltst.pendiente { color:var(--est-bad); } body.light-mode #panel-estadistica .est-fltst.notificado { color:var(--est-warn); } body.light-mode #panel-estadistica .est-fltst.ingresado { color:var(--est-ok); }
+  .est-flt td:nth-child(2), .est-flt td:nth-child(3) { text-align:center; }
+  .est-flt td small { opacity:.7; font-family:'DM Mono',ui-monospace,monospace; }
 
 </style>
 </head>
@@ -42200,6 +42210,9 @@ fbListen(FLT_PATH, data => {
   const panel = document.getElementById('panel-faltante');
   if (panel && panel.classList.contains('active')) renderFaltantePanel();
   _checkRestocksVsFaltante();
+  // (v25.341) la Estadística lee estos datos: se actualiza si está abierta
+  const _pEst = document.getElementById('panel-estadistica');
+  if (_pEst && _pEst.classList.contains('active') && typeof renderEstadisticaPanel === 'function') renderEstadisticaPanel();
 });
 
 function saveFaltante() {
@@ -45108,7 +45121,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.340';
+  const LATEST_VERSION = 'v25.341';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45121,6 +45134,17 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.341',
+      fecha: '2026-11-07',
+      titulo: 'Estadística: se suma la Mercadería Faltante',
+      items: [
+        { tipo: 'nuevo', texto: 'La planilla de Estadística tiene una columna "Sin stock" que se completa sola con los productos anotados cada día en 🔍 Mercadería Faltante (no se carga dos veces). Tocando la celda se ven los clientes y productos de ese día, con su estado.' },
+        { tipo: 'nuevo', texto: 'Botón "＋ Faltante" en Estadística para anotar al instante un producto que un cliente pidió y no hay, sin cambiar de pestaña.' },
+        { tipo: 'nuevo', texto: 'El Informe del mes y su PDF suman "Mercadería faltante": productos anotados, cuántos siguen sin stock, cuántos ya ingresaron (por avisar o resueltos), días promedio de reposición y los productos más pedidos sin stock.' },
+        { tipo: 'nuevo', texto: 'El diagnóstico avisa si hay clientes con stock ya ingresado sin avisar, clientes esperando hace más de 7 días y productos pedidos 3 veces o más sin stock, con recomendaciones. La Comparativa anual muestra los faltantes por mes y año.' },
+      ]
+    },
     {
       version: 'v25.340',
       fecha: '2026-11-07',
@@ -62381,7 +62405,7 @@ function _registrarUsoFrecuente(sku, nombre) {
       <div class="est-top">
         <div><h2>📊 Estadística WhatsApp</h2><p>Carga diaria de chats, consultas y pedidos. Tocá una celda para cargar y repartir por tipo.</p></div>
         <div class="est-month"><button data-est="prev" aria-label="Mes anterior">‹</button><span>${MONTHS[m]} ${y}</span><button data-est="next" aria-label="Mes siguiente">›</button></div>
-        <div class="est-actions"><button class="est-btn" data-est="today">Hoy</button><button class="est-btn" data-est="config">⚙ Columnas y tipos</button><button class="est-btn" data-est="xlsx">⬇ Exportar Excel</button><button class="est-btn primary" data-est="pdf">⬇ Descargar PDF</button></div>
+        <div class="est-actions"><button class="est-btn" data-est="today">Hoy</button><button class="est-btn" data-est="flt-new" title="Anotar un producto que un cliente pidió y no hay stock">＋ Faltante</button><button class="est-btn" data-est="config">⚙ Columnas y tipos</button><button class="est-btn" data-est="xlsx">⬇ Exportar Excel</button><button class="est-btn primary" data-est="pdf">⬇ Descargar PDF</button></div>
       </div>`;
     h+=`<div class="est-views" role="tablist"><button class="${view==='planilla'?'on':''}" data-est="v-planilla" role="tab">📋 Planilla</button><button class="${view==='informe'?'on':''}" data-est="v-informe" role="tab">📈 Informe del mes</button><button class="${view==='anual'?'on':''}" data-est="v-anual" role="tab">📅 Comparativa anual</button></div>`;
     if(!loaded) h+=`<div class="est-notice">Cargando datos de Firebase…</div>`;
@@ -62397,7 +62421,8 @@ function _registrarUsoFrecuente(sku, nombre) {
       <div class="est-facts"><span>Enviados <b>${fmtP(P.sum?E.sum/P.sum:null)}</b> · Retirados <b>${fmtP(P.sum?R.sum/P.sum:null)}</b></span><span>Día con más pedidos: <b>${esc(md(P))}</b></span><span>Más chats: <b>${esc(md(C))}</b></span><span>Más consultas: <b>${esc(md(Q))}</b></span></div>`;
     // tabla
     const ms=config.metrics,n=dim(y,m);
-    h+=`<div class="est-sheet"><div class="est-tw"><table class="est-grid"><thead><tr><th>Día</th>${ms.map(x=>`<th>${esc(x.label)}${x.auto?'<small>envíos + retiros</small>':''}</th>`).join('')}</tr></thead><tbody>`;
+    h+=`<div class="est-sheet"><div class="est-tw"><table class="est-grid"><thead><tr><th>Día</th>${ms.map(x=>`<th>${esc(x.label)}${x.auto?'<small>envíos + retiros</small>':''}</th>`).join('')}<th class="est-flt-th">Sin stock<small>de Mercadería Faltante</small></th></tr></thead><tbody>`;
+    const FM=fltMonth(y,m);
     for(let d=1;d<=n;d++){
       const k=dkey(y,m,d),dow=new Date(y,m,d).getDay(),s=status(k,dow),day=days[k];
       const hasData=ms.some(x=>total(day,x.key)!=null);
@@ -62406,10 +62431,13 @@ function _registrarUsoFrecuente(sku, nombre) {
       if(s!=='laboral'&&!hasData) h+=`<td class="off" colspan="${ms.length}">${s==='feriado'?'🏖 FERIADO':'DÍA NO LABORAL'}</td>`;
       else for(const x of ms){const t=total(day,x.key),cs=cellState(day,x.key);
         h+=`<td><button class="est-cell ${t==null?'empty':''} ${x.auto?'auto':''}" data-k="${k}" data-m="${x.key}">${t==null?'·':fmtN(t)}${cs==='ok'||cs==='partial'||cs==='over'?`<i class="est-dot ${cs}"></i>`:''}</button></td>`;}
+      const fc=FM.perDay[k]; h+=`<td class="est-flt-td"><button class="est-cell ${fc?'':'empty'}" data-flt="${k}" title="Productos sin stock anotados este día">${fc?fmtN(fc):'·'}</button></td>`;
       h+='</tr>';
     }
-    const row=(lbl,f,cls)=>`<tr class="${cls||''}"><th>${lbl}</th>${ms.map(x=>`<td>${f(st[x.key],x)}</td>`).join('')}</tr>`;
-    h+='</tbody><tfoot>'+row('Total del mes',s=>fmtN(s.sum),'tot')+row('Promedio diario',s=>s.avg==null?'—':fmtN(s.avg))+row('Mínimo en un día',s=>s.min==null?'—':fmtN(s.min))+row('Máximo en un día',s=>s.max==null?'—':fmtN(s.max))
+    const row=(lbl,f,cls,fx)=>`<tr class="${cls||''}"><th>${lbl}</th>${ms.map(x=>`<td>${f(st[x.key],x)}</td>`).join('')}<td>${fx==null?'':fx}</td></tr>`;
+    const fdias=[]; for(let d=1;d<=n;d++){const k=dkey(y,m,d),dow=new Date(y,m,d).getDay(); if(dow!==0&&status(k,dow)==='laboral'&&(ms.some(x=>total(days[k],x.key)!=null)||FM.perDay[k])) fdias.push(FM.perDay[k]||0);}
+    const fAvg=fdias.length?FM.prods/fdias.length:null, fMin=fdias.length?Math.min(...fdias):null, fMax=fdias.length?Math.max(...fdias):null;
+    h+='</tbody><tfoot>'+row('Total del mes',s=>fmtN(s.sum),'tot',fmtN(FM.prods))+row('Promedio diario',s=>s.avg==null?'—':fmtN(s.avg),'',fAvg==null?'—':fmtN(fAvg))+row('Mínimo en un día',s=>s.min==null?'—':fmtN(s.min),'',fMin==null?'—':fmtN(fMin))+row('Máximo en un día',s=>s.max==null?'—':fmtN(s.max),'',fMax==null?'—':fmtN(fMax))
       +row('% del total de pedidos',(s,x)=>x.key==='envios'||x.key==='retiros'?fmtP(P.sum?s.sum/P.sum:null):'')+row('vs '+pl,(s,x)=>cmpPill(s.avg,ps[x.key].avg,pl)||'—')+'</tfoot></table></div>';
     h+=`<div class="est-legend"><span>Usá el botón "Feriado" de cada fila para marcar feriados. Tocá el día para dejar una nota.</span><span><i class="est-dot ok"></i>repartido completo</span><span><i class="est-dot partial"></i>falta repartir</span><span><i class="est-dot over"></i>el reparto supera el total</span></div></div>`;
     // desglose
@@ -62424,6 +62452,56 @@ function _registrarUsoFrecuente(sku, nombre) {
     h+=`<div class="est-detail"><h3>Desglose del mes</h3><p>Total, promedio diario, mínimo y máximo de cada tipo. Se calcula sobre los días en que se cargó el reparto.</p><div class="est-dgrid">${cards||'<p class="est-empty">No hay columnas con tipos.</p>'}</div></div></div>`;
     h+=DRAWER_HTML;
     root.innerHTML=h;
+  }
+
+  /* ---------- MERCADERÍA FALTANTE (se lee de la pestaña 🔍 Mercadería Faltante, no se carga dos veces) ---------- */
+  function fltItems(){ try { return (typeof faltanteList!=='undefined'&&Array.isArray(faltanteList))?faltanteList.filter(Boolean):[]; } catch(e){ return []; } }
+  const fltFecha=f=>f.fechaCarga||f.fecha||f.fechaAlta||null;
+  const fltKey=f=>{const iso=fltFecha(f);if(!iso)return null;const d=new Date(iso);if(isNaN(d))return null;return dkey(d.getFullYear(),d.getMonth(),d.getDate())};
+  const fltProds=f=>(Array.isArray(f.productos)&&f.productos.length)?f.productos:[{sku:f.sku,descripcion:f.descripcion}];
+  const fltNProds=f=>fltProds(f).length;
+  const FLT_EST={pendiente:'Sin stock',notificado:'Ingresó stock',ingresado:'Resuelto'};
+  function fltMonth(y,m){
+    const pref=`${y}-${pad(m+1)}`, items=fltItems().filter(f=>{const k=fltKey(f);return k&&k.startsWith(pref)});
+    const perDay={}; items.forEach(f=>{const k=fltKey(f);perDay[k]=(perDay[k]||0)+fltNProds(f)});
+    const prods=items.reduce((a,f)=>a+fltNProds(f),0);
+    const clientes=new Set(items.map(f=>String(f.cliente||'').trim().toLowerCase()).filter(Boolean)).size;
+    const est={pendiente:0,notificado:0,ingresado:0}; items.forEach(f=>{est[f.estado||'pendiente']=(est[f.estado||'pendiente']||0)+1});
+    const top={}; items.forEach(f=>fltProds(f).forEach(p=>{const key=String(p.sku||p.descripcion||'').trim().toLowerCase(); if(!key)return; const t=top[key]||(top[key]={sku:p.sku||'',desc:p.descripcion||p.sku||'',n:0,cli:new Set(),est:{}}); t.n++; if(f.cliente)t.cli.add(String(f.cliente).trim().toLowerCase()); t.est[f.estado||'pendiente']=1;}));
+    const topArr=Object.values(top).sort((a,b)=>b.n-a.n||b.cli.size-a.cli.size);
+    const rep=items.filter(f=>f.fechaIngreso&&fltFecha(f)).map(f=>(new Date(f.fechaIngreso)-new Date(fltFecha(f)))/86400000).filter(x=>x>=0);
+    return {items,perDay,prods,registros:items.length,clientes,est,top:topArr,repAvg:rep.length?rep.reduce((a,b)=>a+b,0)/rep.length:null,repN:rep.length};
+  }
+  function fltAbiertos(){
+    const all=fltItems(), hoy=Date.now();
+    const notif=all.filter(f=>f.estado==='notificado');
+    const viejos=all.filter(f=>(f.estado||'pendiente')==='pendiente'&&fltFecha(f)&&(hoy-new Date(fltFecha(f)))/86400000>=7);
+    return {notif,viejos};
+  }
+  function fltIrAPestana(){ closeDrawer(); const b=document.querySelector('.tab-btn[data-tab="faltante"]'); if(b) b.click(); }
+  function fltNuevo(){ closeDrawer(); if(typeof openFaltanteModal==='function') openFaltanteModal(); else toast('⚠ No se encontró el formulario de Mercadería Faltante','warn'); }
+  function fltMonthHTML(y,m,forPdf){
+    const F=fltMonth(y,m), mes=MONTHS[m];
+    if(!F.registros) return forPdf?'':`<section class="est-sec"><p class="est-eyebrow">Mercadería faltante</p><h3>Productos pedidos sin stock</h3><p class="est-small">No se anotaron faltantes en ${mes}. Cuando un cliente pida algo que no hay, anotalo con "＋ Faltante" (o en la pestaña 🔍 Mercadería Faltante) y va a aparecer acá.</p></section>`;
+    const conStock=F.est.notificado+F.est.ingresado;
+    const tiles=`<div class="est-tiles"><div class="est-tile"><span class="l">Productos anotados</span><span class="b">${fmtN(F.prods)}</span><span class="s">en ${fmtN(F.registros)} pedido${F.registros===1?'':'s'} de ${fmtN(F.clientes)} cliente${F.clientes===1?'':'s'}</span></div><div class="est-tile"><span class="l">Siguen sin stock</span><span class="b est-red">${fmtN(F.est.pendiente)}</span><span class="s">pendientes</span></div><div class="est-tile"><span class="l">Ya ingresó stock</span><span class="b">${fmtN(conStock)}</span><span class="s">${fmtN(F.est.notificado)} por avisar / ${fmtN(F.est.ingresado)} resueltos</span></div><div class="est-tile"><span class="l">Reposición</span><span class="b">${F.repAvg!=null?fmtN(F.repAvg):'—'}</span><span class="s">${F.repAvg!=null?`días en promedio (${F.repN} casos)`:'todavía sin reposiciones'}</span></div></div>`;
+    const rows=F.top.slice(0,8).map(t=>`<tr><td>${esc(t.desc)}${t.sku?` <small>${esc(t.sku)}</small>`:''}</td><td>${t.n}</td><td>${t.cli.size}</td><td>${Object.keys(t.est).map(e=>FLT_EST[e]||e).join(' · ')}</td></tr>`).join('');
+    const tabla=`<div class="est-dt"><table class="est-wk est-flt"><thead><tr><th>Producto más pedido sin stock</th><th>Veces</th><th>Clientes</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return `<section class="est-sec"><p class="est-eyebrow">Mercadería faltante</p><h3>Productos pedidos sin stock</h3>${tiles}${tabla}<p class="est-small">Se toma de la pestaña 🔍 Mercadería Faltante (lo anotado en ${mes}). "Por avisar" = ingresó el stock y el pedido sigue en Notificado.</p></section>`;
+  }
+  function fltRecs(y,m,good,polish,improve){
+    const F=fltMonth(y,m), A=fltAbiertos();
+    if(A.notif.length) improve.push({t:`${A.notif.length} faltante${A.notif.length===1?'':'s'} con stock para avisar`,d:`Ya ingresó la mercadería y siguen en "Notificado": ${A.notif.slice(0,3).map(f=>f.cliente||'—').join(', ')}${A.notif.length>3?'…':''}.`,a:'Avisarles hoy por WhatsApp (el mensaje ya está armado en Mercadería Faltante) y pasarlos a Ingresado.'});
+    if(A.viejos.length) polish.push({t:`${A.viejos.length} cliente${A.viejos.length===1?'':'s'} esperando hace más de 7 días`,d:`Productos todavía sin stock: ${A.viejos.slice(0,3).map(f=>fltProds(f)[0].descripcion||f.cliente||'—').join(', ')}${A.viejos.length>3?'…':''}.`,a:'Revisar con Compras la fecha de llegada y avisarle al cliente cuándo lo tendría, o ofrecerle una alternativa.'});
+    const rep=F.top.filter(t=>t.n>=3);
+    if(rep.length) improve.push({t:`${rep[0].desc} se pidió ${rep[0].n} veces sin stock`,d:rep.length>1?`También: ${rep.slice(1,3).map(t=>`${t.desc} (${t.n})`).join(', ')}.`:`En ${MONTHS[m]}, ${rep[0].cli.size} cliente${rep[0].cli.size===1?'':'s'} distinto${rep[0].cli.size===1?'':'s'}.`,a:'Subir el stock mínimo o la cantidad de compra de ese producto: se están perdiendo ventas.'});
+    const pm=m===0?{y:y-1,m:11}:{y,m:m-1}, Fp=fltMonth(pm.y,pm.m);
+    if(F.prods&&Fp.prods){ const d=F.prods/Fp.prods-1; if(d>=.2) polish.push({t:'Más faltantes que el mes anterior',d:`${F.prods} productos anotados sin stock, contra ${Fp.prods} en ${MONTHS[pm.m]}.`,a:'Revisar con Compras los productos que más se repiten en la tabla de faltantes.'}); else if(d<=-.2) good.push({t:'Menos faltantes que el mes anterior',d:`${F.prods} productos sin stock, contra ${Fp.prods} en ${MONTHS[pm.m]}.`,a:''}); }
+  }
+  function fltDrawer(k){
+    const items=fltItems().filter(f=>fltKey(f)===k);
+    const li=items.map(f=>`<div class="est-fltit"><div><b>${esc(f.cliente||'Sin nombre')}</b> <span class="est-fltst ${esc(f.estado||'pendiente')}">${FLT_EST[f.estado||'pendiente']||esc(f.estado)}</span></div>${fltProds(f).map(p=>`<div class="est-small">• ${esc(p.descripcion||p.sku||'—')}${p.sku?` <span style="opacity:.7">(${esc(p.sku)})</span>`:''}</div>`).join('')}${f.vendedor||f.creadoPor?`<div class="est-who">Anotó: ${esc(f.vendedor||f.creadoPor)}</div>`:''}</div>`).join('');
+    return (items.length?`<div class="est-group">${li}</div>`:`<p class="est-small">Ese día no se anotaron productos sin stock.</p>`)+`<div class="est-row" style="flex-wrap:wrap;gap:8px"><button type="button" class="est-btn primary" data-est="flt-new">＋ Anotar faltante</button><button type="button" class="est-btn" data-est="flt-tab">Ver en Mercadería Faltante →</button></div><p class="est-small">Esta columna se completa sola con lo que se anota en la pestaña 🔍 Mercadería Faltante.</p>`;
   }
 
   /* ---------- DIAGNÓSTICO Y RECOMENDACIONES (reglas sobre los números del mes) ---------- */
@@ -62487,6 +62565,7 @@ function _registrarUsoFrecuente(sku, nombre) {
     const faltan=rows.filter(r=>r.dow!==0&&r.s==='laboral'&&new Date(y,m,r.d)<hoy&&r.pe==null&&r.ch==null&&r.co==null);
     if(faltan.length) polish.push({t:`Faltan cargar ${faltan.length} día${faltan.length>1?'s':''}`,d:faltan.slice(0,6).map(r=>`${nm(r.dow)} ${r.d}`).join(', ')+(faltan.length>6?'…':'')+'.',a:'Cargarlos (o marcarlos como feriado) para que los promedios y recomendaciones sean exactos.'});
     if(P.cnt>=3){ const pg=(P.groups||[]).filter(g=>g.det<P.cnt*.8); if(pg.length&&(P.groups||[]).some(g=>g.det>0)) polish.push({t:'Falta cargar repartos de pedidos',d:pg.map(g=>`${g.g.label}: ${g.det} de ${P.cnt} días`).join(' · ')+'.',a:'Repartir los pedidos todos los días (tipo, quién lo tomó, origen, cómo llegó) para que el diagnóstico pueda decir qué funciona y qué no.'}); }
+    fltRecs(y,m,good,polish,improve);
     return {good,polish,improve,prevN:prev.length};
   }
   function recsHTML(r,y,m){
@@ -62565,6 +62644,10 @@ function _registrarUsoFrecuente(sku, nombre) {
     h+=`<section class="est-sec"><p class="est-eyebrow">Pedidos</p><h3>Pedidos por mes y año</h3><div class="est-dt"><table class="est-cmp est-anual est-mxy"><thead><tr><th>Mes</th>${years.map(y=>`<th>${y}</th>`).join('')}</tr></thead><tbody>${MONTHS.map((mn,i)=>`<tr><td>${mn.charAt(0).toUpperCase()+mn.slice(1)}</td>${years.map((y,yi)=>{const st=mStats[y][i];if(!st||!st.pedidos.cnt)return '<td class="na">—</td>';const prevSt=yi>0?mStats[years[yi-1]][i]:null;const r=prevSt&&prevSt.pedidos.cnt?rateLabel(st.pedidos.avg,prevSt.pedidos.avg):null;return `<td class="${r?r.cls:''}">${fmtN(st.pedidos.sum)}${y===Y1&&i===cutM?' <small>(en curso)</small>':''}${r&&!r.zero?` <small>${r.r>0?'+':''}${fmtP(r.r)}</small>`:''}</td>`}).join('')}</tr>`).join('')}
       <tr class="est-tot-row"><td>Total</td>${full.map(o=>`<td>${fmtN(o.a.ped)}</td>`).join('')}</tr></tbody></table></div>
       <p class="est-small">El color compara el promedio por día hábil de ese mes contra el mismo mes del año anterior (verde mejoró, rojo empeoró, amarillo leve suba o baja de menos del 2 %).</p></section>`;
+    // 4b. mercadería faltante por mes y año
+    const fltYM={}; let fltAny=false;
+    years.forEach(y=>{fltYM[y]=MONTHS.map((_,mm)=>{const F=fltMonth(y,mm); if(F.prods)fltAny=true; return F.prods;});});
+    if(fltAny) h+=`<section class="est-sec"><p class="est-eyebrow">Mercadería faltante</p><h3>Productos pedidos sin stock, por mes</h3><div class="est-dt"><table class="est-cmp est-anual est-mxy"><thead><tr><th>Mes</th>${years.map(y=>`<th>${y}</th>`).join('')}</tr></thead><tbody>${MONTHS.map((mn,i)=>`<tr><td>${mn.charAt(0).toUpperCase()+mn.slice(1)}</td>${years.map(y=>`<td>${fltYM[y][i]||'—'}</td>`).join('')}</tr>`).join('')}<tr class="est-tot-row"><td>Total</td>${years.map(y=>`<td>${fltYM[y].reduce((a,b)=>a+b,0)||'—'}</td>`).join('')}</tr></tbody></table></div><p class="est-small">Se toma de la pestaña 🔍 Mercadería Faltante, desde que se empezó a usar.</p></section>`;
     // 5. diagnóstico anual
     const good=[],polish=[],improve=[];
     const cur=ytd.find(o=>o.y===Y1).a, prv=ytd.find(o=>o.y===Y1-1);
@@ -62592,7 +62675,8 @@ function _registrarUsoFrecuente(sku, nombre) {
     if(best){ const curF=full.find(o=>o.y===Y1).a;
       if(best.y===Y1) good.push({t:`${Y1} es el mejor año`,d:`${fmtN(best.a.pedDia)} pedidos por día hábil en promedio.`,a:''});
       else polish.push({t:`El mejor año fue ${best.y}`,d:`${fmtN(best.a.pedDia)} pedidos por día hábil en promedio; ${Y1} va ${fmtN(curF.pedDia)}.`,a:`Tomar ${best.y} como meta: ver en la tabla en qué meses ese año se vendió más y qué se hacía distinto.`}); }
-    lastAnual={years,full,ytd,mStats,good,polish,improve,cutM,cutD,fechaCorte,Y1};
+    { const A=fltAbiertos(); if(A.notif.length) improve.push({t:`${A.notif.length} faltante${A.notif.length===1?'':'s'} con stock para avisar`,d:'Ya ingresó la mercadería y siguen en "Notificado" en Mercadería Faltante.',a:'Avisarles hoy y pasarlos a Ingresado.'}); }
+    lastAnual={years,full,ytd,mStats,good,polish,improve,cutM,cutD,fechaCorte,Y1,fltYM,fltAny};
     h+=recsHTML({good,polish,improve,prevN:0},Y1,-1).replace('Diagnóstico del mes','Diagnóstico anual').replace(/<p class="est-sub">[\s\S]*?<\/p>/,`<p class="est-sub">Compara ${Y1} contra ${Y1-1} a la misma fecha (${fechaCorte}) y busca patrones en todos los años desde ${Y0}.</p>`);
     return h+'</div>';
   }
@@ -62666,6 +62750,8 @@ function _registrarUsoFrecuente(sku, nombre) {
     h+=`<section class="est-sec"><p class="est-eyebrow">Entrega de pedidos</p><h3>Envíos y retiros</h3>
       <div class="est-split-bar"><span class="c-pe-f" style="width:${pe*100}%">${er?fmtP(pe):''}</span><span class="c-ch-f" style="width:${(1-pe)*100}%">${er?fmtP(1-pe):''}</span></div>
       <div class="est-tiles est-t2"><div class="est-tile est-bt-red"><span class="l">Envíos</span><span class="b">${fmtN(E.sum)}</span><span class="s">${E.avg!=null?fmtN(E.avg)+' por día hábil':'—'}</span></div><div class="est-tile est-bt-blue"><span class="l">Retiros</span><span class="b">${fmtN(R.sum)}</span><span class="s">${R.avg!=null?fmtN(R.avg)+' por día hábil':'—'}</span></div></div></section>`;
+    // 6b. Mercadería faltante
+    h+=fltMonthHTML(y,m,false);
     // 7. Repartos (si hay)
     const reps=config.metrics.flatMap(mt=>st[mt.key].groups.filter(G=>G.det).map(G=>({mt,G})));
     if(reps.length) h+=`<section class="est-sec"><p class="est-eyebrow">Repartos</p><h3>¿Cómo se dividieron?</h3><div class="est-dgrid">${reps.map(({mt,G})=>`<div class="est-card"><h4>${esc(mt.label)} · ${esc(G.g.label)} <span>detalle en ${G.det} días</span></h4>${G.opts.map((o,i)=>`<div class="est-hb"><span>${esc(o.o.label)}</span><span class="est-hb-t"><i style="width:${(o.pct||0)*100}%;background:${PAL[i%PAL.length]}"></i></span><b>${fmtN(o.sum)} · ${fmtP(o.pct)}</b></div>`).join('')}</div>`).join('')}</div></section>`;
@@ -62753,6 +62839,10 @@ function _registrarUsoFrecuente(sku, nombre) {
     // envíos y retiros
     const er=E.sum+R.sum, pe=er?E.sum/er:0;
     slides.push(frame('Entrega de pedidos','Envíos y retiros',`<div class="ep-split"><span style="width:${pe*100}%;background:${PDFC.red}">${er?fmtP(pe):''}</span><span style="width:${(1-pe)*100}%;background:#1d5fae">${er?fmtP(1-pe):''}</span></div><div class="ep-grid2"><div class="ep-card" style="border-top:4px solid ${PDFC.red}"><span class="l">Envíos</span><span class="b">${fmtN(E.sum)}</span><span class="s">${E.avg!=null?fmtN(E.avg)+' por día hábil':''}</span></div><div class="ep-card" style="border-top:4px solid #1d5fae"><span class="l">Retiros</span><span class="b">${fmtN(R.sum)}</span><span class="s">${R.avg!=null?fmtN(R.avg)+' por día hábil':''}</span></div></div>`));
+    // mercadería faltante
+    const FF=fltMonth(y,m);
+    if(FF.registros){ const conS=FF.est.notificado+FF.est.ingresado;
+      slides.push(frame('Mercadería faltante','Productos pedidos sin stock',`<div class="ep-grid4">${card('Productos anotados',fmtN(FF.prods),`${fmtN(FF.clientes)} cliente${FF.clientes===1?'':'s'}`)}${card('Siguen sin stock',fmtN(FF.est.pendiente),'pendientes','red')}${card('Ya ingresó stock',fmtN(conS),`${fmtN(FF.est.notificado)} por avisar · ${fmtN(FF.est.ingresado)} resueltos`)}${card('Reposición',FF.repAvg!=null?fmtN(FF.repAvg):'—',FF.repAvg!=null?'días en promedio':'sin reposiciones aún')}</div><table class="ep-tb ep-flt"><thead><tr><th>Producto más pedido sin stock</th><th>Veces</th><th>Clientes</th><th>Estado</th></tr></thead><tbody>${FF.top.slice(0,6).map(t=>`<tr><td>${esc(t.desc)}</td><td>${t.n}</td><td>${t.cli.size}</td><td>${Object.keys(t.est).map(e=>FLT_EST[e]||e).join(' · ')}</td></tr>`).join('')}</tbody></table>`)); }
     // repartos
     const reps=config.metrics.flatMap(mt=>st[mt.key].groups.filter(G=>G.det).map(G=>({mt,G})));
     for(let i=0;i<reps.length;i+=4){ const chunk=reps.slice(i,i+4);
@@ -62811,6 +62901,7 @@ function _registrarUsoFrecuente(sku, nombre) {
   .ep-ytb td{text-align:center;font-size:16px}.ep-ytb th{text-align:center}.ep-ytb td:first-child,.ep-ytb th:first-child{text-align:left}
   .ep-pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:6px}.ep-pill.good{background:#d7f0dc;color:#15803d}.ep-pill.bad{background:#fadadd;color:#b91c1c}.ep-pill.reg{background:#fbefc9;color:#92400e}
   .ep-mxy{font-size:14px}.ep-mxy td{padding:6px 12px}.ep-mxy th{padding:8px 12px}.ep-mxy td small{font-size:11px;font-weight:600}.ep-mxy tr.tot td{font-weight:800;background:#eaf1fb}
+  .ep-flt{margin-top:6px;font-size:15px}.ep-flt td,.ep-flt th{padding:8px 12px}.ep-flt td:nth-child(2),.ep-flt td:nth-child(3){text-align:center}
   .ep-slide.dark{background:${PDFC.navy};color:#fff}.ep-slide.dark .ep-eye{color:#9cc3f5}.ep-slide.dark h2{color:#fff}.ep-slide.dark .ep-foot,.ep-slide.dark .ep-note{color:#cfe0f7}
   .ep-rec .ep-card{background:#21487f;border-color:#2c5a96;color:#fff}.ep-rec .ep-card .l,.ep-rec .ep-card .s{color:#e2ecfa}.ep-rec .ep-card .b{color:#fff;font-size:64px}.ep-rec .ep-card:first-child .b{color:#fca5a5}
   `;
@@ -62849,6 +62940,7 @@ function _registrarUsoFrecuente(sku, nombre) {
     [['pedidos','Pedidos por mes'],['chats','Chats por mes'],['consultas','Consultas por mes']].forEach(([k,t])=>slides.push(frame('Mes a mes',t,leg+pdfYearLine(A,k))));
     const mrows=MONTHS.map((mn,i)=>`<tr><td>${mn.charAt(0).toUpperCase()+mn.slice(1)}</td>${years.map((y,yi)=>{const st=mStats[y][i];if(!st||!st.pedidos.cnt)return '<td class="na">—</td>';const pv=yi>0?mStats[years[yi-1]][i]:null;const r=pv&&pv.pedidos.cnt?rateLabel(st.pedidos.avg,pv.pedidos.avg):null;return `<td class="${r?r.cls:''}">${fmtN(st.pedidos.sum)}${y===Y1&&i===cutM?' (en curso)':''}${r&&!r.zero?` <small>${r.r>0?'+':''}${fmtP(r.r)}</small>`:''}</td>`}).join('')}</tr>`).join('');
     slides.push(frame('Pedidos','Pedidos por mes y año',`<table class="ep-tb ep-cmp ep-mxy"><thead><tr><th>Mes</th>${years.map(y=>`<th>${y}</th>`).join('')}</tr></thead><tbody>${mrows}<tr class="tot"><td>Total</td>${full.map(o=>`<td>${fmtN(o.a.ped)}</td>`).join('')}</tr></tbody></table>`));
+    if(A.fltAny) slides.push(frame('Mercadería faltante','Productos pedidos sin stock, por mes',`<table class="ep-tb ep-cmp ep-mxy"><thead><tr><th>Mes</th>${years.map(y=>`<th>${y}</th>`).join('')}</tr></thead><tbody>${MONTHS.map((mn,i)=>`<tr><td>${mn.charAt(0).toUpperCase()+mn.slice(1)}</td>${years.map(y=>`<td>${A.fltYM[y][i]||'—'}</td>`).join('')}</tr>`).join('')}<tr class="tot"><td>Total</td>${years.map(y=>`<td>${A.fltYM[y].reduce((a,b)=>a+b,0)||'—'}</td>`).join('')}</tr></tbody></table>`));
     const li=x=>`<li><b>${esc(x.t)}</b><span>${esc(x.d)}</span>${x.a?`<em>${esc(x.a)}</em>`:''}</li>`;
     const cc=(c,t,a,e)=>`<div class="ep-rc" style="border-top-color:${c}"><h4>${t}</h4>${a.length?`<ul>${a.slice(0,3).map(li).join('')}</ul>`:`<p>${e}</p>`}</div>`;
     slides.push(frame('Diagnóstico anual','Qué está bien, qué pulir y qué mejorar',`<div class="ep-grid3 ep-recs">${cc('#22c55e','En qué estamos bien',good,'Todavía nada para destacar.')}${cc('#f59e0b','Qué hay que pulir',polish,'Nada para pulir por ahora.')}${cc(PDFC.blue,'Qué mejorar y cómo',improve,'No hay alertas.')}</div>`));
@@ -62937,6 +63029,9 @@ function _registrarUsoFrecuente(sku, nombre) {
       if(drawer.editing==null) h+=`<button type="button" class="est-btn est-newgrp" data-addgrp="1">+ Crear nuevo reparto</button>`;
       const by=days[drawer.k]&&days[drawer.k].by; if(by) h+=`<p class="est-who">Última carga: ${esc(by)}</p>`;
       b.innerHTML=h; f.innerHTML=foot();
+    } else if(drawer.kind==='flt'){
+      eb.textContent=prettyDate(drawer.k); ti.textContent='Mercadería faltante';
+      b.innerHTML=fltDrawer(drawer.k); f.innerHTML=`<button type="button" class="est-btn" data-est="close">Cerrar</button>`;
     } else if(drawer.kind==='day'){
       const [y,m,d]=drawer.k.split('-').map(Number),s=drawer.draft.status||status(drawer.k,new Date(y,m-1,d).getDay());
       eb.textContent='Día'; ti.textContent=prettyDate(drawer.k);
@@ -63081,13 +63176,14 @@ function _registrarUsoFrecuente(sku, nombre) {
   function exportXlsx(){
     const {y,m}=cur,n=dim(y,m),ms=config.metrics,head=['Fecha','Día','Estado'];
     for(const x of ms){head.push(x.label);for(const g of x.groups)for(const o of g.options)head.push(`${x.label} - ${g.label} - ${o.label}`)}
-    head.push('Nota');
+    head.push('Sin stock (Mercadería Faltante)'); head.push('Nota');
+    const FMx=fltMonth(y,m);
     const rows=[head];
     for(let d=1;d<=n;d++){
       const k=dkey(y,m,d),dow=new Date(y,m,d).getDay(),s=status(k,dow),day=days[k];
       const r=[`${pad(d)}/${pad(m+1)}/${y}`,DOW[dow],s==='laboral'?'Laboral':(s==='feriado'?'Feriado':'No laboral')];
       for(const x of ms){const t=total(day,x.key);r.push(t==null?'':t);for(const g of x.groups)for(const o of g.options){const v=optVal(day,x.key,g.id,o.id);r.push(v==null?'':v)}}
-      r.push(day&&day.note||'');rows.push(r);
+      r.push(FMx.perDay[k]||''); r.push(day&&day.note||'');rows.push(r);
     }
     const name=`Estadistica_WhatsApp_${MONTHS[m]}_${y}`;
     try{ if(typeof XLSX!=='undefined'){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),(MONTHS[m]+' '+y).slice(0,31));XLSX.writeFile(wb,name+'.xlsx');return;} }catch(e){console.warn(e)}
@@ -63110,6 +63206,9 @@ function _registrarUsoFrecuente(sku, nombre) {
       if(a==='pdf'){exportPdf();return}
       if(a==='import'){importHist();return}
       if(a==='close'){closeDrawer();return}
+      if(a==='flt-new'){fltNuevo();return}
+      if(a==='flt-tab'){fltIrAPestana();return}
+      if(t.dataset.flt){openDrawer('flt',{k:t.dataset.flt});return}
       if(t.dataset.fer){toggleFeriado(t.dataset.fer);return}
       if(t.dataset.k&&t.dataset.m){openDrawer('cell',{k:t.dataset.k,m:t.dataset.m,draft:clone(days[t.dataset.k]||{v:{}})});return}
       if(t.dataset.day){openDrawer('day',{k:t.dataset.day,draft:clone(days[t.dataset.day]||{v:{}})});return}
