@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.344</title>
+<title>Dentalab Whatsapp CRM · v25.346</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12925,19 +12925,36 @@ function _skusPeliculasRx(){
 const _STOPWORDS_BUSQUEDA = new Set(['para','de','del','la','el','los','las','p','y','o','con','sin','en','al','a']);
 
 // ── Atajos que SUMAN productos a la búsqueda normal (no la reemplazan) ──
-// Al escribir una de las "palabras", además de lo que se encuentra normalmente, aparecen estos SKU.
-// Si se escriben más palabras, esas filtran dentro de estos SKU (ej: "cofia 31125").
+// Al escribir una de las "palabras" (o frases: tienen que estar todas sus palabras), además de lo que se
+// encuentra normalmente, aparecen estos SKU. Singular/plural da igual. Si se escriben más palabras, esas
+// filtran dentro de estos SKU (ej: "cofia 31125").
 const EXTRAS_BUSQUEDA = [
   // "Cofia / Cofias" → además de las cofias descartables, los Attache HE (cofias/teflones para ball attach)
   { palabras: ['cofia', 'cofias'],
     skus: ['31111-A', '31111-T', '31125-A', '31125-T', '31130-A', '31130-T', '31143-A', '31143-T', '31150-A', '31150-T'] },
+  // "Cera resinosa" → Cera pegajosa
+  { palabras: ['cera resinosa'], skus: ['61316'] },
 ];
 function _extrasBusqueda(tokens){
   const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const tn = tokens.map(norm);
+  const sing = w => w.replace(/(?:es|s)$/, '');
+  const tn = (tokens || []).map(norm).filter(Boolean);
   const skus = new Set(), triggers = new Set();
-  EXTRAS_BUSQUEDA.forEach(e => { if (e.palabras.some(p => tn.includes(p))) { e.skus.forEach(s => skus.add(String(s).trim().toUpperCase())); e.palabras.forEach(p => triggers.add(p)); } });
+  EXTRAS_BUSQUEDA.forEach(e => {
+    let hit = false;
+    e.palabras.forEach(frase => {
+      const ws = norm(frase).split(/\s+/).filter(Boolean);
+      const usados = ws.map(w => tn.filter(t => t === w || sing(t) === sing(w)));
+      if (ws.length && usados.every(u => u.length)) { hit = true; usados.forEach(u => u.forEach(t => triggers.add(t))); }
+    });
+    if (hit) e.skus.forEach(s => skus.add(String(s).trim().toUpperCase()));
+  });
   return skus.size ? { skus, triggers, norm } : null;
+}
+// ¿Este SKU entra por un atajo? (para los buscadores chicos: autocompletar, etc.) okT(t) = la palabra coincide normalmente
+function _extrasMatchSku(tokens, sku, okT){
+  const ex = _extrasBusqueda(tokens);
+  return !!(ex && ex.skus.has(String(sku || '').trim().toUpperCase()) && tokens.every(t => ex.triggers.has(ex.norm(t)) || (okT ? okT(t) : false)));
 }
 
 function _buscarGrupoEspecial(tokens){
@@ -19119,7 +19136,8 @@ function _epwAcSearch(q) {
   return allData.filter(r => {
     const fields = [String(r.SKU||'').toLowerCase(), String(r.Nombre||'').toLowerCase()];
     const fieldsN = fields.map(_sinPunt);
-    return tokens.every(t => fields.some(f => f.includes(t)) || fieldsN.some(f => f.includes(_sinPunt(t))));
+    const _okT = t => fields.some(f => f.includes(t)) || fieldsN.some(f => f.includes(_sinPunt(t)));
+    return tokens.every(_okT) || _extrasMatchSku(tokens, r.SKU, _okT);
   }).slice(0, 12);
 }
 
@@ -25623,7 +25641,8 @@ function _encFilterSource(source, q) {
   return source.filter(r => {
     const fields = [String(r.SKU||'').toLowerCase(), String(r.Nombre||'').toLowerCase()];
     const fieldsN = fields.map(_sinPunt);
-    return tokens.every(t => fields.some(f => f.includes(t)) || fieldsN.some(f => f.includes(_sinPunt(t))));
+    const _okT = t => fields.some(f => f.includes(t)) || fieldsN.some(f => f.includes(_sinPunt(t)));
+    return tokens.every(_okT) || _extrasMatchSku(tokens, r.SKU, _okT);
   }).slice(0, 12);
 }
 
@@ -43064,7 +43083,8 @@ function _fltAcSearch(q) {
   return allData.filter(r => {
     const fields = [String(r.SKU||'').toLowerCase(), String(r.Nombre||'').toLowerCase()];
     const fieldsN = fields.map(_sinPunt);
-    return tokens.every(t => fields.some(f => f.includes(t)) || fieldsN.some(f => f.includes(_sinPunt(t))));
+    const _okT = t => fields.some(f => f.includes(t)) || fieldsN.some(f => f.includes(_sinPunt(t)));
+    return tokens.every(_okT) || _extrasMatchSku(tokens, r.SKU, _okT);
   }).slice(0, 12);
 }
 
@@ -45161,7 +45181,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.344';
+  const LATEST_VERSION = 'v25.346';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45174,6 +45194,23 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.346',
+      fecha: '2026-11-08',
+      titulo: 'Autocorrector: también corrige las palabras de los atajos',
+      items: [
+        { tipo: 'mejora', texto: 'El autocorrector de Lista de Precios ahora conoce las palabras de los atajos ("cofia", "cera resinosa"): si se escribe "cera resinoza", corrige y muestra la Cera pegajosa.' },
+      ]
+    },
+    {
+      version: 'v25.345',
+      fecha: '2026-11-08',
+      titulo: 'Atajo nuevo: "Cera resinosa" → Cera pegajosa (y atajos en todos los buscadores)',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "Cera resinosa" aparece la Cera pegajosa (SKU 61316). Singular o plural da igual.' },
+        { tipo: 'mejora', texto: 'Los atajos que suman productos ("Cofia", "Cera resinosa") ahora funcionan en todos los buscadores de productos: Lista de Precios, Registrar faltante, Encargues, Pedido web y Productos frecuentes.' },
+      ]
+    },
     {
       version: 'v25.344',
       fecha: '2026-11-07',
@@ -54030,7 +54067,7 @@ function _registrarUsoFrecuente(sku, nombre) {
       if (tokens.length > 0) {
         const hay = (f.sku + ' ' + f.nombre).toLowerCase();
         const hayN = _sinPunt(hay);
-        if (!tokens.every(t => hay.includes(t) || hayN.includes(_sinPunt(t)))) return false;
+        if (!tokens.every(t => hay.includes(t) || hayN.includes(_sinPunt(t))) && !_extrasMatchSku(tokens, f.sku, t => hay.includes(t) || hayN.includes(_sinPunt(t)))) return false;
       }
       // Tiene que existir en allData con stock
       const row = (window.allData || []).find(r =>
@@ -62388,7 +62425,7 @@ function _registrarUsoFrecuente(sku, nombre) {
 (function(){
   window._acVocabLista = () => {
     const d = (typeof allData !== 'undefined' && Array.isArray(allData)) ? allData : [];
-    return window._acVocab('lista', d.length, add => d.forEach(r => { add(r.Nombre); add(r.Proveedor); }));
+    return window._acVocab('lista', d.length, add => { d.forEach(r => { add(r.Nombre); add(r.Proveedor); }); if (typeof EXTRAS_BUSQUEDA !== 'undefined') EXTRAS_BUSQUEDA.forEach(e => e.palabras.forEach(add)); });
   };
   window._acVocabGlobal = () => {
     const d = (typeof allData !== 'undefined' && Array.isArray(allData)) ? allData : [];
