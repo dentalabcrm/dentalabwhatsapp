@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.359</title>
+<title>Dentalab Whatsapp CRM · v25.362</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12754,15 +12754,37 @@ function _coincideColorCera(palabra, it){
   return new RegExp('\\b' + color.raiz).test(n) || color.sufijo.test(String(it.SKU || ''));
 }
 const GRUPOS_ESPECIALES = [
-  // "Caja(s) metálica(s) / de metal / de acero inoxidable" → Cajas de Acero Inoxidable (también las que se
-  // agreguen después con "Caja … Acero Inoxidable" en el nombre)
+  // "Cera (rosa) dura / extradura / extra dura" → Cera Beauty Pink: los SKU de la lista + todo lo que diga
+  // "Cera Beauty Pink" en el nombre (también lo que se agregue después)
+  { requiere: ['cera', 'dura'],
+    requiereAlt: { cera: ['ceras'], dura: ['duras', 'extradura', 'extraduras'] },
+    opcionales: ['rosa', 'rosas', 'extra', 'de', 'para', 'p'],
+    get skus(){
+      const base = ['61313-F', '61322', '61322-F', '61313'];
+      const nz = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const din = (allData || []).filter(it => /cera beauty pink/.test(nz(it.Nombre))).map(it => String(it.SKU));
+      return [...base, ...din.filter(x => !base.includes(x))];
+    } },
+  // "Acrílico / Polímero / Material / Resina (acrílica) (para) rebasado" → Materiales de rebasado: los SKU de la
+  // lista + toda la subcategoría "Rebasado" (también los que se agreguen después)
+  { requiere: ['acrilico', 'rebasado'],
+    requiereAlt: { acrilico: ['acrilicos', 'acrilica', 'acrilicas', 'polimero', 'polimeros', 'material', 'materiales', 'resina', 'resinas'], rebasado: ['rebasados', 'rebase', 'rebasar'] },
+    opcionales: ['para', 'p', 'de', 'en', 'acrilico', 'acrilica', 'resina'],
+    get skus(){
+      const base = ['60011', '60010', '1358', '1355', '1357', '1356-INC'];
+      const nz = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      const din = (allData || []).filter(it => nz(it.Subgrupo) === 'rebasado').map(it => String(it.SKU));
+      return [...base, ...din.filter(x => !base.includes(x))];
+    } },
+  // "Caja(s) metálica(s) / de metal / de acero inoxidable" → Cajas de Acero Inoxidable: los SKU de la lista +
+  // CUALQUIER producto que diga "Caja de Acero Inoxidable" en el nombre (también los que se agreguen después)
   { requiere: ['caja', 'metalica'],
     requiereAlt: { caja: ['cajas'], metalica: ['metalicas', 'metalico', 'metalicos', 'metal', 'acero', 'inoxidable', 'inox'] },
     opcionales: ['de', 'para', 'p', 'acero', 'inoxidable', 'inox'],
     get skus(){
       const base = ['10020', '206', '200', '10021', '10022', '218-L', '217', '210', '207', '198', '10025', '10026', '212', '10027', '208', '218-P', '211', '60237'];
       const nz = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-      const din = (allData || []).filter(it => /^caja\b/.test(nz(it.Nombre)) && /acero inox/.test(nz(it.Nombre))).map(it => String(it.SKU));
+      const din = (allData || []).filter(it => { const t = nz(it.Nombre); return /caja de acero inox/.test(t) || (/^caja\b/.test(t) && /acero inox/.test(t)); }).map(it => String(it.SKU));
       return [...base, ...din.filter(x => !base.includes(x))];
     } },
   // "Cubeta(s) metálica(s) / de acero / de metal / tipo rimlock" → Cubetas t/ Rimlock (también las que se agreguen
@@ -45247,7 +45269,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.359';
+  const LATEST_VERSION = 'v25.362';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45260,6 +45282,30 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.362',
+      fecha: '2026-11-10',
+      titulo: 'Atajo: "Cera (rosa) dura / extradura" → Cera Beauty Pink',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "cera dura", "cera extradura", "cera rosa dura", "cera rosa extradura" o "cera rosa extra dura" aparecen las Ceras Beauty Pink (61313-F, 61322, 61322-F, 61313 y cualquier otra "Cera Beauty Pink").' },
+      ]
+    },
+    {
+      version: 'v25.361',
+      fecha: '2026-11-10',
+      titulo: 'Atajo: "Acrílico / Material / Polímero / Resina para rebasado"',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "acrílico (para) rebasado", "material (de) rebasado", "polímero (para) rebasado", "resina (acrílica) (para) rebasado" aparecen los materiales de rebasado (60011, 60010, 1358, 1355, 1357, 1356-INC y todo lo de la subcategoría Rebasado).' },
+      ]
+    },
+    {
+      version: 'v25.360',
+      fecha: '2026-11-10',
+      titulo: 'Atajo "cajas metálicas": todo lo que diga "Caja de Acero Inoxidable"',
+      items: [
+        { tipo: 'mejora', texto: 'El atajo "caja(s) metálica(s) / de metal / de acero inoxidable" ahora incluye cualquier producto que tenga "Caja de Acero Inoxidable" en el nombre, en cualquier parte (ej. kits que la incluyen), además de los de la lista.' },
+      ]
+    },
     {
       version: 'v25.359',
       fecha: '2026-11-10',
