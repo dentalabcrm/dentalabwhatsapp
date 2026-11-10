@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.353</title>
+<title>Dentalab Whatsapp CRM · v25.355</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12956,6 +12956,10 @@ const EXTRAS_BUSQUEDA = [
   // "Caja(s) (de/para) ortodoncia / ortopedia" → Cajas ortodoncia
   { palabras: ['caja ortodoncia', 'caja ortopedia'],
     skus: ['242', '242-f', '245-F', '251-BLA', '251-CEL', '251-LIL', '251-NAR', '251-NEG', '251-VEA', '244', '244-F', '247', '251-ROS', '246-F', 'COMBO-22', 'COMBO-21'] },
+  // "Ácido clorhídrico" (y abreviado) → Pasta para Pulido Opalustre ULTRADENT
+  { palabras: ['acido clorhidrico', 'acido clor', 'acido clorh', 'clorhidrico', 'clorhi'], skus: ['6520'] },
+  // "Ácido (grabador) (de/para) porcelana" / "Acondicionador (de/para) porcelana"
+  { palabras: ['acido grabador porcelana', 'acido porcelana', 'acondicionador porcelana'], skus: ['1549', '1565', '1562', '1539', '1541'] },
 ];
 // Palabras de unión que no filtran cuando se usa un atajo ("caja PARA ortodoncia", "caja DE ortopedia")
 const _EXTRAS_UNION = new Set(['de', 'del', 'para', 'p', 'p/', 'la', 'las', 'el', 'los', 'con', 'y', 'x']);
@@ -45206,7 +45210,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.353';
+  const LATEST_VERSION = 'v25.355';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45219,6 +45223,22 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.355',
+      fecha: '2026-11-10',
+      titulo: 'Atajo: "Ácido grabador de porcelana" / "Acondicionador de porcelana"',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "ácido grabador (de/para) porcelana", "ácido porcelana" o "acondicionador (de/para) porcelana" aparecen los SKU 1549, 1565, 1562, 1539 y 1541, en todos los buscadores de productos.' },
+      ]
+    },
+    {
+      version: 'v25.354',
+      fecha: '2026-11-10',
+      titulo: 'Atajo: "Ácido clorhídrico" → Pasta para Pulido Opalustre',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "ácido clorhídrico", "ácido clor", "ácido clorh", "clorhídrico" o "clorhi" aparece la Pasta para Pulido Opalustre Jeringa 1.87g ULTRADENT (SKU 6520), en todos los buscadores de productos.' },
+      ]
+    },
     {
       version: 'v25.353',
       fecha: '2026-11-09',
