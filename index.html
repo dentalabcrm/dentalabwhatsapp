@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.357</title>
+<title>Dentalab Whatsapp CRM · v25.359</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12754,6 +12754,28 @@ function _coincideColorCera(palabra, it){
   return new RegExp('\\b' + color.raiz).test(n) || color.sufijo.test(String(it.SKU || ''));
 }
 const GRUPOS_ESPECIALES = [
+  // "Caja(s) metálica(s) / de metal / de acero inoxidable" → Cajas de Acero Inoxidable (también las que se
+  // agreguen después con "Caja … Acero Inoxidable" en el nombre)
+  { requiere: ['caja', 'metalica'],
+    requiereAlt: { caja: ['cajas'], metalica: ['metalicas', 'metalico', 'metalicos', 'metal', 'acero', 'inoxidable', 'inox'] },
+    opcionales: ['de', 'para', 'p', 'acero', 'inoxidable', 'inox'],
+    get skus(){
+      const base = ['10020', '206', '200', '10021', '10022', '218-L', '217', '210', '207', '198', '10025', '10026', '212', '10027', '208', '218-P', '211', '60237'];
+      const nz = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const din = (allData || []).filter(it => /^caja\b/.test(nz(it.Nombre)) && /acero inox/.test(nz(it.Nombre))).map(it => String(it.SKU));
+      return [...base, ...din.filter(x => !base.includes(x))];
+    } },
+  // "Cubeta(s) metálica(s) / de acero / de metal / tipo rimlock" → Cubetas t/ Rimlock (también las que se agreguen
+  // después con "Rimlock" en el nombre)
+  { requiere: ['cubeta', 'metalica'],
+    requiereAlt: { cubeta: ['cubetas'], metalica: ['metalicas', 'metalico', 'metalicos', 'metal', 'acero', 'rimlock', 'rimlok', 'rinlock'] },
+    opcionales: ['tipo', 't', 'de', 'para', 'p', 'inoxidable', 'inox'],
+    get skus(){
+      const base = ['591', '598', '589', '593', '592', '599', '588', '595', '603', '602'];
+      const nz = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const din = (allData || []).filter(it => /\bcubetas?\b/.test(nz(it.Nombre)) && /rimlock/.test(nz(it.Nombre))).map(it => String(it.SKU));
+      return [...base, ...din.filter(x => !base.includes(x))];
+    } },
   // "Blanqueamiento consultorio / profesional" (también "blanq", "blan", "consul", "pro", "profe") → toda la
   // subcategoría Blanqueamiento Dental › Consultorio (también los productos que se agreguen después)
   { requiere: ['blanqueamiento', 'consultorio'],
@@ -45225,7 +45247,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.357';
+  const LATEST_VERSION = 'v25.359';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45238,6 +45260,22 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.359',
+      fecha: '2026-11-10',
+      titulo: 'Atajo: "Cajas metálicas / de metal / de acero inoxidable"',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "caja(s) metálica(s)", "caja(s) de metal" o "cajas (de) acero inoxidable" aparecen todas las Cajas de Acero Inoxidable (lisas, perforadas, Miniendo y la de cirugía).' },
+      ]
+    },
+    {
+      version: 'v25.358',
+      fecha: '2026-11-10',
+      titulo: 'Atajo: "Cubetas metálicas / de acero / tipo rimlock" → Cubetas Rimlock',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "cubeta(s) metálica(s)", "cubetas de acero", "cubetas de metal", "cubetas acero", "cubetas metal" o "cubetas tipo rimlock" aparecen todas las Cubetas t/ Rimlock.' },
+      ]
+    },
     {
       version: 'v25.357',
       fecha: '2026-11-10',
