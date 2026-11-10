@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.362</title>
+<title>Dentalab Whatsapp CRM · v25.367</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12754,6 +12754,54 @@ function _coincideColorCera(palabra, it){
   return new RegExp('\\b' + color.raiz).test(n) || color.sufijo.test(String(it.SKU || ''));
 }
 const GRUPOS_ESPECIALES = [
+  // "Ionómero (vítreo) (de) foto(curado) (en) jeringa" → 1138
+  { requiere: ['ionomero', 'foto', 'jeringa'],
+    requiereAlt: { ionomero: ['ionomeros', 'iono'], foto: ['fotocurado', 'fotocurable', 'fotocurada', 'fotopolimerizable', 'fotocura'], jeringa: ['jeringas', 'jer'] },
+    opcionales: ['vitreo', 'vitreos', 'vidrio', 'de', 'en', 'para', 'p'],
+    skus: ['1138'] },
+  // "(Cemento) (temporario) hidróxido (de calcio) (en) polvo" / "Hidro polvo" / "Cemento temp(orario) polvo"
+  // → Hidróxido de calcio en polvo
+  { requiere: ['hidroxido', 'polvo'],
+    requiereAlt: { hidroxido: ['hidroxidos', 'hidro', 'hidrox'], polvo: ['polvos'] },
+    opcionales: ['cemento', 'cementos', 'temporario', 'temporarios', 'temporal', 'temp', 'calcio', 'ca', 'de', 'en', 'para', 'p'],
+    skus: ['6617-P'] },
+  { requiere: ['cemento', 'temporario', 'polvo'],
+    requiereAlt: { cemento: ['cementos'], temporario: ['temporarios', 'temporal', 'temporales', 'temp'], polvo: ['polvos'] },
+    opcionales: ['hidroxido', 'hidro', 'calcio', 'ca', 'de', 'en', 'para', 'p'],
+    skus: ['6617-P'] },
+  // (también escrito todo junto: "cemento temporariopolvo")
+  { requiere: ['cemento', 'temporariopolvo'], requiereAlt: { cemento: ['cementos'], temporariopolvo: ['temppolvo'] },
+    opcionales: ['hidroxido', 'hidro', 'calcio', 'ca', 'de', 'en'], skus: ['6617-P'] },
+  // "(Cemento) (temporario) hidróxido (de calcio) (en) jeringa / jer" / "Hidro jer" / "Cemento temp(orario) jeringa"
+  // → Hidróxido de calcio en jeringa
+  { requiere: ['hidroxido', 'jeringa'],
+    requiereAlt: { hidroxido: ['hidroxidos', 'hidro', 'hidrox'], jeringa: ['jeringas', 'jer', 'jering'] },
+    opcionales: ['cemento', 'cementos', 'temporario', 'temporarios', 'temporal', 'temp', 'calcio', 'ca', 'de', 'en', 'para', 'p'],
+    skus: ['1137', '6615'] },
+  { requiere: ['cemento', 'temporario', 'jeringa'],
+    requiereAlt: { cemento: ['cementos'], temporario: ['temporarios', 'temporal', 'temporales', 'temp'], jeringa: ['jeringas', 'jer', 'jering'] },
+    opcionales: ['hidroxido', 'hidro', 'calcio', 'ca', 'de', 'en', 'para', 'p'],
+    skus: ['1137', '6615'] },
+  // "(Cemento) (temporario) hidróxido (de calcio) líquido / liq / liqui" / "Hidro liq" / "Cemento temp(orario) líquido"
+  // → Hidróxido de calcio líquido
+  { requiere: ['hidroxido', 'liquido'],
+    requiereAlt: { hidroxido: ['hidroxidos', 'hidro', 'hidrox'], liquido: ['liquidos', 'liquida', 'liq', 'liqui'] },
+    opcionales: ['cemento', 'cementos', 'temporario', 'temporarios', 'temporal', 'temp', 'calcio', 'ca', 'de', 'en', 'para', 'p'],
+    skus: ['6616', '6617'] },
+  { requiere: ['cemento', 'temporario', 'liquido'],
+    requiereAlt: { cemento: ['cementos'], temporario: ['temporarios', 'temporal', 'temporales', 'temp'], liquido: ['liquidos', 'liquida', 'liq', 'liqui'] },
+    opcionales: ['hidroxido', 'hidro', 'calcio', 'ca', 'de', 'en', 'para', 'p'],
+    skus: ['6616', '6617'] },
+  // "(Cemento) (temporario) hidróxido (de calcio) (en) pasta" / "Hidro pasta" / "Cemento temp(orario) pasta"
+  // → Cementos de hidróxido de calcio en pasta
+  { requiere: ['hidroxido', 'pasta'],
+    requiereAlt: { hidroxido: ['hidroxidos', 'hidro', 'hidrox'], pasta: ['pastas'] },
+    opcionales: ['cemento', 'cementos', 'temporario', 'temporarios', 'temporal', 'temp', 'calcio', 'ca', 'de', 'en', 'para', 'p'],
+    skus: ['1136', '6618', '1143', '1149', '1140'] },
+  { requiere: ['cemento', 'temporario', 'pasta'],
+    requiereAlt: { cemento: ['cementos'], temporario: ['temporarios', 'temporal', 'temporales', 'temp'], pasta: ['pastas'] },
+    opcionales: ['hidroxido', 'hidro', 'calcio', 'ca', 'de', 'en', 'para', 'p'],
+    skus: ['1136', '6618', '1143', '1149', '1140'] },
   // "Cera (rosa) dura / extradura / extra dura" → Cera Beauty Pink: los SKU de la lista + todo lo que diga
   // "Cera Beauty Pink" en el nombre (también lo que se agregue después)
   { requiere: ['cera', 'dura'],
@@ -45269,7 +45317,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.362';
+  const LATEST_VERSION = 'v25.367';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45282,6 +45330,46 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.367',
+      fecha: '2026-11-10',
+      titulo: 'Atajo: "Ionómero vítreo de fotocurado en jeringa" → 1138',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "ionómero (vítreo) (de) fotocurado/foto (en) jeringa" aparece el SKU 1138.' },
+      ]
+    },
+    {
+      version: 'v25.366',
+      fecha: '2026-11-10',
+      titulo: 'Atajo: "Hidróxido de calcio en polvo" / "Cemento temporario polvo"',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "(cemento) (temporario) hidróxido (de calcio) (en) polvo", "hidro polvo", "cemento temporario polvo" o "cemento temp polvo" aparece el SKU 6617-P.' },
+      ]
+    },
+    {
+      version: 'v25.365',
+      fecha: '2026-11-10',
+      titulo: 'Atajo: "Hidróxido de calcio en jeringa" / "Cemento temporario jeringa"',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "(cemento) (temporario) hidróxido (de calcio) (en) jeringa/jer", "hidro jer", "cemento temporario jeringa" o "cemento temp jer" aparecen los SKU 1137 y 6615.' },
+      ]
+    },
+    {
+      version: 'v25.364',
+      fecha: '2026-11-10',
+      titulo: 'Atajo: "Hidróxido de calcio líquido" / "Cemento temporario líquido"',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "(cemento) (temporario) hidróxido (de calcio) líquido/liq/liqui", "hidro liq", "cemento temporario líquido" o "cemento temp liq" aparecen los SKU 6616 y 6617.' },
+      ]
+    },
+    {
+      version: 'v25.363',
+      fecha: '2026-11-10',
+      titulo: 'Atajo: "Hidróxido de calcio en pasta" / "Cemento temporario pasta"',
+      items: [
+        { tipo: 'mejora', texto: 'Al buscar "(cemento) (temporario) hidróxido (de calcio) (en) pasta", "hidro pasta", "hidro de calcio pasta", "cemento temporario pasta" o "cemento temp pasta" aparecen los SKU 1136, 6618, 1143, 1149 y 1140.' },
+      ]
+    },
     {
       version: 'v25.362',
       fecha: '2026-11-10',
