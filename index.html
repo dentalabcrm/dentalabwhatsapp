@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.391</title>
+<title>Dentalab Whatsapp CRM · v25.392</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -10174,6 +10174,29 @@ async function yiqiFetch(url, options, _intento) {
     console.warn(`Yiqi: 429 (límite de solicitudes), reintentando en ${esperaMs}ms (intento ${_intento}/${MAX_INTENTOS})…`);
     await new Promise(r => setTimeout(r, esperaMs));
     return yiqiFetch(url, options, _intento + 1);
+  }
+  // Pedidos: si Yiqi rechaza un campo porque "no es editable en este registro" (pasa desde una actualización de
+  // Yiqi con el Tipo de Factura, que ahora lo asigna Yiqi según el punto de venta / cliente), se vuelve a
+  // mandar el pedido SIN ese campo y se avisa. Así el pedido se carga igual.
+  if (resp.status === 400 && /\/api\/public\/PEDIDO\b/.test(String(url)) && options && /^(POST|PUT)$/i.test(options.method || '') && !options._yiqiSinNoEditables) {
+    try {
+      const j = JSON.parse(await resp.clone().text());
+      const body = JSON.parse(options.body || '{}');
+      const data = body.data || {};
+      const errs = j.errors || {};
+      const quitar = Object.keys(errs).filter(k => k !== 'PRODUCTOS' && Object.prototype.hasOwnProperty.call(data, k) && /no es editable|no est[aá] disponible/i.test([].concat(errs[k]).join(' ')));
+      if (quitar.length) {
+        quitar.forEach(k => delete data[k]);
+        console.warn('Yiqi: campos no editables, se reintenta sin', quitar);
+        const r2 = await yiqiFetch(url, Object.assign({}, options, { body: JSON.stringify(body), _yiqiSinNoEditables: true }));
+        if (r2.ok) {
+          const NOM = { TIFA_ID_TIFA: 'Tipo de Factura', PUVE_ID_PUVE: 'Punto de Venta', LIDP_ID_LIDP: 'Lista de precios', COVE_ID_COVE: 'Condición de Venta', VEHA_ID_VEHA: 'Vendedor', CEDI_ID_ORIG: 'Ubicación origen', EXTE_ID_EXTE: 'Origen' };
+          const txt = quitar.map(k => NOM[k] || k).join(', ');
+          setTimeout(() => { try { showToast(`ℹ️ Yiqi no dejó elegir: ${txt}. Lo asignó Yiqi solo — revisalo en el pedido.`, 'info'); } catch (e) {} }, 2500);
+        }
+        return r2;
+      }
+    } catch (e) { /* si no se puede leer el error, se devuelve el original */ }
   }
   return resp;
 }
@@ -45521,7 +45544,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.391';
+  const LATEST_VERSION = 'v25.392';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45534,6 +45557,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.392',
+      fecha: '2026-11-12',
+      titulo: 'Yiqi: "Cargar en Yiqi" vuelve a funcionar tras la actualización de Yiqi',
+      items: [
+        { tipo: 'fix', texto: 'Desde la última actualización de Yiqi, al cargar un pedido daba error 400 "TIFA_ID_TIFA: No es editable en este registro" (Tipo de Factura). Ahora, si Yiqi rechaza un campo por no ser editable, el pedido se vuelve a mandar sin ese campo (Yiqi lo asigna solo) y aparece un aviso para revisarlo. Vale para crear, editar y Consumidor Final.' },
+      ]
+    },
     {
       version: 'v25.391',
       fecha: '2026-11-12',
