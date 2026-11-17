@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.393</title>
+<title>Dentalab Whatsapp CRM · v25.395</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -11213,7 +11213,7 @@ db.ref('dentalab/yiqi_sku_map').on('value', snap => {
   }
 });
 
-async function yiqiGetSkuMap(token, logFn) {
+async function _yiqiGetSkuMapBase(token, logFn) {
   const ts  = parseInt(localStorage.getItem(YIQI_SKU_MAP_TS_KEY) || '0', 10);
   const raw = localStorage.getItem(YIQI_SKU_MAP_KEY);
   if (raw && ts && (Date.now() - ts) < YIQI_SKU_MAP_TTL) {
@@ -11229,6 +11229,59 @@ async function yiqiGetSkuMap(token, logFn) {
   const n = Object.keys(YIQI_SKU_MAP_STATIC).length;
   if (logFn) logFn('Mapa SKU→ID: ' + n + ' entradas (tabla embebida)', 'ok');
   return YIQI_SKU_MAP_STATIC;
+}
+
+// ── Mapa SKU→ID de Yiqi más completo (v25.394) ──────────────────────────────
+// Antes: si un SKU no estaba en la tabla (productos nuevos cargados en Yiqi después del último
+// "Identificador.xlsx"), se omitía del pedido sin preguntar. Ahora:
+//  1) se juntan TODAS las fuentes: tabla embebida + la importada (Firebase/caché) + los IDs cargados a mano;
+//  2) se busca sin importar mayúsculas/espacios ("11206-cdi" = "11206-CDI");
+//  3) si igual falta, al cargar el pedido se pide el ID de Yiqi de ese producto (una vez): queda guardado
+//     para todo el equipo (Firebase dentalab/yiqi_sku_map_extra) y ya no se vuelve a pedir.
+const YIQI_SKU_EXTRA_KEY = 'dentalab_yiqi_sku_extra';
+function _yiqiSkuExtraLeer(){ try { return JSON.parse(localStorage.getItem(YIQI_SKU_EXTRA_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function _yiqiSkuExtraGuardar(sku, id){
+  const ex = _yiqiSkuExtraLeer(); ex[sku] = id;
+  try { localStorage.setItem(YIQI_SKU_EXTRA_KEY, JSON.stringify(ex)); } catch (e) {}
+  try { db.ref('dentalab/yiqi_sku_map_extra/' + encodeURIComponent(sku).replace(/\./g, '%2E')).set(id); } catch (e) {}
+}
+try {
+  db.ref('dentalab/yiqi_sku_map_extra').on('value', snap => {
+    const d = snap.val() || {};
+    const ex = _yiqiSkuExtraLeer();
+    Object.keys(d).forEach(k => { let s = k; try { s = decodeURIComponent(k); } catch (e) {} ex[s] = d[k]; });
+    try { localStorage.setItem(YIQI_SKU_EXTRA_KEY, JSON.stringify(ex)); } catch (e) {}
+  });
+} catch (e) {}
+const _yiqiSkuNorm = s => String(s || '').trim().toUpperCase().replace(/\s+/g, '');
+async function yiqiGetSkuMap(token, logFn, preguntarFaltantes){
+  const base = await _yiqiGetSkuMapBase(token, logFn);
+  const todo = Object.assign({}, (typeof YIQI_SKU_MAP_STATIC !== 'undefined' ? YIQI_SKU_MAP_STATIC : {}), base || {}, _yiqiSkuExtraLeer());
+  const idx = {};
+  Object.keys(todo).forEach(k => { idx[_yiqiSkuNorm(k)] = todo[k]; });
+  const yaPreguntados = new Set();
+  return new Proxy(todo, {
+    get(t, k){
+      if (typeof k !== 'string') return t[k];
+      if (Object.prototype.hasOwnProperty.call(t, k)) return t[k];
+      const n = _yiqiSkuNorm(k);
+      if (n && idx[n] !== undefined) return idx[n];
+      // Falta: preguntar el ID (solo al cargar un pedido, y solo para cosas con forma de SKU)
+      if (!preguntarFaltantes || k === 'then' || !/\d/.test(k) || !/^[\w.\-\/ ]+$/.test(k) || yaPreguntados.has(n)) return undefined;
+      yaPreguntados.add(n);
+      let nom = '';
+      try { const r = (typeof allData !== 'undefined' ? allData : []).find(x => _yiqiSkuNorm(x.SKU) === n); nom = r ? ' — ' + r.Nombre : ''; } catch (e) {}
+      const resp = window.prompt(
+        `El SKU ${k}${nom} no está en la tabla de Yiqi (producto nuevo o no importado).\n\n` +
+        `Escribí su ID interno de Yiqi (el número que aparece en la dirección al abrir el producto en Yiqi) ` +
+        `para incluirlo. Queda guardado para todos.\n\nSi lo dejás vacío, el producto NO se incluye en el pedido.`, '');
+      const id = parseInt(String(resp || '').replace(/\D/g, ''), 10);
+      if (!id) return undefined;
+      _yiqiSkuExtraGuardar(String(k).trim(), id);
+      idx[n] = id; t[k] = id;
+      return id;
+    }
+  });
 }
 
 // ── Refrescar mapa SKU→ID interno manualmente (botón UI) ──
@@ -13350,7 +13403,9 @@ function _candidatosSinonimos(t) {
     // y con eso el resto de la búsqueda quedaba contaminada (candidatos.some(...) ya no
     // discriminaba nada). El match EXACTO (g === t) sigue funcionando sin importar longitud.
     if (grupo.some(g => g === t || (g.length >= 4 && (g.includes(t) || t.includes(g))))) {
-      grupo.forEach(g => { if (!candidatos.includes(g)) candidatos.push(g); });
+      // Los sinónimos muy cortos (ej. "CA" = Contra Ángulo) solo se usan si se escribieron tal cual:
+      // si no, "contra angulo" buscaba también "ca" y traía cualquier cosa (alicate, escáner, cofias…).
+      grupo.forEach(g => { if (!candidatos.includes(g) && (g.length >= 3 || g === t)) candidatos.push(g); });
     }
   });
   return candidatos;
@@ -19771,7 +19826,7 @@ async function cargarPedidoWebEnYiqi(id, btnEl) {
 
     // 3. Resolver SKU → ID interno Yiqi
     setBtn('🔍 Obteniendo mapa SKU→ID…', true);
-    const skuIdMap = await yiqiGetSkuMap(token, null);
+    const skuIdMap = await yiqiGetSkuMap(token, null, true);
 
     const productosYiqi = [];
     const skusOmitidos = [];
@@ -41427,7 +41482,7 @@ async function cargarPedidoEnYiqi(btnEl) {
 
       // Resolver MATE_ID_MATE usando mapa cacheado SKU→ID interno (TTL 4h)
       setBtn('🔍 Obteniendo mapa SKU→ID…', true);
-      const skuIdMap = await yiqiGetSkuMap(token, null);
+      const skuIdMap = await yiqiGetSkuMap(token, null, true);
       console.log('[cargarYiqi] Mapa SKU→ID: ' + Object.keys(skuIdMap).length + ' entradas');
 
       productosYiqi = items.map(it => {
@@ -41580,7 +41635,7 @@ async function generarPedidoYiqiConsumidorFinal(btnEl) {
     if (!clieId) throw new Error('No se encontró "Consumidor Final" en el mapa de clientes de Yiqi.');
 
     setBtn('🔍 Buscando productos…', true);
-    const skuIdMap = await yiqiGetSkuMap(token, null);
+    const skuIdMap = await yiqiGetSkuMap(token, null, true);
 
     const productosYiqi = [];
     const skusOmitidos = [];
@@ -45555,7 +45610,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.393';
+  const LATEST_VERSION = 'v25.395';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45568,6 +45623,22 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.395',
+      fecha: '2026-11-17',
+      titulo: 'Buscador: "contra angulo" ya no trae cualquier cosa',
+      items: [
+        { tipo: 'fix', texto: 'Al buscar "contra angulo" se activaba el sinónimo corto "CA" y aparecía todo lo que tuviera "ca" en el nombre (alicate, escáner, cofias…). Ahora los sinónimos de 1-2 letras solo se usan si se escriben tal cual.' },
+      ]
+    },
+    {
+      version: 'v25.394',
+      fecha: '2026-11-17',
+      titulo: 'Yiqi: SKUs que no se cargaban en el pedido',
+      items: [
+        { tipo: 'fix', texto: 'Algunos SKU (ej. 12011-14, 11206-CDI) no se cargaban en Yiqi porque no estaban en la tabla SKU→ID (productos nuevos). Ahora se juntan todas las tablas, se busca sin importar mayúsculas, y si un SKU igual falta, al cargar el pedido se pide su ID de Yiqi una sola vez: queda guardado para todo el equipo.' },
+      ]
+    },
     {
       version: 'v25.393',
       fecha: '2026-11-13',
