@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.397</title>
+<title>Dentalab Whatsapp CRM · v25.398</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -41527,7 +41527,8 @@ async function cargarPedidoEnYiqi(btnEl) {
     const coveId = CONDVENTA_MAP[g('ped-condventa')];   if (coveId)  pedidoData.COVE_ID_COVE  = coveId;
     const lidpId = LISTA_MAP[g('ped-lista')];           if (lidpId)  pedidoData.LIDP_ID_LIDP  = lidpId;
     const puveId = PUVE_MAP[g('ped-puntoventa')];       if (puveId)  pedidoData.PUVE_ID_PUVE  = puveId;
-    const tifaId = TIFA_MAP[g('ped-tipofac')];          if (tifaId)  pedidoData.TIFA_ID_TIFA  = tifaId;
+    // Tipo de Factura: desde la actualización de Yiqi (nov-2026) es de solo lectura y lo asigna Yiqi según el
+    // punto de venta y el cliente (98 → X). Ya no se manda.
     const vehaId = VEHA_MAP[g('ped-vendedor')];         if (vehaId)  pedidoData.VEHA_ID_VEHA  = vehaId;
 
     const obs = g('ped-obs'); if (obs) pedidoData.PEDI_OBSERVACIONES = obs;
@@ -41678,7 +41679,8 @@ async function generarPedidoYiqiConsumidorFinal(btnEl) {
     const coveId = CONDVENTA_MAP[g('ped-condventa')];   if (coveId)  pedidoData.COVE_ID_COVE  = coveId;
     const lidpId = LISTA_MAP[g('ped-lista')];           if (lidpId)  pedidoData.LIDP_ID_LIDP  = lidpId;
     const puveId = PUVE_MAP[g('ped-puntoventa')];       if (puveId)  pedidoData.PUVE_ID_PUVE  = puveId;
-    const tifaId = TIFA_MAP[g('ped-tipofac')];          if (tifaId)  pedidoData.TIFA_ID_TIFA  = tifaId;
+    // Tipo de Factura: desde la actualización de Yiqi (nov-2026) es de solo lectura y lo asigna Yiqi según el
+    // punto de venta y el cliente (98 → X). Ya no se manda.
     // Vendedor: el usuario logueado que aprieta el botón, no el valor que haya quedado
     // seleccionado en el campo del formulario. Si el usuario logueado no es ninguno de
     // los dos vendedores conocidos por Yiqi (ej. un admin con otro nombre), se usa el
@@ -45610,7 +45612,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.397';
+  const LATEST_VERSION = 'v25.398';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45623,6 +45625,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.398',
+      fecha: '2026-11-17',
+      titulo: 'Yiqi: el Tipo de Factura lo asigna Yiqi',
+      items: [
+        { tipo: 'mejora', texto: 'Desde la actualización de Yiqi el Tipo de Factura del pedido es de solo lectura: Yiqi lo asigna según el Punto de Venta y el cliente (98 → X). El CRM ya no lo manda (el pedido se carga en un solo paso) y el selector queda solo para mostrar, con una nota.' },
+      ]
+    },
     {
       version: 'v25.397',
       fecha: '2026-11-17',
@@ -63202,6 +63212,31 @@ function _registrarUsoFrecuente(sku, nombre) {
 </div>
 
 
+
+<script>
+// Tipo de Factura en Pedidos: lo asigna Yiqi (solo lectura desde nov-2026). El selector queda solo para
+// mostrar: "Lo asigna Yiqi" en un pedido nuevo, o el tipo real al abrir un pedido de Yiqi para editarlo.
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('select#ped-tipofac').forEach(sel => {
+    if (!sel.querySelector('option[data-auto]')) {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = 'Lo asigna Yiqi'; o.setAttribute('data-auto', '1');
+      sel.insertBefore(o, sel.firstChild);
+    }
+    sel.value = '';
+    sel.disabled = true;
+    sel.title = 'Lo asigna Yiqi automáticamente según el Punto de Venta y el cliente (98 → X)';
+    if (!sel.parentNode.classList.contains('tifa-wrap')) {
+      const w = document.createElement('div'); w.className = 'tifa-wrap';
+      sel.parentNode.insertBefore(w, sel); w.appendChild(sel);
+      const n = document.createElement('div');
+      n.style.cssText = 'font-size:10.5px;color:var(--text3);margin-top:3px;line-height:1.3';
+      n.textContent = 'Lo asigna Yiqi según el Punto de Venta y el cliente (98 → X).';
+      w.appendChild(n);
+    }
+  });
+});
+</script>
 <script>
 // ══════════════════════════════════════════════════════
 //  AUTOCORRECTOR DE BÚSQUEDA (se puede desactivar)
