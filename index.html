@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.416</title>
+<title>Dentalab Whatsapp CRM · v25.419</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -6042,6 +6042,13 @@
   body.light-mode #panel-estadistica .est-arr { color:var(--text3); }
   /* ── Informe del mes ── */
   #panel-estadistica { --c-ch:#bfdbfe; --c-co:#3b82f6; --c-pe:#ef4444; --c-sat:#60a5fa; --c-band:rgba(148,163,184,.10); --c-fer:rgba(245,158,11,.14); }
+  #panel-estadistica { --c-juan:#3b82f6; --c-fede:#d97706; }
+  body.light-mode #panel-estadistica { --c-juan:#1d5fae; --c-fede:#c2410c; }
+  .est-chart .wa-avg { stroke:var(--text2); stroke-width:1.5; stroke-dasharray:6 5; }
+  .est-chart .wa-avgl { fill:var(--text2); font-size:12px; font-weight:700; font-family:'DM Sans',sans-serif; }
+  .est-chart rect.wa-hit:hover + g rect, .est-chart g.wa-col:hover rect { opacity:.85; }
+  .est-leg i.wa-j { background:var(--c-juan); } .est-leg i.wa-f { background:var(--c-fede); }
+  .est-leg i.wa-dash { width:22px !important; height:0 !important; border-top:2px dashed var(--text2) !important; background:none !important; border-radius:0 !important; }
   body.light-mode #panel-estadistica { --c-ch:#173a73; --c-co:#4a90e2; --c-pe:#dc2626; --c-sat:#173a73; --c-band:rgba(23,58,115,.07); --c-fer:rgba(245,158,11,.16); }
   .est-views { display:inline-flex; gap:4px; background:var(--surface); border:1px solid var(--border2); border-radius:10px; padding:4px; justify-self:start; }
   .est-views button { border:0; background:transparent; color:var(--text2); padding:8px 16px; border-radius:7px; font-weight:800; font-size:13px; cursor:pointer; font-family:'DM Sans',sans-serif; }
@@ -45588,7 +45595,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.416';
+  const LATEST_VERSION = 'v25.419';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45601,6 +45608,31 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.419',
+      fecha: '2026-11-18',
+      titulo: 'Diagnóstico del mes con datos de Yiqi',
+      items: [
+        { tipo: 'nuevo', texto: 'El diagnóstico del informe suma reglas con los pedidos de WhatsApp de Juan y Federico en Yiqi: ventas en pesos por día hábil y ticket promedio contra los últimos 3 meses (y quién lo empuja), clientes nuevos, día de la semana que más factura, pedidos sin concretar ("En espera de pago" hace más de 7 días, con monto y los más grandes), devoluciones del mes, pedidos frenados en Quiebre 2 y clientes habituales que dejaron de comprar.' },
+        { tipo: 'mejora', texto: 'En el PDF, si el diagnóstico tiene más de 3 puntos por columna, sigue en una segunda hoja en vez de cortarse.' }
+      ]
+    },
+    {
+      version: 'v25.418',
+      fecha: '2026-11-18',
+      titulo: 'Informe: sin Mercadería faltante',
+      items: [
+        { tipo: 'mejora', texto: 'El informe del mes (y su PDF) ya no incluye las secciones de Mercadería faltante ("Productos pedidos sin stock" e "Ingresos confirmados") ni sus recomendaciones. La pestaña Mercadería Faltante sigue igual.' }
+      ]
+    },
+    {
+      version: 'v25.417',
+      fecha: '2026-11-18',
+      titulo: 'Informe: gráficos de ventas de Juan y Federico',
+      items: [
+        { tipo: 'nuevo', texto: 'En "Ventas en Yiqi · Origen WhatsApp" se agregan dos gráficos de los últimos 12 meses: ventas por mes (barras apiladas Juan + Federico, con la línea del promedio mensual) y pedidos tomados por mes de cada uno. Pasando el mouse se ve el detalle de cada mes. También salen en una hoja del PDF del informe.' }
+      ]
+    },
     {
       version: 'v25.416',
       fecha: '2026-11-18',
@@ -64777,6 +64809,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ---------- MERCADERÍA FALTANTE (se lee de la pestaña 🔍 Mercadería Faltante, no se carga dos veces) ---------- */
+  const INFORME_CON_FALTANTES=false; // Mercadería faltante fuera del informe (pedido de Juan, nov 2026)
   function fltItems(){ try { return (typeof faltanteList!=='undefined'&&Array.isArray(faltanteList))?faltanteList.filter(Boolean):[]; } catch(e){ return []; } }
   const fltFecha=f=>f.fechaCarga||f.fecha||f.fechaAlta||null;
   const fltKey=f=>{const iso=fltFecha(f);if(!iso)return null;const d=new Date(iso);if(isNaN(d))return null;return dkey(d.getFullYear(),d.getMonth(),d.getDate())};
@@ -64848,6 +64881,67 @@ document.addEventListener('DOMContentLoaded', () => {
     return (items.length?`<div class="est-group">${li}</div>`:`<p class="est-small">Ese día no se anotaron productos sin stock.</p>`)+`<div class="est-row" style="flex-wrap:wrap;gap:8px"><button type="button" class="est-btn primary" data-est="flt-new">＋ Anotar faltante</button><button type="button" class="est-btn" data-est="flt-tab">Ver en Mercadería Faltante →</button></div><p class="est-small">Esta columna se completa sola con lo que se anota en la pestaña 🔍 Mercadería Faltante.</p>`;
   }
 
+  /* ---------- DIAGNÓSTICO CON DATOS DE YIQI (ventas WhatsApp de Juan y Federico) ---------- */
+  const habiles=(y,m,hasta)=>{ let n=0; const fin=hasta||new Date(y,m+1,0); for(let d=1;d<=fin.getDate();d++){ const dw=new Date(y,m,d).getDay(); if(dw!==0) n++; } return n; };
+  const listaNom=(arr,max)=>{ const a=arr.slice(0,max||4); return a.join(', ')+(arr.length>a.length?` y ${arr.length-a.length} más`:''); };
+  function yiqiRecs(y,m,good,polish,improve){
+    const D=waCache[ymKey(y,m)]; if(!D||D.err||!D.rows) return false;
+    const hoy=new Date(), enCurso=(y===hoy.getFullYear()&&m===hoy.getMonth());
+    const valida=r=>WA_ESTADOS.test(String(r.DESC_ESTADO||'').trim());
+    const monto=r=>Number(r.PEDI_TOTAL_MD!=null?r.PEDI_TOTAL_MD:r.PEDI_TOTAL)||0;
+    const mesDe=r=>{const f=new Date(r.PEDI_FECHA);return ymKey(f.getFullYear(),f.getMonth());};
+    const kM=ymKey(y,m), prevK=[1,2,3].map(i=>{const d=new Date(y,m-i,1);return {k:ymKey(d.getFullYear(),d.getMonth()),y:d.getFullYear(),m:d.getMonth()};});
+    const R=D.rows, delMes=R.filter(r=>mesDe(r)===kM), validasMes=delMes.filter(valida);
+    const sg=x=>(x>0?'+':'')+fmtP(x);
+    // 1. Ventas por día hábil vs últimos 3 meses
+    const diasMes=enCurso?habiles(y,m,hoy):habiles(y,m);
+    const vMes=validasMes.reduce((a,r)=>a+monto(r),0), nMes=validasMes.length;
+    const prevs=prevK.map(p=>{const rr=R.filter(r=>mesDe(r)===p.k&&valida(r));return {n:rr.length,s:rr.reduce((a,r)=>a+monto(r),0),d:habiles(p.y,p.m),rows:rr};}).filter(p=>p.n);
+    if(diasMes&&prevs.length&&nMes){
+      const bDia=prevs.reduce((a,p)=>a+p.s/p.d,0)/prevs.length, dMes=vMes/diasMes, d=dMes/bDia-1;
+      const per=prevs.length===1?'el mes anterior':`el promedio de los últimos ${prevs.length} meses`;
+      if(d>=.05) good.push({t:'Más ventas en pesos',d:`${fmt$(dMes)} por día hábil (${fmt$(vMes)} en el mes), ${sg(d)} contra ${per} (${fmt$(bDia)}).`,a:'Repetir lo que funcionó: mismas ofertas en difusión y seguimiento de presupuestos.'});
+      else if(d<=-.05) improve.push({t:'Bajaron las ventas en pesos',d:`${fmt$(dMes)} por día hábil contra ${fmt$(bDia)} de ${per} (${sg(d)}).`,a:'Mandar a la lista de difusión los productos de ticket alto que más se vendieron los meses anteriores y hacer seguimiento a los presupuestos sin respuesta.'});
+      // 2. Ticket promedio, total y por vendedor
+      const tMes=vMes/nMes, pn=prevs.reduce((a,p)=>a+p.n,0), tB=prevs.reduce((a,p)=>a+p.s,0)/pn, dt=tMes/tB-1;
+      const porV=WA_VEND.map(v=>{const a=validasMes.filter(r=>Number(r.VEHA_ID_VEHA)===v.id), b=prevs.flatMap(p=>p.rows).filter(r=>Number(r.VEHA_ID_VEHA)===v.id);
+        const ta=a.length?a.reduce((s,r)=>s+monto(r),0)/a.length:null, tb=b.length?b.reduce((s,r)=>s+monto(r),0)/b.length:null; return {...v,ta,tb,na:a.length,d:ta&&tb?ta/tb-1:null};});
+      if(dt>=.05){ const quien=porV.filter(v=>v.d!=null&&v.d>=.05).sort((a,b)=>b.d-a.d);
+        good.push({t:'Sube el ticket promedio',d:`${fmt$(tMes)} por pedido, ${sg(dt)} contra ${per} (${fmt$(tB)}).${quien.length?` Lo empuja ${quien.map(v=>`${v.c} (${sg(v.d)})`).join(' y ')}.`:''}`,a:'Seguir ofreciendo complementos y presentaciones más grandes al armar el pedido.'}); }
+      porV.forEach(v=>{ if(v.d!=null&&v.d<=-.10&&v.na>=5) polish.push({t:`Baja el ticket de ${v.c}`,d:`${fmt$(v.ta)} por pedido contra ${fmt$(v.tb)} de su promedio (${sg(v.d)}).`,a:'Al cerrar cada pedido, sugerir un complemento o la presentación más conveniente (ej. caja en vez de unidad).'}); });
+    }
+    // 3. Clientes nuevos (no compraban en el último año)
+    const antes=new Set(R.filter(r=>mesDe(r)<kM&&!/^(anulado|a anular)$/i.test(r.DESC_ESTADO||'')).map(r=>r.CLIE_ID_CLIE));
+    const nuevos=[...new Map(validasMes.filter(r=>r.CLIE_ID_CLIE!=null&&!antes.has(r.CLIE_ID_CLIE)).map(r=>[r.CLIE_ID_CLIE,r])).values()];
+    if(nuevos.length) good.push({t:`${nuevos.length} cliente${nuevos.length>1?'s':''} nuevo${nuevos.length>1?'s':''}`,d:`Compraron por WhatsApp y no lo hacían en el último año: ${listaNom(nuevos.map(r=>String(r.CLIE_NOMBRE||'').trim()),3)}.`,a:'Mandarles un mensaje de bienvenida y sumarlos a la lista de difusión.'});
+    // 4. Pedidos sin concretar: En espera de pago hace más de 7 días (del mes y del anterior)
+    const kAnt=prevK[0].k, lim=Date.now()-7*864e5;
+    const espera=R.filter(r=>(mesDe(r)===kM||mesDe(r)===kAnt)&&/^en espera de pago$/i.test(String(r.DESC_ESTADO||'').trim())&&new Date(r.AUDI_FECHA_ALTA||r.PEDI_FECHA).getTime()<lim)
+      .sort((a,b)=>monto(b)-monto(a));
+    if(espera.length){ const tot=espera.reduce((a,r)=>a+monto(r),0);
+      polish.push({t:`${espera.length} pedido${espera.length>1?'s':''} sin concretar`,d:`${fmt$(tot)} en pedidos "En espera de pago" hace más de 7 días. Los más grandes: ${listaNom(espera.map(r=>`N° ${r.PEDI_NUMERO_SOLO||''} ${String(r.CLIE_NOMBRE||'').trim()} (${fmt$(monto(r))})`),3)}.`,a:'Escribirle a cada cliente para confirmar si sigue en pie; si no, anularlo para liberar el stock. La lista está en la pestaña Pedidos, filtro "En espera de pago".'}); }
+    // 5. Devoluciones del mes
+    const dev=delMes.filter(r=>/con devoluci/i.test(r.DESC_ESTADO||''));
+    if(dev.length) polish.push({t:`${dev.length} pedido${dev.length>1?'s':''} con devolución`,d:`${fmt$(dev.reduce((a,r)=>a+monto(r),0))} devueltos este mes: ${listaNom(dev.map(r=>`N° ${r.PEDI_NUMERO_SOLO||''} ${String(r.CLIE_NOMBRE||'').trim()}`),3)}.`,a:'Revisar el motivo de cada una (producto equivocado, falla, demora) para evitar que se repita.'});
+    // 6. Quiebre 2: pedidos frenados por falta de stock
+    const qb=delMes.filter(r=>/^quiebre/i.test(String(r.DESC_ESTADO||'').trim()));
+    if(qb.length) improve.push({t:`${qb.length} pedido${qb.length>1?'s':''} frenado${qb.length>1?'s':''} sin stock`,d:`${fmt$(qb.reduce((a,r)=>a+monto(r),0))} en Quiebre 2: ${listaNom(qb.map(r=>`N° ${r.PEDI_NUMERO_SOLO||''} ${String(r.CLIE_NOMBRE||'').trim()}`),3)}.`,a:'Confirmar con Compras la fecha de llegada y avisarle a cada cliente, o ofrecerle una alternativa con stock.'});
+    // 7. Clientes que dejaron de comprar: compraban en 3+ de los 6 meses anteriores y este mes no
+    const k6=[1,2,3,4,5,6].map(i=>{const d=new Date(y,m-i,1);return ymKey(d.getFullYear(),d.getMonth());});
+    const compradoresMes=new Set(validasMes.map(r=>r.CLIE_ID_CLIE));
+    const hist={}; R.filter(r=>valida(r)&&k6.includes(mesDe(r))&&r.CLIE_ID_CLIE!=null).forEach(r=>{const h=(hist[r.CLIE_ID_CLIE]=hist[r.CLIE_ID_CLIE]||{n:String(r.CLIE_NOMBRE||'').trim(),meses:new Set(),s:0,ult:0});h.meses.add(mesDe(r));h.s+=monto(r);h.ult=Math.max(h.ult,new Date(r.PEDI_FECHA).getTime());});
+    const corte=enCurso?Date.now()-30*864e5:new Date(y,m,1).getTime();
+    const perdidos=Object.entries(hist).filter(([id,h])=>h.meses.size>=3&&!compradoresMes.has(isNaN(+id)?id:+id)&&!compradoresMes.has(id)&&h.ult<corte).map(([,h])=>h).sort((a,b)=>b.s-a.s);
+    if(perdidos.length) improve.push({t:`${perdidos.length} cliente${perdidos.length>1?'s':''} habitual${perdidos.length>1?'es':''} no compr${perdidos.length>1?'aron':'ó'}`,d:`Compraban casi todos los meses y ${enCurso?'hace más de 30 días que no compran':`no compraron en ${MONTHS[m]}`}: ${listaNom(perdidos.map(h=>h.n),4)}.`,a:'Escribirles por WhatsApp con algo concreto (lo que suelen comprar, una oferta o una novedad) para recuperarlos.'});
+    // 8. Día de la semana que más factura (últimos 3 meses + el mes)
+    const base3=R.filter(r=>valida(r)&&(mesDe(r)===kM||prevK.some(p=>p.k===mesDe(r))));
+    if(base3.length>=30){ const porD=[0,0,0,0,0,0,0], dias=[new Set(),new Set(),new Set(),new Set(),new Set(),new Set(),new Set()];
+      base3.forEach(r=>{const f=new Date(r.PEDI_FECHA);const dw=f.getDay();porD[dw]+=monto(r);dias[dw].add(f.toDateString());});
+      const prom=porD.map((s,i)=>dias[i].size?s/dias[i].size:0); const mx=prom.indexOf(Math.max(...prom.slice(1,6))), mn=[1,2,3,4,5].reduce((b,i)=>prom[i]<prom[b]?i:b,1);
+      if(mx>0&&prom[mx]>0) good.push({t:`El ${DOW[mx].toLowerCase()} es el día que más factura`,d:`${fmt$(prom[mx])} en promedio por ${DOW[mx].toLowerCase()} (últimos 3 meses), contra ${fmt$(prom[mn])} el ${DOW[mn].toLowerCase()}.`,a:`Programar las difusiones con ofertas para el ${DOW[mn].toLowerCase()}, que es el día más flojo en pesos.`}); }
+    return true;
+  }
+
   /* ---------- DIAGNÓSTICO Y RECOMENDACIONES (reglas sobre los números del mes) ---------- */
   function buildRecs(y,m,st,rows,conDatos,wk){
     const good=[],polish=[],improve=[];
@@ -64909,8 +65003,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const faltan=rows.filter(r=>r.dow!==0&&r.s==='laboral'&&new Date(y,m,r.d)<hoy&&r.pe==null&&r.ch==null&&r.co==null);
     if(faltan.length) polish.push({t:`Faltan cargar ${faltan.length} día${faltan.length>1?'s':''}`,d:faltan.slice(0,6).map(r=>`${nm(r.dow)} ${r.d}`).join(', ')+(faltan.length>6?'…':'')+'.',a:'Cargarlos (o marcarlos como feriado) para que los promedios y recomendaciones sean exactos.'});
     if(P.cnt>=3){ const pg=(P.groups||[]).filter(g=>g.det<P.cnt*.8); if(pg.length&&(P.groups||[]).some(g=>g.det>0)) polish.push({t:'Falta cargar repartos de pedidos',d:pg.map(g=>`${g.g.label}: ${g.det} de ${P.cnt} días`).join(' · ')+'.',a:'Repartir los pedidos todos los días (tipo, quién lo tomó, origen, cómo llegó) para que el diagnóstico pueda decir qué funciona y qué no.'}); }
-    fltRecs(y,m,good,polish,improve);
-    return {good,polish,improve,prevN:prev.length};
+    if(INFORME_CON_FALTANTES) fltRecs(y,m,good,polish,improve);
+    let conYiqi=false; try{ conYiqi=yiqiRecs(y,m,good,polish,improve); }catch(e){ console.warn('[estadística] diagnóstico Yiqi:',e); }
+    return {good,polish,improve,prevN:prev.length,conYiqi};
   }
   function recsHTML(r,y,m){
     const enCurso=y===now.getFullYear()&&m===now.getMonth();
@@ -64919,7 +65014,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return `<section class="est-sec"><p class="est-eyebrow">Diagnóstico del mes</p><h3>🧭 Qué está bien, qué pulir y qué mejorar</h3>
       <p class="est-sub">${enCurso?'Mes en curso: el diagnóstico se actualiza a medida que se cargan los días. ':''}${r.prevN?`Se compara con ${r.prevN===1?'el mes anterior':`el promedio de los últimos ${r.prevN} meses`}, por día hábil.`:'Todavía no hay meses anteriores para comparar.'}</p>
       <div class="est-recs">${col('ok','✅ En qué estamos bien',r.good,'Todavía nada para destacar.')}${col('pol','🔧 Qué hay que pulir',r.polish,'Nada para pulir por ahora.')}${col('imp','🎯 Qué mejorar y cómo',r.improve,'No hay alertas este mes.')}</div>
-      <p class="est-small">Son sugerencias automáticas a partir de los números cargados; conviene leerlas junto con lo que pasó en el mes.</p></section>`;
+      <p class="est-small">Son sugerencias automáticas a partir de los números cargados${r.conYiqi?' y de los pedidos de WhatsApp de Juan y Federico en Yiqi':''}; conviene leerlas junto con lo que pasó en el mes.</p></section>`;
   }
 
   /* ---------- COMPARATIVA ANUAL (2024 en adelante) ---------- */
@@ -65049,7 +65144,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const H={'Authorization':'Bearer '+tok,'Content-Type':'application/json'};
     const d0=new Date(y,m-12,1), d1=new Date(y,m+1,1);
     const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-    const cols=['ID','PEDI_FECHA','VEHA_ID_VEHA','PEDI_TOTAL_MD','PEDI_TOTAL','DESC_ESTADO','EXTE_ID_EXTE'];
+    const cols=['ID','PEDI_FECHA','AUDI_FECHA_ALTA','PEDI_NUMERO_SOLO','VEHA_ID_VEHA','CLIE_ID_CLIE','CLIE_NOMBRE','PEDI_TOTAL_MD','PEDI_TOTAL','DESC_ESTADO','EXTE_ID_EXTE'];
     const q=async(filters,page)=>{ const r=await yiqiFetch('https://api.yiqi.com.ar/api/public/PEDIDO/query?schemaId=328',{method:'POST',headers:H,
         body:JSON.stringify({page,pageSize:500,columns:cols.map((f,i)=>({field:f,title:f,order:i+1})),filters:filters.map(f=>({columnName:f[0],operator:f[1],value:f[2]}))})});
       if(!r.ok) throw new Error('Yiqi HTTP '+r.status+' '+(await r.text().catch(()=>'')).slice(0,150));
@@ -65061,6 +65156,7 @@ document.addEventListener('DOMContentLoaded', () => {
     catch(e){ rows=[]; for(const v of WA_VEND) rows.push(...await todo(base.concat([['VEHA_ID_VEHA','=',v.id]]))); }
     // Agregar por mes y vendedor (filtros de nuevo acá por si Yiqi ignorara alguno)
     const agg={};
+    const crudos=rows.filter(r=>Number(r.EXTE_ID_EXTE)===13&&WA_VEND.some(x=>x.id===Number(r.VEHA_ID_VEHA))).map(r=>({PEDI_FECHA:r.PEDI_FECHA,AUDI_FECHA_ALTA:r.AUDI_FECHA_ALTA,PEDI_NUMERO_SOLO:r.PEDI_NUMERO_SOLO,VEHA_ID_VEHA:r.VEHA_ID_VEHA,CLIE_ID_CLIE:r.CLIE_ID_CLIE,CLIE_NOMBRE:r.CLIE_NOMBRE,PEDI_TOTAL_MD:r.PEDI_TOTAL_MD,PEDI_TOTAL:r.PEDI_TOTAL,DESC_ESTADO:r.DESC_ESTADO}));
     rows.forEach(r=>{
       if(Number(r.EXTE_ID_EXTE)!==13) return;
       const v=WA_VEND.find(x=>x.id===Number(r.VEHA_ID_VEHA)); if(!v) return;
@@ -65070,7 +65166,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const a=(agg[k]=agg[k]||{}); const b=(a[v.id]=a[v.id]||{n:0,s:0});
       b.n++; b.s+=Number(r.PEDI_TOTAL_MD!=null?r.PEDI_TOTAL_MD:r.PEDI_TOTAL)||0;
     });
-    return {agg,ts:Date.now()};
+    return {agg,rows:crudos,ts:Date.now()};
   }
   function waGet(y,m){
     const k=ymKey(y,m);
@@ -65099,6 +65195,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const serie=[]; for(let i=11;i>=0;i--){ const d=new Date(y,m-i,1),k=ymKey(d.getFullYear(),d.getMonth()); serie.push({k,lbl:MONTHS[d.getMonth()].slice(0,3)+' '+String(d.getFullYear()).slice(2),v:WA_VEND.map(v=>((D.agg[k]||{})[v.id])||{n:0,s:0})}); }
     return {per,tot,serie,nMeses:conDatos.length,enCurso,desdeLbl:conDatos.length?conDatos[conDatos.length-1]:null};
   }
+  // Gráficos: ventas por mes (barras apiladas Juan + Federico, línea = promedio mensual) y pedidos por mes (líneas)
+  function waChartsSVG(M,C,forPdf){
+    const W=forPdf?1090:960,H=forPdf?205:260,L=forPdf?92:86,R=W-16,T=24,B=H-34;
+    const n=M.serie.length, step=(R-L)/n, X=i=>L+step*(i+.5), bw=Math.min(forPdf?44:40,step*.62);
+    const tot=M.serie.map(r=>r.v[0].s+r.v[1].s);
+    const ax=v=>v>=1e6?'$ '+fmtN(Math.round(v/1e5)/10)+' M':fmt$(v);
+    const smax=niceMax(Math.max(1,...tot,M.tot.promS)), Y=v=>B-(v/smax)*(B-T);
+    const txt=(x,y,t,a,st)=>`<text x="${x}" y="${y}" text-anchor="${a||'middle'}" ${forPdf?`font-size="13" fill="${st||C.muted}"`:`class="${st||'ax'}"`}>${t}</text>`;
+    const grid=v=>`<line x1="${L}" x2="${R}" y1="${Y(v)}" y2="${Y(v)}" ${forPdf?`stroke="${C.line}"`:'class="g"'}/>`+txt(L-8,Y(v)+4,ax(v),'end');
+    let s1=[0,.25,.5,.75,1].map(f=>grid(smax*f)).join('');
+    M.serie.forEach((r,i)=>{
+      const j=r.v[0].s,f=r.v[1].s, yj=Y(j), yt=Y(j+f), gap=f>0&&j>0?2:0;
+      const tip=`${r.lbl}: Juan ${fmt$(j)} (${r.v[0].n} ped.) · Federico ${fmt$(f)} (${r.v[1].n} ped.) · Total ${fmt$(j+f)}`;
+      s1+=`<g class="wa-col"><title>${esc(tip)}</title><rect x="${X(i)-step/2}" y="${T}" width="${step}" height="${B-T}" fill="transparent"/>`
+        +(j>0?`<rect x="${X(i)-bw/2}" y="${yj}" width="${bw}" height="${Math.max(0,B-yj)}" fill="${C.j}"/>`:'')
+        +(f>0?`<rect x="${X(i)-bw/2}" y="${yt}" width="${bw}" height="${Math.max(0,yj-yt-gap)}" rx="3" fill="${C.f}"/>`:'')+`</g>`;
+      s1+=txt(X(i),B+20,esc(r.lbl));
+    });
+    const imax=tot.reduce((bi,v,i)=>v>tot[bi]?i:bi,0);
+    s1+=txt(X(imax),Y(tot[imax])-8,ax(tot[imax]),'middle',forPdf?C.ink:'lbl');
+    if(M.tot.promS>0){ const ya=Y(M.tot.promS); s1+=`<line x1="${L}" x2="${R}" y1="${ya}" y2="${ya}" ${forPdf?`stroke="${C.ink}" stroke-width="1.5" stroke-dasharray="6 5"`:'class="wa-avg"'}/>`+txt(R+56,ya+4,ax(M.tot.promS),'end',forPdf?C.ink:'wa-avgl'); }
+    const H2=forPdf?158:210, B2=H2-30;
+    const pmax=niceMax(Math.max(1,...M.serie.flatMap(r=>[r.v[0].n,r.v[1].n]))), Y2=v=>B2-(v/pmax)*(B2-T);
+    const grid2=v=>`<line x1="${L}" x2="${R}" y1="${Y2(v)}" y2="${Y2(v)}" ${forPdf?`stroke="${C.line}"`:'class="g"'}/>`+txt(L-8,Y2(v)+4,fmtN(v),'end');
+    let s2=[0,.5,1].map(f=>grid2(pmax*f)).join('');
+    [0,1].forEach(k=>{ const col=k?C.f:C.j;
+      s2+=`<path d="${M.serie.map((r,i)=>(i?'L':'M')+X(i).toFixed(1)+','+Y2(r.v[k].n).toFixed(1)).join('')}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>`;
+      s2+=M.serie.map((r,i)=>`<circle cx="${X(i)}" cy="${Y2(r.v[k].n)}" r="4" fill="${col}" stroke="${C.surf}" stroke-width="2"><title>${esc(r.lbl)} · ${k?'Federico':'Juan'}: ${r.v[k].n} pedidos</title></circle>`).join('');
+      const last=M.serie[n-1].v[k], other=M.serie[n-1].v[1-k].n, dy=Math.abs(Y2(last.n)-Y2(other))<14?(Y2(last.n)<Y2(other)?-6:8):0;
+      s2+=txt(X(n-1)+10,Y2(last.n)+4+dy,`${k?'Federico':'Juan'} ${last.n}`,'start',forPdf?C.ink:'lbl');
+    });
+    s2+=M.serie.map((r,i)=>txt(X(i),B2+20,esc(r.lbl))).join('');
+    const sv=(w,h,body,lbl)=>`<svg ${forPdf?`xmlns="http://www.w3.org/2000/svg" width="${w+60}" height="${h}" font-family="DM Sans, Arial, sans-serif"`:`role="img" aria-label="${lbl}"`} viewBox="0 0 ${w+60} ${h}">${body}</svg>`;
+    return { ventas: sv(W,H,s1,'Ventas por mes de Juan y Federico'), pedidos: sv(W,H2,s2,'Pedidos por mes de Juan y Federico') };
+  }
   function waSecHTML(y,m){
     const k=ymKey(y,m), D=waCache[k];
     const head=`<section class="est-sec"><p class="est-eyebrow">Ventas en Yiqi · Origen WhatsApp</p><h3>Juan y Federico</h3>`;
@@ -65115,6 +65246,13 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="est-dt" style="margin-top:12px"><table class="est-cmp"><thead><tr><th>Vendedor</th><th>Pedidos tomados<br><small style="color:#c7d7ee;font-weight:600">${mesTit}</small></th><th>Ventas<br><small style="color:#c7d7ee;font-weight:600">${mesTit}</small></th><th>Ticket promedio<br><small style="color:#c7d7ee;font-weight:600">${mesTit}</small></th><th>Promedio mensual<br><small style="color:#c7d7ee;font-weight:600">de ventas</small></th><th>Pedidos por mes<br><small style="color:#c7d7ee;font-weight:600">promedio</small></th><th>Ticket promedio<br><small style="color:#c7d7ee;font-weight:600">12 meses</small></th></tr></thead>
       <tbody>${M.per.map(p=>`<tr><td><b>${esc(p.n)}</b></td><td>${fmtN(p.mesN)}</td><td>${fmt$(p.mesS)}</td><td>${fmt$(p.mesT)}</td><td><b>${fmt$(p.promS)}</b></td><td>${fmtN(p.promN)}</td><td>${fmt$(p.promT)}</td></tr>`).join('')}
       <tr><td><b>Total</b></td><td><b>${fmtN(M.tot.mesN)}</b></td><td><b>${fmt$(M.tot.mesS)}</b></td><td>${fmt$(M.tot.mesN?M.tot.mesS/M.tot.mesN:null)}</td><td><b>${fmt$(M.tot.promS)}</b></td><td>${fmtN(M.tot.promN)}</td><td></td></tr></tbody></table></div>
+    ${(()=>{ const G=waChartsSVG(M,{j:'var(--c-juan)',f:'var(--c-fede)',surf:'var(--surface)'},false);
+      return `<div class="est-card" style="margin-top:12px"><h4>Ventas por mes <span>últimos 12 meses · pasá el mouse por una barra para ver el detalle</span></h4>
+        <div class="est-leg"><span><i class="sq wa-j"></i>Juan Martin Gaffuri</span><span><i class="sq wa-f"></i>Federico Silva</span><span><i class="ln wa-dash"></i>Promedio mensual (Juan + Federico)</span></div>
+        <div class="est-chart">${G.ventas}</div></div>
+        <div class="est-card" style="margin-top:12px"><h4>Pedidos tomados por mes</h4>
+        <div class="est-leg"><span><i class="ln wa-j"></i>Juan Martin Gaffuri</span><span><i class="ln wa-f"></i>Federico Silva</span></div>
+        <div class="est-chart">${G.pedidos}</div></div>`; })()}
     <div class="est-dt" style="margin-top:12px"><table class="est-cmp"><thead><tr><th>Mes</th>${WA_VEND.map(v=>`<th>${v.c} · pedidos</th><th>${v.c} · ventas</th>`).join('')}<th>Total ventas</th></tr></thead>
       <tbody>${M.serie.map(r=>`<tr><td>${esc(r.lbl)}</td>${r.v.map(b=>`<td>${fmtN(b.n)}</td><td>${fmt$(b.s)}</td>`).join('')}<td><b>${fmt$(r.v.reduce((a,b)=>a+b.s,0))}</b></td></tr>`).join('')}</tbody></table></div>
     <p class="est-small">Datos de Yiqi: pedidos con Origen WhatsApp tomados por Juan Martin Gaffuri o Federico Silva, en estado A reservar, Entregado, Quiebre 2 o Staging Out (no cuentan En espera de pago, Anulado ni Con devolución). Monto con IVA (Total Pedido Moneda Default). El promedio mensual toma los últimos 12 meses completos${M.enCurso?' (el mes en curso no entra)':''}.</p></section>`;
@@ -65123,9 +65261,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function waSlide(y,m,frame,card){
     const D=waCache[ymKey(y,m)]; if(!D||D.err) return null;
     const M=waModel(y,m), mesTit=MONTHS[m];
-    return frame('Ventas en Yiqi · Origen WhatsApp','Juan y Federico',`<div class="ep-grid4">${card('Promedio mensual de ventas',fmt$(M.tot.promS),`Juan + Federico · últimos ${M.nMeses} meses`,'red money')}${card('Pedidos por mes',fmtN(M.tot.promN),'promedio entre los dos')}${card(`Ventas de ${mesTit}`,fmt$(M.tot.mesS),`${fmtN(M.tot.mesN)} pedidos${M.enCurso?' (mes en curso)':''}`,'money')}${card('Ticket promedio',fmt$(M.tot.mesN?M.tot.mesS/M.tot.mesN:null),'por pedido en el mes','money')}</div>
+    return [frame('Ventas en Yiqi · Origen WhatsApp','Juan y Federico',`<div class="ep-grid4">${card('Promedio mensual de ventas',fmt$(M.tot.promS),`Juan + Federico · últimos ${M.nMeses} meses`,'red money')}${card('Pedidos por mes',fmtN(M.tot.promN),'promedio entre los dos')}${card(`Ventas de ${mesTit}`,fmt$(M.tot.mesS),`${fmtN(M.tot.mesN)} pedidos${M.enCurso?' (mes en curso)':''}`,'money')}${card('Ticket promedio',fmt$(M.tot.mesN?M.tot.mesS/M.tot.mesN:null),'por pedido en el mes','money')}</div>
       <table class="ep-tb" style="margin-top:22px"><thead><tr><th>Vendedor</th><th>Pedidos ${mesTit}</th><th>Ventas ${mesTit}</th><th>Ticket ${mesTit}</th><th>Prom. mensual ventas</th><th>Pedidos/mes prom.</th></tr></thead><tbody>${M.per.map(p=>`<tr><td>${esc(p.n)}</td><td>${fmtN(p.mesN)}</td><td>${fmt$(p.mesS)}</td><td>${fmt$(p.mesT)}</td><td><b>${fmt$(p.promS)}</b></td><td>${fmtN(p.promN)}</td></tr>`).join('')}</tbody></table>
-      <p class="ep-note">Pedidos de Yiqi con Origen WhatsApp en estado A reservar, Entregado, Quiebre 2 o Staging Out. Monto con IVA. Promedio de los últimos 12 meses completos.</p>`);
+      <p class="ep-note">Pedidos de Yiqi con Origen WhatsApp en estado A reservar, Entregado, Quiebre 2 o Staging Out. Monto con IVA. Promedio de los últimos 12 meses completos.</p>`),      (()=>{ const C={j:'#1d5fae',f:'#c2410c',surf:'#ffffff',line:PDFC.line,muted:PDFC.muted,ink:PDFC.ink}; const G=waChartsSVG(M,C,true);
+        const lg=(c,t,dash)=>`<span style="display:inline-flex;align-items:center;gap:8px"><i style="display:inline-block;width:22px;${dash?`border-top:2px dashed ${c};height:0`:`height:12px;background:${c};border-radius:2px`}"></i>${t}</span>`;
+        return frame('Ventas en Yiqi · Origen WhatsApp','Evolución de los últimos 12 meses',`<div class="ep-leg" style="margin:0 0 4px">${lg(C.j,'Juan Martin Gaffuri')}${lg(C.f,'Federico Silva')}${lg(PDFC.ink,'Promedio mensual (Juan + Federico)',true)}</div>
+          <p class="ep-axis" style="margin:2px 0 0;font-weight:700">Ventas por mes</p><div>${G.ventas}</div><p class="ep-axis" style="margin:0;font-weight:700">Pedidos tomados por mes</p><div>${G.pedidos}</div>`); })()
+];
   }
 
   function informeHTML(y,m,st){
@@ -65191,7 +65333,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="est-split-bar"><span class="c-pe-f" style="width:${pe*100}%">${er?fmtP(pe):''}</span><span class="c-ch-f" style="width:${(1-pe)*100}%">${er?fmtP(1-pe):''}</span></div>
       <div class="est-tiles est-t2"><div class="est-tile est-bt-red"><span class="l">Envíos</span><span class="b">${fmtN(E.sum)}</span><span class="s">${E.avg!=null?fmtN(E.avg)+' por día hábil':'—'}</span></div><div class="est-tile est-bt-blue"><span class="l">Retiros</span><span class="b">${fmtN(R.sum)}</span><span class="s">${R.avg!=null?fmtN(R.avg)+' por día hábil':'—'}</span></div></div></section>`;
     // 6b. Mercadería faltante
-    h+=fltMonthHTML(y,m,false);
+    if(INFORME_CON_FALTANTES) h+=fltMonthHTML(y,m,false);
     // 7. Repartos (si hay)
     const reps=config.metrics.flatMap(mt=>st[mt.key].groups.filter(G=>G.det).map(G=>({mt,G})));
     if(reps.length) h+=`<section class="est-sec"><p class="est-eyebrow">Repartos</p><h3>¿Cómo se dividieron?</h3><div class="est-dgrid">${reps.map(({mt,G})=>`<div class="est-card"><h4>${esc(mt.label)} · ${esc(G.g.label)} <span>detalle en ${G.det} días</span></h4>${G.opts.map((o,i)=>`<div class="est-hb"><span>${esc(o.o.label)}</span><span class="est-hb-t"><i style="width:${(o.pct||0)*100}%;background:${PAL[i%PAL.length]}"></i></span><b>${fmtN(o.sum)} · ${fmtP(o.pct)}</b></div>`).join('')}</div>`).join('')}</div></section>`;
@@ -65261,14 +65403,16 @@ document.addEventListener('DOMContentLoaded', () => {
     slides.push(`<div class="ep-slide cover"><img class="ep-cover-logo" src="${EST_LOGO}"><div class="ep-dia d1"></div><div class="ep-dia d2"></div><div class="ep-dia d3"></div><div class="ep-dia d4"></div><div class="ep-dia d5"></div><p class="ep-eye">Informe mensual</p><h1>Estadística<br>de WhatsApp</h1><div class="ep-rule"></div><p class="ep-per">${per}</p><p class="ep-cap">Chats, consultas y pedidos del mes</p></div>`);
     // números
     slides.push(frame('Resumen del mes',`${mes} en números`,`<div class="ep-grid4">${card('Chats totales',fmtN(C.sum),C.avg!=null?fmtN(C.avg)+' por día hábil':'')}${card('Consultas',fmtN(Q.sum),Q.avg!=null?fmtN(Q.avg)+' por día hábil':'')}${card('Pedidos',fmtN(P.sum),P.avg!=null?fmtN(P.avg)+' por día hábil':'','red')}${card('Conversión',fmtP(conv),'de las consultas terminan en pedido')}</div><p class="ep-note">Se contaron ${conDatos.length} días hábiles, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p>`));
-    { const ws=waSlide(y,m,frame,card); if(ws) slides.push(ws); }
+    { const ws=waSlide(y,m,frame,card); if(ws) slides.push(...ws); }
     // embudo
     const fm=Math.max(C.sum,Q.sum,P.sum,1), fb=(l,v,c,tc)=>`<div class="ep-fun"><span>${l}</span><div><i style="width:${Math.max(2,v/fm*82)}%;background:${c}"></i><b style="color:${tc||PDFC.navy}">${fmtN(v)}</b></div></div>`;
     slides.push(frame('Embudo del mes','Del chat al pedido',`<div class="ep-funnel">${fb('Chats totales',C.sum,PDFC.navy)}${fb('Consultas',Q.sum,PDFC.blue,PDFC.blue)}${fb('Pedidos',P.sum,PDFC.red,PDFC.red)}</div><div class="ep-grid3">${card('',fmtP(chQ),'de los chats son consultas','blue')}${card('',fmtP(conv),'de las consultas terminan en pedido','red')}${card('',fmtP(chP),'de los chats terminan en pedido','red')}</div>`));
     // diagnóstico
     const li=x=>`<li><b>${esc(x.t)}</b><span>${esc(x.d)}</span>${x.a?`<em>${esc(x.a)}</em>`:''}</li>`;
-    const col=(c,t,a,e)=>`<div class="ep-rc" style="border-top-color:${c}"><h4>${t}</h4>${a.length?`<ul>${a.slice(0,3).map(li).join('')}</ul>`:`<p>${e}</p>`}</div>`;
-    slides.push(frame('Diagnóstico del mes','Qué está bien, qué pulir y qué mejorar',`<div class="ep-grid3 ep-recs">${col('#22c55e','En qué estamos bien',recs.good,'Todavía nada para destacar.')}${col('#f59e0b','Qué hay que pulir',recs.polish,'Nada para pulir por ahora.')}${col(PDFC.blue,'Qué mejorar y cómo',recs.improve,'No hay alertas este mes.')}</div>`));
+    const col=(c,t,a,e,i0)=>`<div class="ep-rc" style="border-top-color:${c}"><h4>${t}</h4>${a.slice(i0,i0+3).length?`<ul>${a.slice(i0,i0+3).map(li).join('')}</ul>`:`<p>${i0?'—':e}</p>`}</div>`;
+    const nPag=Math.max(1,Math.ceil(Math.max(recs.good.length,recs.polish.length,recs.improve.length)/3));
+    for(let pgD=0;pgD<nPag;pgD++){ const i0=pgD*3;
+      slides.push(frame('Diagnóstico del mes',pgD?'Qué está bien, qué pulir y qué mejorar (cont.)':'Qué está bien, qué pulir y qué mejorar',`<div class="ep-grid3 ep-recs">${col('#22c55e','En qué estamos bien',recs.good,'Todavía nada para destacar.',i0)}${col('#f59e0b','Qué hay que pulir',recs.polish,'Nada para pulir por ahora.',i0)}${col(PDFC.blue,'Qué mejorar y cómo',recs.improve,'No hay alertas este mes.',i0)}</div>`)); }
     // líneas
     slides.push(frame('Por día','Chats y consultas por día',`<p class="ep-sub">Los sábados se marcan en gris${fer.length?' y los feriados en amarillo':''}.</p><div class="ep-leg"><span><i style="background:${PDFC.navy}"></i>Chats</span><span><i style="background:${PDFC.blue}"></i>Consultas</span><span><i class="sq" style="background:${PDFC.band}"></i>Sábados</span>${fer.length?`<span><i class="sq" style="background:${PDFC.fer}"></i>Feriado</span>`:''}</div>${pdfLine(xs)}<p class="ep-axis">Día del mes · No se muestran los domingos (día no laboral)</p>`));
     // barras
@@ -65282,10 +65426,10 @@ document.addEventListener('DOMContentLoaded', () => {
     slides.push(frame('Entrega de pedidos','Envíos y retiros',`<div class="ep-split"><span style="width:${pe*100}%;background:${PDFC.red}">${er?fmtP(pe):''}</span><span style="width:${(1-pe)*100}%;background:#1d5fae">${er?fmtP(1-pe):''}</span></div><div class="ep-grid2"><div class="ep-card" style="border-top:4px solid ${PDFC.red}"><span class="l">Envíos</span><span class="b">${fmtN(E.sum)}</span><span class="s">${E.avg!=null?fmtN(E.avg)+' por día hábil':''}</span></div><div class="ep-card" style="border-top:4px solid #1d5fae"><span class="l">Retiros</span><span class="b">${fmtN(R.sum)}</span><span class="s">${R.avg!=null?fmtN(R.avg)+' por día hábil':''}</span></div></div>`));
     // mercadería faltante
     const FF=fltMonth(y,m);
-    if(FF.registros){ const conS=FF.est.notificado+FF.est.ingresado;
+    if(INFORME_CON_FALTANTES&&FF.registros){ const conS=FF.est.notificado+FF.est.ingresado;
       slides.push(frame('Mercadería faltante','Productos pedidos sin stock',`<div class="ep-grid4">${card('Productos anotados',fmtN(FF.prods),`${fmtN(FF.clientes)} cliente${FF.clientes===1?'':'s'}`)}${card('Siguen sin stock',fmtN(FF.est.pendiente),'pendientes','red')}${card('Ya ingresó stock',fmtN(conS),`${fmtN(FF.est.notificado)} por avisar · ${fmtN(FF.est.ingresado)} resueltos`)}${card('Reposición',FF.repAvg!=null?fmtN(FF.repAvg):'—',FF.repAvg!=null?'días en promedio':'sin reposiciones aún')}</div><table class="ep-tb ep-flt"><thead><tr><th>Producto más pedido sin stock</th><th>Veces</th><th>Clientes</th><th>Estado</th></tr></thead><tbody>${FF.top.slice(0,6).map(t=>`<tr><td>${esc(t.desc)}</td><td>${t.n}</td><td>${t.cli.size}</td><td>${Object.keys(t.est).map(e=>FLT_EST[e]||e).join(' · ')}</td></tr>`).join('')}</tbody></table>`)); }
     const II=fltIngresosMes(y,m);
-    if(II.n){ slides.push(frame('Mercadería faltante',`Ingresos confirmados en ${MONTHS[m]}`,`<div class="ep-grid3">${card('Faltantes que ingresaron',fmtN(II.n),`${fmtN(II.resueltos)} resueltos · ${fmtN(II.porAvisar)} por avisar`)}${card('Espera promedio',II.avg!=null?fmtN(II.avg):'—','días desde que se anotó')}${card('Espera más larga',II.max!=null?fmtN(II.max):'—',esc((II.its[0].f.cliente||'')+' · '+((fltProds(II.its[0].f)[0]||{}).descripcion||'')),II.max>30?'red':'')}</div><table class="ep-tb ep-flt"><thead><tr><th>Cliente</th><th>Producto</th><th>Esperó</th><th>Estado</th></tr></thead><tbody>${II.its.slice(0,6).map(x=>`<tr><td>${esc(x.f.cliente||'—')}</td><td>${esc(fltProds(x.f).map(p=>p.descripcion||p.sku||'—').join(', '))}</td><td>${x.dias!=null?x.dias+' días':'—'}</td><td>${FLT_EST[x.f.estado]||esc(x.f.estado||'')}</td></tr>`).join('')}</tbody></table><p class="ep-note">Se cuentan por la fecha en que se marcó el ingreso, aunque se hayan anotado en otro mes.</p>`)); }
+    if(INFORME_CON_FALTANTES&&II.n){ slides.push(frame('Mercadería faltante',`Ingresos confirmados en ${MONTHS[m]}`,`<div class="ep-grid3">${card('Faltantes que ingresaron',fmtN(II.n),`${fmtN(II.resueltos)} resueltos · ${fmtN(II.porAvisar)} por avisar`)}${card('Espera promedio',II.avg!=null?fmtN(II.avg):'—','días desde que se anotó')}${card('Espera más larga',II.max!=null?fmtN(II.max):'—',esc((II.its[0].f.cliente||'')+' · '+((fltProds(II.its[0].f)[0]||{}).descripcion||'')),II.max>30?'red':'')}</div><table class="ep-tb ep-flt"><thead><tr><th>Cliente</th><th>Producto</th><th>Esperó</th><th>Estado</th></tr></thead><tbody>${II.its.slice(0,6).map(x=>`<tr><td>${esc(x.f.cliente||'—')}</td><td>${esc(fltProds(x.f).map(p=>p.descripcion||p.sku||'—').join(', '))}</td><td>${x.dias!=null?x.dias+' días':'—'}</td><td>${FLT_EST[x.f.estado]||esc(x.f.estado||'')}</td></tr>`).join('')}</tbody></table><p class="ep-note">Se cuentan por la fecha en que se marcó el ingreso, aunque se hayan anotado en otro mes.</p>`)); }
     // repartos
     const reps=config.metrics.flatMap(mt=>st[mt.key].groups.filter(G=>G.det).map(G=>({mt,G})));
     for(let i=0;i<reps.length;i+=4){ const chunk=reps.slice(i,i+4);
