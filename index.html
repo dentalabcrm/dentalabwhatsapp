@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.403</title>
+<title>Dentalab Whatsapp CRM · v25.405</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -22444,45 +22444,23 @@ async function sincronizarPresupuestoYiqi(btnEl) {
     log('Buscando ID interno del pedido N° ' + pedNum + '…', 'step');
     subtitle('Buscando pedido…');
 
-    var pedidoId = null;
     var pedNumStr = String(pedNum);
-
-    // Fuente A: datos locales (envios ya sincronizados tienen yiqiId)
-    try {
-      var enviosArr = JSON.parse(localStorage.getItem('dentalab_envios') || '[]');
-      var matchEnvio = enviosArr.find(function(e) {
-        return String(e.nroPedido||'').trim() === pedNumStr && e.yiqiId;
-      });
-      if (matchEnvio) {
-        pedidoId = String(matchEnvio.yiqiId);
-        log('ID interno: ' + pedidoId + ' (del historial local)', 'ok');
-      }
-    } catch(e) {}
-
-    // Fuente B: API /PEDIDO/query con filtro PEDI_NUMERO_SOLO
-    if (!pedidoId) {
-      log('No encontrado localmente — consultando API…', 'info');
-      try {
-        var qRes = await yiqiFetch(YIQI_API_BASE + '/api/public/PEDIDO/query?schemaId=' + YIQI_SCHEMA_ID, {
-          method: 'POST', headers: H,
-          body: JSON.stringify({ page: 1, pageSize: 100, columns: [], filters: [{ field: 'PEDI_NUMERO_SOLO', operator: '=', value: parseInt(pedNumStr, 10) }] })
-        });
-        if (qRes.ok) {
-          var qData = await qRes.json();
-          var pArr = qData.data || qData.items || (Array.isArray(qData) ? qData : []);
-          var pFound = pArr.find(function(p) {
-            var pNro = String(p.PEDI_NUMERO_SOLO||p.PEDI_NRO_PEDIDO||p.PEDI_NUMERO||p.numero||'').replace(/\D/g,'');
-            return pNro === pedNumStr || String(p.id||'') === pedNumStr;
-          });
-          if (pFound) { pedidoId = String(pFound.id); log('ID interno: ' + pedidoId + ' (vía API)', 'ok'); }
-        }
-      } catch(e) { log('Error API pedido: ' + e.message, 'warn'); }
+    var _pedInfo = await _yiqiResolverPedidoSeguro(pedNumStr, H);
+    if (!_pedInfo) {
+      log('No existe en Yiqi un pedido con N° ' + pedNumStr + ' (ni con ese ID interno). No se cargó nada.', 'error');
+      subtitle('Pedido no encontrado');
+      document.getElementById('yiqi-sync-close-btn').style.display = 'block';
+      setBtn(origLabel, false);
+      showToast('⚠ No se encontró el pedido ' + pedNumStr + ' en Yiqi', 'warn');
+      return;
     }
-
-    // Fuente C: usar N° de pedido directamente como ID interno
-    if (!pedidoId) {
-      log('→ API sin resultados — usando N° ' + pedNumStr + ' como ID interno', 'warn');
-      pedidoId = pedNumStr;
+    var pedidoId = _pedInfo.id;
+    log('Pedido N° ' + _pedInfo.nro + (_pedInfo.cliente ? ' · ' + _pedInfo.cliente : '') + (_pedInfo.estado ? ' · ' + _pedInfo.estado : '') + ' (ID interno ' + pedidoId + ')', 'ok');
+    if (!confirm('Se van a cargar los productos' + ((typeof budgetEnvio !== 'undefined' && budgetEnvio.activo) ? ' y el envío' : '') + ' en:\n\nPedido N° ' + _pedInfo.nro + '\nCliente: ' + (_pedInfo.cliente || '—') + '\nEstado: ' + (_pedInfo.estado || '—') + '\n\n¿Es este pedido?')) {
+      log('Cancelado por el usuario.', 'warn'); subtitle('Cancelado');
+      document.getElementById('yiqi-sync-close-btn').style.display = 'block';
+      setBtn(origLabel, false);
+      return;
     }
 
     // 3. Resolver SKUs → MATE_ID_MATE usando el mapa cacheado
@@ -22814,61 +22792,54 @@ function quitarProductosYiqi(btnEl) {
 // ── Resuelve N° de pedido → ID interno de Yiqi ──────────────────────────────
 // Busca primero en el historial local (dentalab_envios), luego vía API.
 // Devuelve el ID interno como string, o null si no se encontró.
-async function _yiqiResolverPedidoId(pedNumStr, H, logFn) {
-  const YIQI_API_BASE  = 'https://api.yiqi.com.ar';
-  const YIQI_SCHEMA_ID = 328;
-
-  // Fuente A: historial local
+// ── Resolver pedido de Yiqi a partir de lo que escribe el usuario: N° de pedido (49376) o ID interno (107134) ──
+// 1) Busca por N° de pedido (PEDI_NUMERO_SOLO). 2) Si no hay, prueba si es un ID interno.
+// Nunca "adivina": si no lo encuentra devuelve null (antes usaba el número como ID y podía tocar otro pedido).
+async function _yiqiResolverPedidoSeguro(valor, H) {
+  const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+  const n = parseInt(String(valor || '').replace(/\D/g, ''), 10);
+  if (!n) return null;
+  const info = (p, via) => ({ id: String(p.id || p.ID), nro: String(p.PEDI_NUMERO_SOLO || String(p.PEDI_NUMERO || '').replace(/\D/g, '')),
+    cliente: String(p.CLIE_NOMBRE || p.PEDI_RAZON_SOCIAL || '').trim(), estado: p.DESC_ESTADO || p.ESTA_NOMBRE || '', via });
+  // 1) Por N° de pedido
   try {
-    const enviosArr = JSON.parse(localStorage.getItem('dentalab_envios') || '[]');
-    const match = enviosArr.find(e => String(e.nroPedido||'').trim() === pedNumStr && e.yiqiId);
-    if (match) {
-      logFn('✓ ID interno: ' + match.yiqiId + ' (historial local)', '#10b981');
-      return String(match.yiqiId);
-    }
-  } catch(e) {}
-
-  // Fuente B: POST /PEDIDO/query con search
-  logFn('→ Buscando en Yiqi API…', '#60a5fa');
-  try {
-    const qRes = await yiqiFetch(YIQI_API_BASE + '/api/public/PEDIDO/query?schemaId=' + YIQI_SCHEMA_ID, {
+    const r = await yiqiFetch(`${API}/api/public/PEDIDO/query?schemaId=${SCHEMA}`, {
       method: 'POST', headers: H,
-      body: JSON.stringify({ page: 1, pageSize: 100, search: pedNumStr, columns: [], filters: [] })
+      body: JSON.stringify({ page: 1, pageSize: 5,
+        columns: ['ID', 'PEDI_NUMERO', 'PEDI_NUMERO_SOLO', 'PEDI_RAZON_SOCIAL', 'CLIE_NOMBRE', 'DESC_ESTADO'].map((f, i) => ({ field: f, title: f, order: i + 1 })),
+        filters: [{ columnName: 'PEDI_NUMERO_SOLO', operator: '=', value: n }] })
     });
-    if (qRes.ok) {
-      const qData = await qRes.json();
-      const arr = qData.data || qData.items || (Array.isArray(qData) ? qData : []);
-      const found = arr.find(p => {
-        const n = String(p.PEDI_NUMERO_SOLO||p.PEDI_NRO_PEDIDO||p.PEDI_NUMERO||p.numero||'').replace(/\D/g,'');
-        return n === pedNumStr || String(p.id||'') === pedNumStr;
-      });
-      if (found) {
-        logFn('✓ ID interno: ' + found.id + ' (vía API)', '#10b981');
-        return String(found.id);
-      }
+    if (r.ok) {
+      const j = await r.json();
+      const arr = j.data || j.items || (Array.isArray(j) ? j : []);
+      const p = arr.find(x => String(x.PEDI_NUMERO_SOLO || String(x.PEDI_NUMERO || '').replace(/\D/g, '')) === String(n));
+      if (p && (p.id || p.ID)) return info(p, 'nro');
     }
-  } catch(e) { logFn('⚠ Error buscando en API: ' + e.message, '#f59e0b'); }
-
-  // Fuente C: GET /PEDIDO/search por PEDI_NUMERO_SOLO
+  } catch (e) { console.warn('[resolverPedido] query por N°:', e.message); }
   try {
-    const sRes = await yiqiFetch(YIQI_API_BASE + '/api/public/PEDIDO/search?schemaId=' + YIQI_SCHEMA_ID + '&PEDI_NUMERO_SOLO=' + pedNumStr, { headers: H });
-    if (sRes.ok) {
-      const sData = await sRes.json();
-      const arr = sData.data || sData.items || (Array.isArray(sData) ? sData : []);
-      const found = arr.find(p => {
-        const n = String(p.PEDI_NUMERO_SOLO||p.PEDI_NRO_PEDIDO||p.PEDI_NUMERO||p.numero||'').replace(/\D/g,'');
-        return n === pedNumStr || String(p.id||'') === pedNumStr;
-      });
-      if (found) {
-        logFn('✓ ID interno: ' + found.id + ' (vía search)', '#10b981');
-        return String(found.id);
-      }
+    const r = await yiqiFetch(`${API}/api/public/PEDIDO/search?schemaId=${SCHEMA}&PEDI_NUMERO_SOLO=${n}`, { headers: H });
+    if (r.ok) {
+      const j = await r.json(); const arr = j.data || j.items || (Array.isArray(j) ? j : []);
+      const p = arr.find(x => String(x.PEDI_NUMERO_SOLO || String(x.PEDI_NUMERO || '').replace(/\D/g, '')) === String(n));
+      if (p && (p.id || p.ID)) return info(p, 'nro');
     }
-  } catch(e) {}
+  } catch (e) {}
+  // 2) Como ID interno
+  try {
+    const r = await yiqiFetch(`${API}/api/public/PEDIDO/${n}?schemaId=${SCHEMA}`, { headers: H });
+    if (r.ok) { const p = await r.json(); if (p && (p.id || p.PEDI_NUMERO)) { if (!p.id) p.id = n; return info(p, 'id'); } }
+  } catch (e) {}
+  return null;
+}
+window._yiqiResolverPedidoSeguro = _yiqiResolverPedidoSeguro;
 
-  // Fuente D: usar N° de pedido directamente como ID interno
-  logFn('→ API sin resultados — usando N° ' + pedNumStr + ' como ID interno', '#f59e0b');
-  return pedNumStr;
+async function _yiqiResolverPedidoId(pedNumStr, H, logFn) {
+  const lf = logFn || function(){};
+  lf('→ Buscando pedido ' + pedNumStr + ' en Yiqi…', '#60a5fa');
+  const p = await _yiqiResolverPedidoSeguro(pedNumStr, H);
+  if (!p) { lf('✕ No existe en Yiqi un pedido con N° ' + pedNumStr + ' (ni con ese ID interno).', '#f87171'); return null; }
+  lf('✓ Pedido N° ' + p.nro + (p.cliente ? ' · ' + p.cliente : '') + (p.estado ? ' · ' + p.estado : '') + ' (ID interno ' + p.id + (p.via === 'id' ? ', escrito como ID' : '') + ')', '#10b981');
+  return p.id;
 }
 
 
@@ -23235,7 +23206,7 @@ async function _ygsCargarPreview(pedNumStr) {
     if (detalles.length === 0) {
       const qRes = await yiqiFetch(`${YIQI_API_BASE}/api/public/DETALLE_DE_PEDIDO/query?schemaId=${YIQI_SCHEMA_ID}`, {
         method: 'POST', headers: H,
-        body: JSON.stringify({ page: 1, pageSize: 200, filters: [{ field: 'PEDI_ID_PEDI', operator: '=', value: parseInt(pedidoId, 10) }] })
+        body: JSON.stringify({ page: 1, pageSize: 200, filters: [{ columnName: 'PEDI_ID_PEDI', field: 'PEDI_ID_PEDI', operator: '=', value: parseInt(pedidoId, 10) }] })
       });
       if (qRes.ok) {
         const qData = await qRes.json();
@@ -23545,7 +23516,7 @@ async function _yiqiEliminarTodosEnERP(logEl, pedNumStr) {
     if (detalles.length === 0) {
       const qRes = await yiqiFetch(`${YIQI_API_BASE}/api/public/DETALLE_DE_PEDIDO/query?schemaId=${YIQI_SCHEMA_ID}`, {
         method: 'POST', headers: H,
-        body: JSON.stringify({ page: 1, pageSize: 200, filters: [{ field: 'PEDI_ID_PEDI', operator: '=', value: parseInt(pedidoId, 10) }] })
+        body: JSON.stringify({ page: 1, pageSize: 200, filters: [{ columnName: 'PEDI_ID_PEDI', field: 'PEDI_ID_PEDI', operator: '=', value: parseInt(pedidoId, 10) }] })
       });
       if (qRes.ok) {
         const qData = await qRes.json();
@@ -23851,7 +23822,7 @@ async function _yiqiModificarEnERP(logEl, items, yiqiIdOverride) {
     if (detalles.length === 0) {
       const qRes = await yiqiFetch(`${YIQI_API_BASE}/api/public/DETALLE_DE_PEDIDO/query?schemaId=${YIQI_SCHEMA_ID}`, {
         method: 'POST', headers: H,
-        body: JSON.stringify({ page: 1, pageSize: 200, filters: [{ field: 'PEDI_ID_PEDI', operator: '=', value: parseInt(pedidoId, 10) }] })
+        body: JSON.stringify({ page: 1, pageSize: 200, filters: [{ columnName: 'PEDI_ID_PEDI', field: 'PEDI_ID_PEDI', operator: '=', value: parseInt(pedidoId, 10) }] })
       });
       if (qRes.ok) {
         const qData = await qRes.json();
@@ -24140,7 +24111,7 @@ async function _yiqiQuitarEnERP(logEl, items, yiqiIdOverride) {
             headers: H,
             body: JSON.stringify({
               page: 1, pageSize: 200,
-              filters: [{ field: 'PEDI_ID_PEDI', operator: '=', value: parseInt(pedidoId, 10) }]
+              filters: [{ columnName: 'PEDI_ID_PEDI', field: 'PEDI_ID_PEDI', operator: '=', value: parseInt(pedidoId, 10) }]
             })
           }
         );
@@ -24771,38 +24742,8 @@ async function _yiqiQuitarEnERP_legacy(logEl, items) {
     const pedNumStr = String(pedNum);
     _yiqiQuitarLog(logEl, '→ Buscando pedido N° ' + pedNumStr + ' en Yiqi…', '#60a5fa');
 
-    let pedidoId = null;
-
-    // Fuente A: historial local (envios sincronizados)
-    try {
-      const enviosArr = JSON.parse(localStorage.getItem('dentalab_envios') || '[]');
-      const match = enviosArr.find(e => String(e.nroPedido||'').trim() === pedNumStr && e.yiqiId);
-      if (match) { pedidoId = String(match.yiqiId); _yiqiQuitarLog(logEl, '✓ ID del pedido: ' + pedidoId + ' (local)', '#10b981'); }
-    } catch(e) {}
-
-    // Fuente B: API PEDIDO/search por PEDI_NUMERO_SOLO
-    if (!pedidoId) {
-      try {
-        const sRes = await yiqiFetch(`${YIQI_API_BASE}/api/public/PEDIDO/search?schemaId=${YIQI_SCHEMA_ID}&PEDI_NUMERO_SOLO=${pedNumStr}`, {
-          headers: H
-        });
-        if (sRes.ok) {
-          const sData = await sRes.json();
-          const arr = sData.data || sData.items || (Array.isArray(sData) ? sData : []);
-          const found = arr.find(p => {
-            const n = String(p.PEDI_NUMERO_SOLO||p.PEDI_NRO_PEDIDO||p.PEDI_NUMERO||p.numero||'').replace(/\D/g,'');
-            return n === pedNumStr || String(p.id||'') === pedNumStr;
-          });
-          if (found) { pedidoId = String(found.id); _yiqiQuitarLog(logEl, '✓ ID del pedido: ' + pedidoId + ' (vía API)', '#10b981'); }
-        }
-      } catch(e) { _yiqiQuitarLog(logEl, '⚠ Error buscando pedido: ' + e.message, '#f59e0b'); }
-    }
-
-    // Fuente C: usar N° de pedido directamente como ID interno
-    if (!pedidoId) {
-      _yiqiQuitarLog(logEl, '→ API sin resultados — usando N° ' + pedNumStr + ' como ID interno', '#f59e0b');
-      pedidoId = pedNumStr;
-    }
+    const pedidoId = await _yiqiResolverPedidoId(pedNumStr, H, (msg, color) => _yiqiQuitarLog(logEl, msg, color));
+    if (!pedidoId) return;
 
     // 3. Obtener los DETALLE_DE_PEDIDO de ese pedido
     _yiqiQuitarLog(logEl, '→ Obteniendo ítems del pedido en Yiqi…', '#60a5fa');
@@ -41589,7 +41530,13 @@ async function cargarPedidoEnYiqi(btnEl) {
     const prodMsg = productosYiqi.length > 0
       ? ` con ${productosYiqi.length} producto${productosYiqi.length !== 1 ? 's' : ''}`
       : ' (sin productos)';
-    showToast(`✅ Pedido #${newId} creado en Yiqi${prodMsg}`, 'ok');
+    let _envMsg2 = '';
+    try {
+      const _er2 = await _yiqiCargarEnvioPresupuesto(_editId2 || newId, authHeader, m => console.log('[envío pedido]', m));
+      if (_er2.cargado) _envMsg2 = ' + envío';
+      else if (!_er2.omitido) showToast('⚠ El pedido se cargó pero el envío no: ' + _er2.msg, 'warn');
+    } catch (eEnv2) { showToast('⚠ El pedido se cargó pero el envío no: ' + eEnv2.message, 'warn'); }
+    showToast(`✅ Pedido #${newId} ${_editId2 ? 'actualizado' : 'creado'} en Yiqi${prodMsg}${_envMsg2}`, 'ok');
     document.getElementById('pedido-modal-bd').style.display = 'none';
     resetPedidoForm();
 
@@ -45641,7 +45588,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.403';
+  const LATEST_VERSION = 'v25.405';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45654,6 +45601,24 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.405',
+      fecha: '2026-11-17',
+      titulo: 'Yiqi: se puede usar el N° de pedido (no hace falta el ID interno)',
+      items: [
+        { tipo: 'fix', texto: 'Agregar a pedido YIQI, Cargar datos (editar), Gestionar/Quitar SKUs y demás buscan el pedido primero por su N° (ej. 49376) y, si no existe, lo prueban como ID interno (ej. 107134). La búsqueda por N° no andaba porque Yiqi cambió el formato de los filtros.' },
+        { tipo: 'fix', texto: 'Seguridad: antes, si no encontraba el pedido, usaba el número escrito como ID interno y podía cargar productos en OTRO pedido viejo. Ahora si no lo encuentra no hace nada y avisa.' },
+        { tipo: 'mejora', texto: 'Agregar a pedido YIQI muestra N°, cliente y estado del pedido encontrado y pide confirmar antes de cargar.' }
+      ]
+    },
+    {
+      version: 'v25.404',
+      fecha: '2026-11-17',
+      titulo: 'Nuevo Pedido (con cliente): también carga el envío',
+      items: [
+        { tipo: 'fix', texto: 'Al cargar el pedido desde el panel "Nuevo Pedido" (con un cliente elegido), ahora también se carga el envío del presupuesto como servicio en Yiqi. Antes solo lo hacían "Agregar a pedido YIQI" y "Consumidor Final". En modo edición tampoco se duplica si ya estaba.' }
+      ]
+    },
     {
       version: 'v25.403',
       fecha: '2026-11-17',
