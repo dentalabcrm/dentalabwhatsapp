@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.398</title>
+<title>Dentalab Whatsapp CRM · v25.399</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45612,7 +45612,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.398';
+  const LATEST_VERSION = 'v25.399';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45625,6 +45625,16 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.399',
+      fecha: '2026-11-17',
+      titulo: 'Pedidos: grilla en vivo desde Yiqi, editable desde el CRM',
+      items: [
+        { tipo: 'nuevo', texto: 'La pestaña Pedidos muestra los pedidos directo desde Yiqi (sin Excel) con las mismas columnas de la grilla de Yiqi: Nro, Fecha de creación, Cliente, Ubicación origen, Tipo de Factura, Total, Observaciones, Estado del Envío, Estado de Pago, Estado, Estado actual del pedido, Provincia de envío y Descripción de estado. Se actualiza sola al abrir la pestaña y cada 2 minutos, o con 🔄 Actualizar.' },
+        { tipo: 'nuevo', texto: 'Clic en una celda con ✎ para editarla: el cambio se guarda en Yiqi al instante (Enter / Ctrl+Enter en Observaciones; Esc cancela). Observaciones, Estado del envío, Estado de pago, Estado y Estado actual se pueden cambiar siempre; Ubicación, Tipo de Factura y Provincia solo con el pedido En espera de pago.' },
+        { tipo: 'mejora', texto: 'Filtros por período (hoy a 30 días), por Descripción de estado y búsqueda por nro, cliente u observaciones. MercadoLibre se oculta por defecto. El botón "Vista anterior" vuelve a la vista vieja del CRM.' }
+      ]
+    },
     {
       version: 'v25.398',
       fecha: '2026-11-17',
@@ -63236,6 +63246,406 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+</script>
+<!-- ══ Pedidos: grilla en vivo desde Yiqi (v25.399) ══ -->
+<style>
+#pyq-wrap{font-family:'DM Sans',sans-serif;color:#e2e8f0;margin:0 0 14px 0;}
+#pyq-wrap .pyq-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;}
+#pyq-wrap .pyq-title{font-size:16px;font-weight:800;color:#f1f5f9;margin-right:6px;}
+#pyq-wrap .pyq-btn{background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.4);border-radius:9px;padding:7px 13px;color:#c4b5fd;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;}
+#pyq-wrap .pyq-btn:hover{background:rgba(139,92,246,.28);}
+#pyq-wrap .pyq-btn.sec{background:rgba(148,163,184,.1);border-color:rgba(148,163,184,.3);color:#cbd5e1;}
+#pyq-wrap select,#pyq-wrap input[type=text],#pyq-wrap input[type=password]{background:#0f172a;border:1px solid rgba(255,255,255,.14);border-radius:8px;color:#e2e8f0;padding:6px 9px;font-size:12.5px;font-family:inherit;}
+#pyq-wrap input.pyq-q{width:230px;}
+#pyq-wrap label.pyq-chk{font-size:12.5px;color:#94a3b8;display:inline-flex;gap:5px;align-items:center;cursor:pointer;}
+#pyq-wrap .pyq-info{font-size:11.5px;color:#64748b;margin-left:auto;}
+#pyq-wrap .pyq-err{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#fca5a5;border-radius:9px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;white-space:pre-wrap;}
+#pyq-wrap .pyq-scroll{overflow:auto;max-height:calc(100vh - 230px);border:1px solid rgba(255,255,255,.08);border-radius:10px;}
+#pyq-wrap table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12.5px;}
+#pyq-wrap th{position:sticky;top:0;z-index:2;background:#1e293b;color:#94a3b8;font-weight:700;text-align:left;padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.1);cursor:pointer;white-space:nowrap;user-select:none;}
+#pyq-wrap th .pyq-ed{color:#a78bfa;font-size:10px;margin-left:3px;}
+#pyq-wrap td{padding:6px 9px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:top;max-width:260px;}
+#pyq-wrap tr:hover td{background:rgba(255,255,255,.03);}
+#pyq-wrap td.c-nro{font-weight:800;color:#93c5fd;white-space:nowrap;}
+#pyq-wrap td.c-nro small{display:block;font-weight:500;color:#64748b;font-size:10.5px;}
+#pyq-wrap td.c-total{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+#pyq-wrap td.c-fecha{white-space:nowrap;color:#94a3b8;}
+#pyq-wrap td.c-obs{min-width:220px;max-width:320px;}
+#pyq-wrap td.c-obs .pyq-txt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-line;}
+#pyq-wrap td .pyq-txt{overflow:hidden;text-overflow:ellipsis;}
+#pyq-wrap td.ed{cursor:text;}
+#pyq-wrap td.ed:hover{outline:1px dashed rgba(167,139,250,.55);outline-offset:-2px;}
+#pyq-wrap td.ed .pyq-empty{color:#334155;}
+#pyq-wrap td.saving{opacity:.55;}
+#pyq-wrap td.ok{animation:pyqOk 1.6s ease;}
+#pyq-wrap td.bad{background:rgba(239,68,68,.15)!important;}
+@keyframes pyqOk{0%{background:rgba(16,185,129,.35);}100%{background:transparent;}}
+#pyq-wrap td textarea,#pyq-wrap td input,#pyq-wrap td select{width:100%;min-width:140px;box-sizing:border-box;background:#0b1220;border:1px solid #8b5cf6;border-radius:6px;color:#f1f5f9;font:inherit;padding:4px 6px;}
+#pyq-wrap td textarea{min-height:90px;min-width:260px;resize:vertical;}
+#pyq-wrap .pyq-hint{font-size:10.5px;color:#64748b;margin-top:3px;}
+#pyq-wrap .pyq-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;background:rgba(148,163,184,.15);color:#cbd5e1;}
+#pyq-wrap .pyq-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+#pyq-wrap .pyq-chip{font-size:11.5px;padding:3px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);cursor:pointer;color:#94a3b8;background:transparent;font-family:inherit;}
+#pyq-wrap .pyq-chip.on{border-color:#8b5cf6;color:#e9d5ff;background:rgba(139,92,246,.2);}
+#pyq-wrap .pyq-login{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:9px;padding:10px 12px;margin-bottom:10px;font-size:12.5px;color:#fcd34d;}
+#pyq-toggle-crm{margin:0 0 10px 0;}
+</style>
+<script>
+(function(){
+  const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+  const LS_VISTA = 'pyq_vista', LS_CACHE = 'pyq_cache_v1', LS_PREFS = 'pyq_prefs_v1';
+  const MAP_CEDI = typeof _YIQI_INV_CEDI !== 'undefined' ? _YIQI_INV_CEDI : {155:'Deposito 1 - Local',157:'Deposito Central',159:'Deposito 7 - Jorge'};
+  const MAP_TIFA = typeof _YIQI_INV_TIFA !== 'undefined' ? _YIQI_INV_TIFA : {1:'A',2:'B',16:'X'};
+  const MAP_PUVE = typeof _YIQI_INV_PUVE !== 'undefined' ? _YIQI_INV_PUVE : {2:'4',14:'98'};
+  const MAP_EXTE = {13:'WhatsApp',3:'Local',4:'Jorge (Dep 7)',6:'Gregorio (Dep 2)',10:'E. Balassanian',11:'Web',16:'Sólo Factura',2:'MercadoLibre'};
+  // Campos que Yiqi deja editar siempre (también en pedidos Entregados)
+  const SIEMPRE = new Set(['PEDI_OBSERVACIONES','PEDI_ESTADO_DEL_ENVIO','PEDI_ESTADO_DE_PAGO','PEDI_ESTADO','PEDI_ESTADO_ACTUAL_DEL_PE']);
+  const COLS = [
+    { k:'PEDI_NUMERO_SOLO', t:'Nro', cls:'c-nro' },
+    { k:'AUDI_FECHA_ALTA', t:'Fecha de creación', cls:'c-fecha' },
+    { k:'CLIE_NOMBRE', t:'Cliente' },
+    { k:'CEDI_ID_ORIG', t:'Ubicación origen', ed:'select', map:MAP_CEDI, fk:true },
+    { k:'TIFA_ID_TIFA', t:'Tipo de Factura', ed:'select', map:MAP_TIFA, fk:true },
+    { k:'PEDI_TOTAL', t:'Total', cls:'c-total' },
+    { k:'PEDI_OBSERVACIONES', t:'Observaciones', ed:'textarea', cls:'c-obs' },
+    { k:'PEDI_ESTADO_DEL_ENVIO', t:'Estado del Envío', ed:'text' },
+    { k:'PEDI_ESTADO_DE_PAGO', t:'Estado de Pago', ed:'text' },
+    { k:'PEDI_ESTADO', t:'Estado', ed:'text' },
+    { k:'PEDI_ESTADO_ACTUAL_DEL_PE', t:'Estado actual del pedido', ed:'text' },
+    { k:'PEDI_PROVINCIA_DE_ENVIO', t:'Provincia de envío', ed:'text' },
+    { k:'DESC_ESTADO', t:'Descripción de estado' }
+  ];
+  const QCOLS = ['ID','PEDI_NUMERO','PEDI_NUMERO_SOLO','AUDI_FECHA_ALTA','PEDI_FECHA','CLIE_NOMBRE','PEDI_RAZON_SOCIAL','CEDI_ID_ORIG','TIFA_ID_TIFA',
+    'PEDI_TOTAL','PEDI_OBSERVACIONES','PEDI_ESTADO_DEL_ENVIO','PEDI_ESTADO_DE_PAGO','PEDI_ESTADO','PEDI_ESTADO_ACTUAL_DEL_PE',
+    'PEDI_PROVINCIA_DE_ENVIO','DESC_ESTADO','EXTE_ID_EXTE','PUVE_ID_PUVE'];
+  const ESTADO_COLOR = {
+    'en espera de pago':['rgba(245,158,11,.18)','#fcd34d'], 'entregado':['rgba(16,185,129,.18)','#6ee7b7'],
+    'staging out':['rgba(59,130,246,.18)','#93c5fd'], 'quiebre 2':['rgba(239,68,68,.18)','#fca5a5'],
+    'anulado':['rgba(100,116,139,.2)','#94a3b8'], 'a anular':['rgba(100,116,139,.2)','#94a3b8'],
+    'con devolución':['rgba(236,72,153,.18)','#f9a8d4'], 'a reservar':['rgba(139,92,246,.18)','#c4b5fd'],
+    'esperando 2da validación':['rgba(14,165,233,.18)','#7dd3fc']
+  };
+
+  let prefs = { dias: 7, ml: false, q: '', estado: '', sort: 'PEDI_NUMERO_SOLO', dir: -1 };
+  try { Object.assign(prefs, JSON.parse(localStorage.getItem(LS_PREFS) || '{}')); } catch(e) {}
+  let rows = [], lastTs = 0, loading = false, editing = null, savingN = 0, lastErr = '', needLogin = false;
+  try { const c = JSON.parse(localStorage.getItem(LS_CACHE) || 'null'); if (c && Array.isArray(c.rows)) { rows = c.rows; lastTs = c.ts || 0; } } catch(e) {}
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const savePrefs = () => { try { localStorage.setItem(LS_PREFS, JSON.stringify(prefs)); } catch(e) {} };
+  const saveCache = () => { try { localStorage.setItem(LS_CACHE, JSON.stringify({ ts: lastTs, rows })); } catch(e) {} };
+  const toast = (m, t) => { try { showToast(m, t); } catch(e) { console.log(m); } };
+  const rowId = r => r.ID || r.id;
+  const nro = r => r.PEDI_NUMERO_SOLO || String(r.PEDI_NUMERO || '').replace(/\D/g, '');
+  const vista = () => localStorage.getItem(LS_VISTA) || 'yiqi';
+
+  function fmtFecha(s) {
+    if (!s) return '';
+    const d = new Date(s); if (isNaN(d)) return esc(s);
+    const p = n => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth()+1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  const fmtMoney = v => (v == null || v === '') ? '' : '$ ' + Number(v).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  const isoDia = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+  async function token() {
+    const t = await (window._yiqiGetTokenGlobal ? window._yiqiGetTokenGlobal() : null);
+    if (!t) { needLogin = true; throw new Error('SIN_LOGIN'); }
+    needLogin = false; return t;
+  }
+
+  // ── Lectura: POST /PEDIDO/query paginado ──
+  async function queryPage(H, page, cols, filters) {
+    const res = await yiqiFetch(`${API}/api/public/PEDIDO/query?schemaId=${SCHEMA}`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ page, pageSize: 200, columns: cols.map((f, i) => ({ field: f, title: f, sortOrder: i + 1 })), filters })
+    });
+    if (!res.ok) { const tx = await res.text().catch(() => ''); const e = new Error(`HTTP ${res.status} ${tx.slice(0, 300)}`); e.status = res.status; throw e; }
+    const j = await res.json();
+    return { data: j.data || j.items || (Array.isArray(j) ? j : []), total: j.total || 0 };
+  }
+  async function fetchRows() {
+    const H = { 'Authorization': 'Bearer ' + await token(), 'Content-Type': 'application/json' };
+    const desde = new Date(); desde.setHours(0,0,0,0); desde.setDate(desde.getDate() - Math.max(0, prefs.dias - 1));
+    const fFecha = { field: 'PEDI_FECHA', operator: '>=', value: isoDia(desde) };
+    const fML = { field: 'EXTE_ID_EXTE', operator: '!=', value: 2 };
+    // Intentos de más completo a más simple (por si Yiqi rechaza alguna columna u operador)
+    const intentos = [
+      [QCOLS, prefs.ml ? [fFecha] : [fFecha, fML]],
+      [QCOLS, [fFecha]],
+      [QCOLS.filter(c => !['CLIE_NOMBRE','DESC_ESTADO','ID','AUDI_FECHA_ALTA'].includes(c)), [fFecha]],
+      [[], [fFecha]]
+    ];
+    let ultimoErr;
+    for (const [cols, filters] of intentos) {
+      try {
+        const out = []; let page = 1, total = Infinity;
+        while (out.length < total && page <= 20) {
+          const r = await queryPage(H, page, cols, filters);
+          out.push(...r.data); total = r.total || (r.data.length < 200 ? out.length : Infinity);
+          if (r.data.length < 200) break; page++;
+        }
+        let res = out;
+        if (!prefs.ml) res = res.filter(r => Number(r.EXTE_ID_EXTE) !== 2);
+        res = res.filter(r => { const f = new Date(r.PEDI_FECHA || r.AUDI_FECHA_ALTA); return isNaN(f) || f >= desde; });
+        res.forEach(r => { if (!r.CLIE_NOMBRE) r.CLIE_NOMBRE = r.PEDI_RAZON_SOCIAL || ''; if (!r.DESC_ESTADO) r.DESC_ESTADO = r.ESTA_NOMBRE || ''; if (!r.ID) r.ID = r.id; if (!r.AUDI_FECHA_ALTA) r.AUDI_FECHA_ALTA = r.PEDI_FECHA; });
+        return res;
+      } catch(e) { ultimoErr = e; console.warn('[pedidosYiqi] intento falló:', e.message); if (e.status === 401) break; }
+    }
+    throw ultimoErr || new Error('Sin respuesta de Yiqi');
+  }
+
+  async function refrescar(manual) {
+    if (loading || editing || savingN) return;
+    loading = true; lastErr = ''; render();
+    try {
+      const nuevos = await fetchRows();
+      rows = nuevos; lastTs = Date.now(); saveCache();
+      if (manual) toast(`✓ ${rows.length} pedidos actualizados desde Yiqi`, 'success');
+    } catch(e) {
+      if (e.message !== 'SIN_LOGIN') { lastErr = 'No se pudo leer Yiqi: ' + e.message; if (manual) toast('⚠ Error leyendo Yiqi', 'warn'); }
+    } finally { loading = false; render(); }
+  }
+
+  // ── Escritura: PUT /PEDIDO/{id} solo con el campo cambiado, con verificación ──
+  const ANCLAS = ['CLIE_ID_CLIE','EXTE_ID_EXTE','COVE_ID_COVE','PUVE_ID_PUVE','CEDI_ID_ORIG','VEHA_ID_VEHA','LIDP_ID_LIDP','TIFA_ID_TIFA',
+    'PEDI_OBSERVACIONES','PEDI_ESTADO_DEL_ENVIO','PEDI_ESTADO_DE_PAGO','PEDI_ESTADO','PEDI_ESTADO_ACTUAL_DEL_PE','PEDI_PROVINCIA_DE_ENVIO',
+    'PEDI_DIRECCION_DE_ENVIO','PEDI_TELEFONO','PEDI_LOCALIDAD_DE_ENVIO','PEDI_CODIGO_POSTAL_DE_ENV'];
+  const vacio = v => v == null || String(v).trim() === '';
+  const norm = v => vacio(v) ? '' : String(v).replace(/\r\n/g, '\n').trim();
+  async function getPedido(H, id) {
+    const r = await yiqiFetch(`${API}/api/public/PEDIDO/${id}?schemaId=${SCHEMA}`, { headers: H });
+    if (!r.ok) throw new Error('No se pudo leer el pedido (' + r.status + ')');
+    return r.json();
+  }
+  async function put(H, id, data) {
+    const r = await yiqiFetch(`${API}/api/public/PEDIDO/${id}?schemaId=${SCHEMA}`, { method: 'PUT', headers: H, body: JSON.stringify({ schemaId: SCHEMA, data }) });
+    const tx = await r.text().catch(() => '');
+    return { ok: r.ok, status: r.status, tx };
+  }
+  function msgYiqi(tx) {
+    try { const j = JSON.parse(tx); return j.message || j.Message || j.error || j.errors && JSON.stringify(j.errors) || tx; } catch(e) { return tx; }
+  }
+  async function guardar(id, campo, valor) {
+    const H = { 'Authorization': 'Bearer ' + await token(), 'Content-Type': 'application/json' };
+    const antes = await getPedido(H, id);
+    let r = await put(H, id, { [campo]: valor });
+    if (!r.ok && /requerid|required|obligatori/i.test(r.tx)) {
+      // Algunas versiones piden los campos obligatorios: los mando con su valor actual
+      const data = { [campo]: valor }; ['CLIE_ID_CLIE','EXTE_ID_EXTE'].forEach(k => { if (!vacio(antes[k])) data[k] = antes[k]; });
+      r = await put(H, id, data);
+    }
+    if (!r.ok) {
+      let m = msgYiqi(r.tx);
+      if (/no es editable|solo lectura|read ?only|estado actual/i.test(m)) m = 'Yiqi no deja modificar este campo en el estado actual del pedido. ' + m;
+      throw new Error(m.slice(0, 300) || ('HTTP ' + r.status));
+    }
+    const despues = await getPedido(H, id);
+    // Red de seguridad: si el PUT vació otros campos, se restauran
+    const borrados = {};
+    ANCLAS.forEach(k => { if (k !== campo && !vacio(antes[k]) && vacio(despues[k])) borrados[k] = antes[k]; });
+    if (Object.keys(borrados).length) {
+      console.warn('[pedidosYiqi] restaurando campos vaciados:', borrados);
+      const rr = await put(H, id, borrados);
+      if (!rr.ok) toast('⚠ Yiqi vació otros campos y no se pudieron restaurar: ' + Object.keys(borrados).join(', '), 'warn');
+      Object.assign(despues, borrados);
+    }
+    const aplicado = campo.endsWith('_ID_ORIG') || campo.startsWith('TIFA') ? String(despues[campo] ?? '') === String(valor ?? '') : norm(despues[campo]) === norm(valor);
+    return { despues, aplicado };
+  }
+
+  // ── UI ──
+  function ensureWrap() {
+    const panel = document.getElementById('panel-envios'); if (!panel) return null;
+    let w = document.getElementById('pyq-wrap');
+    if (!w) { w = document.createElement('div'); w.id = 'pyq-wrap'; panel.insertBefore(w, panel.firstChild); }
+    let back = document.getElementById('pyq-toggle-crm');
+    if (!back) {
+      back = document.createElement('button'); back.id = 'pyq-toggle-crm'; back.className = 'pyq-btn';
+      back.style.cssText = 'background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.4);border-radius:9px;padding:7px 13px;color:#c4b5fd;font-size:12.5px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;';
+      back.textContent = '📋 Ver grilla Yiqi';
+      back.onclick = () => { localStorage.setItem(LS_VISTA, 'yiqi'); aplicarVista(); refrescarSiViejo(); };
+      panel.insertBefore(back, w.nextSibling);
+    }
+    return w;
+  }
+  function aplicarVista() {
+    const w = ensureWrap(); if (!w) return;
+    const inner = document.getElementById('panel-envios-inner');
+    const y = vista() === 'yiqi';
+    w.style.display = y ? '' : 'none';
+    if (inner) inner.style.display = y ? 'none' : '';
+    document.getElementById('pyq-toggle-crm').style.display = y ? 'none' : '';
+    if (y) render();
+  }
+
+  function filtradas() {
+    const q = prefs.q.trim().toLowerCase();
+    let out = rows.filter(r => {
+      if (prefs.estado && (r.DESC_ESTADO || '') !== prefs.estado) return false;
+      if (!q) return true;
+      return [nro(r), r.CLIE_NOMBRE, r.PEDI_OBSERVACIONES, r.PEDI_ESTADO_DEL_ENVIO, r.PEDI_ESTADO_DE_PAGO, r.PEDI_ESTADO, r.PEDI_ESTADO_ACTUAL_DEL_PE, r.PEDI_PROVINCIA_DE_ENVIO]
+        .some(v => String(v || '').toLowerCase().includes(q));
+    });
+    const k = prefs.sort, d = prefs.dir, col = COLS.find(c => c.k === k);
+    const val = r => col && col.map ? (col.map[r[k]] || '') : (k === 'PEDI_NUMERO_SOLO' ? Number(nro(r)) : r[k]);
+    out.sort((a, b) => { const x = val(a), y = val(b);
+      if (typeof x === 'number' || typeof y === 'number') return ((Number(x)||0) - (Number(y)||0)) * d;
+      return String(x || '').localeCompare(String(y || ''), 'es') * d; });
+    return out;
+  }
+  function puedeEditar(c, r) {
+    if (!c.ed) return false;
+    if (SIEMPRE.has(c.k)) return true;
+    return /en espera de pago/i.test(r.DESC_ESTADO || '');
+  }
+  function celda(c, r) {
+    const v = r[c.k];
+    if (c.k === 'PEDI_NUMERO_SOLO') {
+      const o = MAP_EXTE[r.EXTE_ID_EXTE] || (r.EXTE_ID_EXTE ? 'Origen ' + r.EXTE_ID_EXTE : '');
+      const pv = MAP_PUVE[r.PUVE_ID_PUVE]; return `${esc(nro(r))}<small>${esc(o)}${pv ? ' · PV ' + esc(pv) : ''}</small>`;
+    }
+    if (c.k === 'AUDI_FECHA_ALTA') return fmtFecha(v);
+    if (c.k === 'PEDI_TOTAL') return fmtMoney(v);
+    if (c.k === 'DESC_ESTADO') { const [bg, fg] = ESTADO_COLOR[String(v||'').toLowerCase()] || []; return v ? `<span class="pyq-badge" style="${bg ? `background:${bg};color:${fg}` : ''}">${esc(v)}</span>` : ''; }
+    const txt = c.map ? (c.map[v] || (v ? '#' + v : '')) : (v || '');
+    if (c.ed && vacio(txt)) return puedeEditar(c, r) ? '<span class="pyq-empty">—</span>' : '';
+    return `<div class="pyq-txt">${esc(txt)}</div>`;
+  }
+  function sugerencias(k) {
+    const cnt = {}; rows.forEach(r => { const v = norm(r[k]); if (v && v.length < 60) cnt[v] = (cnt[v] || 0) + 1; });
+    return Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 30).map(e => e[0]);
+  }
+
+  function render() {
+    const w = document.getElementById('pyq-wrap'); if (!w || w.style.display === 'none') return;
+    if (editing) return; // no pisar una edición en curso
+    const lista = filtradas();
+    const estados = {}; rows.forEach(r => { const e = r.DESC_ESTADO || '(sin estado)'; estados[e] = (estados[e] || 0) + 1; });
+    const hace = lastTs ? Math.round((Date.now() - lastTs) / 60000) : null;
+    const scrollEl = w.querySelector('.pyq-scroll'); const sTop = scrollEl ? scrollEl.scrollTop : 0, sLeft = scrollEl ? scrollEl.scrollLeft : 0;
+    w.innerHTML = `
+      <div class="pyq-bar">
+        <span class="pyq-title">📋 Pedidos en Yiqi</span>
+        <button class="pyq-btn" data-a="refresh">${loading ? '⏳ Actualizando…' : '🔄 Actualizar'}</button>
+        <select data-a="dias" title="Período">
+          ${[[1,'Hoy'],[2,'Hoy y ayer'],[3,'Últimos 3 días'],[7,'Últimos 7 días'],[15,'Últimos 15 días'],[30,'Últimos 30 días']].map(([d,t]) => `<option value="${d}" ${prefs.dias==d?'selected':''}>${t}</option>`).join('')}
+        </select>
+        <input type="text" class="pyq-q" data-a="q" placeholder="Buscar nro, cliente, observaciones…" value="${esc(prefs.q)}">
+        <label class="pyq-chk"><input type="checkbox" data-a="ml" ${prefs.ml ? 'checked' : ''}> Incluir MercadoLibre</label>
+        <button class="pyq-btn sec" data-a="crm" title="Volver a la vista anterior del CRM (Gmail, calendario, etc.)">Vista anterior</button>
+        <span class="pyq-info">${lista.length} de ${rows.length} pedidos${hace != null ? ` · actualizado ${hace < 1 ? 'recién' : 'hace ' + hace + ' min'}` : ''} · <span style="color:#a78bfa">✎</span> = editable (clic en la celda)</span>
+      </div>
+      ${needLogin ? `<div class="pyq-login">🔑 Ingresá tu usuario de Yiqi para ver los pedidos:
+          <input type="text" id="pyq-u" placeholder="Usuario" autocomplete="username"><input type="password" id="pyq-p" placeholder="Contraseña" autocomplete="current-password">
+          <button class="pyq-btn" data-a="login">Entrar</button></div>` : ''}
+      ${lastErr ? `<div class="pyq-err">${esc(lastErr)}</div>` : ''}
+      <div class="pyq-chips">
+        <button class="pyq-chip ${!prefs.estado ? 'on' : ''}" data-estado="">Todos (${rows.length})</button>
+        ${Object.entries(estados).sort((a,b)=>b[1]-a[1]).map(([e,n]) => `<button class="pyq-chip ${prefs.estado===e?'on':''}" data-estado="${esc(e)}">${esc(e)} (${n})</button>`).join('')}
+      </div>
+      <div class="pyq-scroll"><table>
+        <thead><tr>${COLS.map(c => `<th data-sort="${c.k}">${esc(c.t)}${c.ed ? '<span class="pyq-ed">✎</span>' : ''}${prefs.sort===c.k ? (prefs.dir<0?' ▼':' ▲') : ''}</th>`).join('')}</tr></thead>
+        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}">${COLS.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
+          : `<tr><td colspan="${COLS.length}" style="text-align:center;color:#64748b;padding:30px;">${loading ? 'Cargando pedidos desde Yiqi…' : 'No hay pedidos para mostrar.'}</td></tr>`}</tbody>
+      </table></div>`;
+    const sc = w.querySelector('.pyq-scroll'); if (sc) { sc.scrollTop = sTop; sc.scrollLeft = sLeft; }
+  }
+
+  function abrirEditor(td) {
+    const tr = td.closest('tr'), id = tr.dataset.id, k = td.dataset.k;
+    const r = rows.find(x => String(rowId(x)) === id), c = COLS.find(x => x.k === k);
+    if (!r || !c || editing) return;
+    editing = { td, id, k };
+    const actual = r[k];
+    let html;
+    if (c.ed === 'select') {
+      html = `<select><option value="">—</option>${Object.entries(c.map).map(([vid, t]) => `<option value="${vid}" ${String(actual)===vid?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
+    } else if (c.ed === 'textarea') {
+      html = `<textarea>${esc(norm(actual))}</textarea><div class="pyq-hint">Ctrl+Enter guarda · Esc cancela</div>`;
+    } else {
+      const dl = 'pyq-dl-' + k;
+      html = `<input type="text" list="${dl}" value="${esc(norm(actual))}"><datalist id="${dl}">${sugerencias(k).map(s => `<option value="${esc(s)}">`).join('')}</datalist><div class="pyq-hint">Enter guarda · Esc cancela</div>`;
+    }
+    td.innerHTML = html;
+    const inp = td.querySelector('select,textarea,input');
+    inp.focus(); if (inp.select && c.ed !== 'select') inp.select();
+    let cerrado = false;
+    const cerrar = async (guardarlo) => {
+      if (cerrado) return; cerrado = true;
+      const nuevo = c.ed === 'select' ? (inp.value ? Number(inp.value) : null) : inp.value.replace(/\r\n/g, '\n');
+      const cambia = c.ed === 'select' ? String(nuevo ?? '') !== String(actual ?? '') : norm(nuevo) !== norm(actual);
+      editing = null;
+      if (!guardarlo || !cambia) { td.innerHTML = celda(c, r); return; }
+      td.innerHTML = celda(c, Object.assign({}, r, { [k]: nuevo })); td.classList.add('saving'); savingN++;
+      try {
+        const { despues, aplicado } = await guardar(r.ID || r.id, k, nuevo);
+        COLS.forEach(cc => { if (cc.k in despues && !['AUDI_FECHA_ALTA','CLIE_NOMBRE','DESC_ESTADO','PEDI_NUMERO_SOLO'].includes(cc.k)) r[cc.k] = despues[cc.k]; });
+        if (despues.ESTA_NOMBRE) r.DESC_ESTADO = despues.ESTA_NOMBRE;
+        saveCache();
+        td.classList.remove('saving'); td.innerHTML = celda(c, r);
+        if (aplicado) { td.classList.add('ok'); setTimeout(() => td.classList.remove('ok'), 1700); toast(`✓ Pedido ${nro(r)}: ${c.t} guardado en Yiqi`, 'success'); }
+        else { td.classList.add('bad'); toast(`⚠ Yiqi respondió OK pero el ${c.t} quedó distinto. Revisalo en Yiqi.`, 'warn'); }
+      } catch(e) {
+        td.classList.remove('saving'); td.classList.add('bad'); td.innerHTML = celda(c, r); td.title = e.message;
+        toast('⚠ No se guardó en Yiqi: ' + e.message.slice(0, 160), 'warn');
+        setTimeout(() => td.classList.remove('bad'), 6000);
+      } finally { savingN--; }
+    };
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); cerrar(false); }
+      else if (e.key === 'Enter' && (c.ed !== 'textarea' || e.ctrlKey || e.metaKey)) { e.preventDefault(); cerrar(true); }
+    });
+    if (c.ed === 'select') inp.addEventListener('change', () => cerrar(true));
+    inp.addEventListener('blur', () => setTimeout(() => cerrar(true), 120));
+  }
+
+  document.addEventListener('click', async e => {
+    const w = document.getElementById('pyq-wrap'); if (!w || !w.contains(e.target)) return;
+    const a = e.target.closest('[data-a]'), chip = e.target.closest('[data-estado]'), th = e.target.closest('th[data-sort]'), td = e.target.closest('td.ed');
+    if (a && a.dataset.a === 'refresh') return refrescar(true);
+    if (a && a.dataset.a === 'crm') { localStorage.setItem(LS_VISTA, 'crm'); aplicarVista(); try { renderEnviosPanel(); } catch(_) {} return; }
+    if (a && a.dataset.a === 'login') {
+      const u = document.getElementById('pyq-u').value.trim(), p = document.getElementById('pyq-p').value;
+      if (!u || !p) return;
+      localStorage.setItem('yiqi_api_user', u); localStorage.setItem('yiqi_api_pass', p);
+      localStorage.removeItem('yiqi_api_token'); localStorage.removeItem('yiqi_api_token_exp');
+      needLogin = false; return refrescar(true);
+    }
+    if (chip) { prefs.estado = chip.dataset.estado; savePrefs(); return render(); }
+    if (th) { if (prefs.sort === th.dataset.sort) prefs.dir *= -1; else { prefs.sort = th.dataset.sort; prefs.dir = th.dataset.sort === 'PEDI_NUMERO_SOLO' || th.dataset.sort === 'AUDI_FECHA_ALTA' || th.dataset.sort === 'PEDI_TOTAL' ? -1 : 1; } savePrefs(); return render(); }
+    if (td && !td.querySelector('select,textarea,input')) abrirEditor(td);
+  });
+  document.addEventListener('change', e => {
+    const w = document.getElementById('pyq-wrap'); if (!w || !w.contains(e.target)) return;
+    const a = e.target.dataset.a;
+    if (a === 'dias') { prefs.dias = Number(e.target.value); savePrefs(); refrescar(true); }
+    if (a === 'ml') { prefs.ml = e.target.checked; savePrefs(); refrescar(true); }
+  });
+  let qT;
+  document.addEventListener('input', e => {
+    if (e.target.dataset && e.target.dataset.a === 'q' && e.target.closest('#pyq-wrap')) {
+      prefs.q = e.target.value; savePrefs(); clearTimeout(qT);
+      qT = setTimeout(() => { const pos = e.target.selectionStart; render(); const n = document.querySelector('#pyq-wrap [data-a="q"]'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }, 200);
+    }
+  });
+
+  const visible = () => { const p = document.getElementById('panel-envios'); return p && p.classList.contains('active') && vista() === 'yiqi' && !document.hidden; };
+  function refrescarSiViejo() { if (visible() && Date.now() - lastTs > 45000) refrescar(false); }
+  function init() {
+    const panel = document.getElementById('panel-envios'); if (!panel) return;
+    aplicarVista();
+    new MutationObserver(() => { if (panel.classList.contains('active')) { aplicarVista(); refrescarSiViejo(); } }).observe(panel, { attributes: true, attributeFilter: ['class'] });
+    // Si el CRM re-dibuja la vista vieja, mantenerla oculta mientras se usa la grilla
+    const inner = document.getElementById('panel-envios-inner');
+    if (inner) new MutationObserver(() => { if (vista() === 'yiqi' && inner.style.display !== 'none') inner.style.display = 'none'; }).observe(inner, { attributes: true, attributeFilter: ['style'] });
+    setInterval(() => { if (visible()) refrescar(false); }, 120000);
+    document.addEventListener('visibilitychange', refrescarSiViejo);
+    refrescarSiViejo();
+  }
+  window._pyq = { refrescar, guardar, render, get rows() { return rows; } };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
 </script>
 <script>
 // ══════════════════════════════════════════════════════
