@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.399</title>
+<title>Dentalab Whatsapp CRM · v25.400</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45612,7 +45612,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.399';
+  const LATEST_VERSION = 'v25.400';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45625,6 +45625,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.400',
+      fecha: '2026-11-17',
+      titulo: 'Pedidos Yiqi: corrección de la consulta',
+      items: [
+        { tipo: 'fix', texto: 'La grilla de Pedidos daba "Filter columnName cannot be empty": Yiqi espera los filtros con columnName. Ahora se manda así, y si Yiqi rechaza el filtro de fecha prueba otras variantes (y como último recurso lee las páginas más nuevas sin filtro). La variante que funciona queda recordada.' }
+      ]
+    },
     {
       version: 'v25.399',
       fecha: '2026-11-17',
@@ -63355,44 +63363,78 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ── Lectura: POST /PEDIDO/query paginado ──
+  let _modoQuery = null; try { _modoQuery = JSON.parse(localStorage.getItem('pyq_modo_query') || 'null'); } catch(e) {}
   async function queryPage(H, page, cols, filters) {
     const res = await yiqiFetch(`${API}/api/public/PEDIDO/query?schemaId=${SCHEMA}`, {
       method: 'POST', headers: H,
-      body: JSON.stringify({ page, pageSize: 200, columns: cols.map((f, i) => ({ field: f, title: f, sortOrder: i + 1 })), filters })
+      body: JSON.stringify({ page, pageSize: 200,
+        columns: cols.map((f, i) => ({ field: f, columnName: f, title: f, sortOrder: i + 1 })),
+        filters: filters.map(f => ({ columnName: f.c, field: f.c, operator: f.op, value: f.v })) })
     });
     if (!res.ok) { const tx = await res.text().catch(() => ''); const e = new Error(`HTTP ${res.status} ${tx.slice(0, 300)}`); e.status = res.status; throw e; }
     const j = await res.json();
-    return { data: j.data || j.items || (Array.isArray(j) ? j : []), total: j.total || 0 };
+    return { data: j.data || j.items || j.rows || (Array.isArray(j) ? j : []), total: j.total || j.totalCount || j.count || 0 };
+  }
+  async function traerTodo(H, cols, filters, maxPag) {
+    const out = []; let page = 1, total = Infinity;
+    while (out.length < total && page <= maxPag) {
+      const r = await queryPage(H, page, cols, filters);
+      out.push(...r.data); total = r.total || Infinity;
+      if (r.data.length < 200) break; page++;
+    }
+    return out;
+  }
+  // Sin filtros: Yiqi devuelve todo paginado; se leen las páginas del final (las más nuevas)
+  async function traerUltimas(H, cols, desde) {
+    const p1 = await queryPage(H, 1, cols, []);
+    if (!p1.data.length) return [];
+    const idOf = r => Number(r.ID || r.id || r.PEDI_NUMERO_SOLO || 0);
+    const desc = p1.data.length > 1 && idOf(p1.data[0]) > idOf(p1.data[p1.data.length - 1]);
+    const viejo = r => { const f = new Date(r.PEDI_FECHA || r.AUDI_FECHA_ALTA); return !isNaN(f) && f < desde; };
+    const out = [];
+    if (desc) {
+      out.push(...p1.data);
+      for (let pg = 2; pg <= 25 && !viejo(out[out.length - 1]); pg++) { const r = await queryPage(H, pg, cols, []); if (!r.data.length) break; out.push(...r.data); }
+    } else {
+      const ult = Math.max(1, Math.ceil((p1.total || p1.data.length) / 200));
+      for (let pg = ult; pg >= 1 && pg > ult - 25; pg--) {
+        const r = pg === 1 ? p1 : await queryPage(H, pg, cols, []);
+        out.push(...r.data); if (r.data.length && viejo(r.data[0])) break;
+      }
+    }
+    return out;
   }
   async function fetchRows() {
     const H = { 'Authorization': 'Bearer ' + await token(), 'Content-Type': 'application/json' };
     const desde = new Date(); desde.setHours(0,0,0,0); desde.setDate(desde.getDate() - Math.max(0, prefs.dias - 1));
-    const fFecha = { field: 'PEDI_FECHA', operator: '>=', value: isoDia(desde) };
-    const fML = { field: 'EXTE_ID_EXTE', operator: '!=', value: 2 };
-    // Intentos de más completo a más simple (por si Yiqi rechaza alguna columna u operador)
-    const intentos = [
-      [QCOLS, prefs.ml ? [fFecha] : [fFecha, fML]],
-      [QCOLS, [fFecha]],
-      [QCOLS.filter(c => !['CLIE_NOMBRE','DESC_ESTADO','ID','AUDI_FECHA_ALTA'].includes(c)), [fFecha]],
-      [[], [fFecha]]
-    ];
-    let ultimoErr;
-    for (const [cols, filters] of intentos) {
+    const dia = isoDia(desde);
+    const colsMin = QCOLS.filter(c => !['CLIE_NOMBRE','DESC_ESTADO','ID','AUDI_FECHA_ALTA'].includes(c));
+    // Variantes de filtro (Yiqi no documenta el formato): se recuerda la primera que funciona
+    const variantes = [];
+    for (const op of ['>=', 'GreaterThanOrEqual', 'gte', 'ge'])
+      for (const v of [dia, dia + 'T00:00:00'])
+        variantes.push({ cols: QCOLS, f: [{ c: 'PEDI_FECHA', op, v }] });
+    variantes.push({ cols: colsMin, f: [{ c: 'PEDI_FECHA', op: '>=', v: dia }] });
+    if (_modoQuery) variantes.unshift(_modoQuery.ultimas ? { cols: _modoQuery.cols, ultimas: true } : { cols: _modoQuery.cols, f: [{ c: 'PEDI_FECHA', op: _modoQuery.op, v: _modoQuery.conHora ? dia + 'T00:00:00' : dia }] });
+    variantes.push({ cols: QCOLS, ultimas: true }, { cols: colsMin, ultimas: true }, { cols: [], ultimas: true });
+    let ultimoErr, out = null;
+    for (const va of variantes) {
       try {
-        const out = []; let page = 1, total = Infinity;
-        while (out.length < total && page <= 20) {
-          const r = await queryPage(H, page, cols, filters);
-          out.push(...r.data); total = r.total || (r.data.length < 200 ? out.length : Infinity);
-          if (r.data.length < 200) break; page++;
-        }
-        let res = out;
-        if (!prefs.ml) res = res.filter(r => Number(r.EXTE_ID_EXTE) !== 2);
-        res = res.filter(r => { const f = new Date(r.PEDI_FECHA || r.AUDI_FECHA_ALTA); return isNaN(f) || f >= desde; });
-        res.forEach(r => { if (!r.CLIE_NOMBRE) r.CLIE_NOMBRE = r.PEDI_RAZON_SOCIAL || ''; if (!r.DESC_ESTADO) r.DESC_ESTADO = r.ESTA_NOMBRE || ''; if (!r.ID) r.ID = r.id; if (!r.AUDI_FECHA_ALTA) r.AUDI_FECHA_ALTA = r.PEDI_FECHA; });
-        return res;
-      } catch(e) { ultimoErr = e; console.warn('[pedidosYiqi] intento falló:', e.message); if (e.status === 401) break; }
+        out = va.ultimas ? await traerUltimas(H, va.cols, desde) : await traerTodo(H, va.cols, va.f, 20);
+        // Si el filtro "funcionó" pero trajo pedidos viejos, Yiqi lo ignoró: igual sirve (se filtra acá) salvo que sea gigante
+        _modoQuery = va.ultimas ? { cols: va.cols, ultimas: true } : { cols: va.cols, op: va.f[0].op, conHora: String(va.f[0].v).includes('T') };
+        try { localStorage.setItem('pyq_modo_query', JSON.stringify(_modoQuery)); } catch(e) {}
+        console.log('[pedidosYiqi] modo de consulta OK:', _modoQuery, out.length, 'filas');
+        break;
+      } catch(e) { ultimoErr = e; console.warn('[pedidosYiqi] variante falló:', va, e.message); if (e.status === 401 || e.status === 403) break; }
     }
-    throw ultimoErr || new Error('Sin respuesta de Yiqi');
+    if (!out) { try { localStorage.removeItem('pyq_modo_query'); } catch(e) {} _modoQuery = null; throw ultimoErr || new Error('Sin respuesta de Yiqi'); }
+    let res = out;
+    if (!prefs.ml) res = res.filter(r => Number(r.EXTE_ID_EXTE) !== 2);
+    res = res.filter(r => { const f = new Date(r.PEDI_FECHA || r.AUDI_FECHA_ALTA); return isNaN(f) || f >= desde; });
+    const vistos = new Set(); res = res.filter(r => { const k = r.ID || r.id; if (vistos.has(k)) return false; vistos.add(k); return true; });
+    res.forEach(r => { if (!r.CLIE_NOMBRE) r.CLIE_NOMBRE = r.PEDI_RAZON_SOCIAL || ''; if (!r.DESC_ESTADO) r.DESC_ESTADO = r.ESTA_NOMBRE || ''; if (!r.ID) r.ID = r.id; if (!r.AUDI_FECHA_ALTA) r.AUDI_FECHA_ALTA = r.PEDI_FECHA; });
+    return res;
   }
 
   async function refrescar(manual) {
