@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.420</title>
+<title>Dentalab Whatsapp CRM · v25.421</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45595,7 +45595,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.420';
+  const LATEST_VERSION = 'v25.421';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45608,6 +45608,15 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.421',
+      fecha: '2026-11-18',
+      titulo: 'Informe: anexos para hacer seguimiento',
+      items: [
+        { tipo: 'nuevo', texto: 'Al final del informe, dos anexos con las listas completas: "Clientes para recontactar" (cliente, vendedor que lo atiende, último pedido, cuánto compraba por mes y en cuántos de los últimos 6 meses compró) y "Pedidos sin concretar" (N°, cliente, vendedor, monto y días de espera). Cada uno con botón "📋 Copiar lista" para pegarla en WhatsApp o en una planilla.' },
+        { tipo: 'mejora', texto: 'En el PDF los anexos salen en hojas al final, de a 15 filas por hoja.' }
+      ]
+    },
     {
       version: 'v25.420',
       fecha: '2026-11-18',
@@ -64938,7 +64947,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 7. Clientes que dejaron de comprar: compraban en 3+ de los 6 meses anteriores y este mes no
     const k6=[1,2,3,4,5,6].map(i=>{const d=new Date(y,m-i,1);return ymKey(d.getFullYear(),d.getMonth());});
     const compradoresMes=new Set(validasMes.map(r=>r.CLIE_ID_CLIE));
-    const hist={}; R.filter(r=>valida(r)&&k6.includes(mesDe(r))&&r.CLIE_ID_CLIE!=null).forEach(r=>{const h=(hist[r.CLIE_ID_CLIE]=hist[r.CLIE_ID_CLIE]||{n:String(r.CLIE_NOMBRE||'').trim(),meses:new Set(),s:0,ult:0});h.meses.add(mesDe(r));h.s+=monto(r);h.ult=Math.max(h.ult,new Date(r.PEDI_FECHA).getTime());});
+    const hist={}; R.filter(r=>valida(r)&&k6.includes(mesDe(r))&&r.CLIE_ID_CLIE!=null).forEach(r=>{const h=(hist[r.CLIE_ID_CLIE]=hist[r.CLIE_ID_CLIE]||{n:String(r.CLIE_NOMBRE||'').trim(),meses:new Set(),s:0,ult:0,ultN:'',vend:{}});h.meses.add(mesDe(r));if(fact(r))h.s+=monto(r);const t=new Date(r.PEDI_FECHA).getTime();if(t>h.ult){h.ult=t;h.ultN=r.PEDI_NUMERO_SOLO||'';}h.vend[r.VEHA_ID_VEHA]=(h.vend[r.VEHA_ID_VEHA]||0)+1;});
     const corte=enCurso?Date.now()-30*864e5:new Date(y,m,1).getTime();
     const perdidos=Object.entries(hist).filter(([id,h])=>h.meses.size>=3&&!compradoresMes.has(isNaN(+id)?id:+id)&&!compradoresMes.has(id)&&h.ult<corte).map(([,h])=>h).sort((a,b)=>b.s-a.s);
     if(perdidos.length) improve.push({t:`${perdidos.length} cliente${perdidos.length>1?'s':''} habitual${perdidos.length>1?'es':''} no compr${perdidos.length>1?'aron':'ó'}`,d:`Compraban casi todos los meses y ${enCurso?'hace más de 30 días que no compran':`no compraron en ${MONTHS[m]}`}: ${listaNom(perdidos.map(h=>h.n),4)}.`,a:'Escribirles por WhatsApp con algo concreto (lo que suelen comprar, una oferta o una novedad) para recuperarlos.'});
@@ -64948,7 +64957,45 @@ document.addEventListener('DOMContentLoaded', () => {
       base3.forEach(r=>{const f=new Date(r.PEDI_FECHA);const dw=f.getDay();porD[dw]+=monto(r);dias[dw].add(f.toDateString());});
       const prom=porD.map((s,i)=>dias[i].size?s/dias[i].size:0); const mx=prom.indexOf(Math.max(...prom.slice(1,6))), mn=[1,2,3,4,5].reduce((b,i)=>prom[i]<prom[b]?i:b,1);
       if(mx>0&&prom[mx]>0) good.push({t:`El ${DOW[mx].toLowerCase()} es el día que más factura`,d:`${fmt$(prom[mx])} en promedio por ${DOW[mx].toLowerCase()} (últimos 3 meses), contra ${fmt$(prom[mn])} el ${DOW[mn].toLowerCase()}.`,a:`Programar las difusiones con ofertas para el ${DOW[mn].toLowerCase()}, que es el día más flojo en pesos.`}); }
+    // Listas completas para el anexo del informe
+    const vendDe=id=>{const v=WA_VEND.find(x=>x.id===Number(id));return v?v.c:'';};
+    waListas[kM]={
+      perdidos:perdidos.map(h=>({cliente:h.n,vend:vendDe(Object.entries(h.vend).sort((a,b)=>b[1]-a[1])[0][0]),ult:h.ult,ultN:h.ultN,prom:h.s/6,meses:h.meses.size})),
+      espera:espera.map(r=>({nro:r.PEDI_NUMERO_SOLO,cliente:String(r.CLIE_NOMBRE||'').trim(),vend:vendDe(r.VEHA_ID_VEHA),monto:monto(r),dias:Math.floor((Date.now()-new Date(r.AUDI_FECHA_ALTA||r.PEDI_FECHA).getTime())/864e5)}))
+    };
     return true;
+  }
+  const waListas={};
+  const fFecha=t=>{const d=new Date(t);return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${String(d.getFullYear()).slice(2)}`;};
+  function waListaTexto(kind,y,m){
+    const L=waListas[ymKey(y,m)]; if(!L) return '';
+    if(kind==='perdidos') return `Clientes para recontactar (${MONTHS[m]} ${y})\n`+L.perdidos.map((c,i)=>`${i+1}. ${c.cliente} · ${c.vend} · último pedido ${fFecha(c.ult)}${c.ultN?' (N° '+c.ultN+')':''} · compraba ${fmt$(c.prom)}/mes`).join('\n');
+    return `Pedidos sin concretar (${MONTHS[m]} ${y})\n`+L.espera.map((p,i)=>`${i+1}. N° ${p.nro} · ${p.cliente} · ${p.vend} · ${fmt$(p.monto)} · ${p.dias} días`).join('\n');
+  }
+  window._estWaCopiar=(kind,btn)=>{ const t=waListaTexto(kind,cur.y,cur.m); if(!t) return;
+    const ok=()=>{ if(btn){const o=btn.textContent;btn.textContent='✓ Copiado';setTimeout(()=>btn.textContent=o,1500);} };
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok,()=>{prompt('Copiá la lista:',t);}); else { prompt('Copiá la lista:',t); } };
+  function waAnexosHTML(y,m){
+    const L=waListas[ymKey(y,m)]; if(!L||(!L.perdidos.length&&!L.espera.length)) return '';
+    let h='';
+    if(L.perdidos.length) h+=`<section class="est-sec"><p class="est-eyebrow">Anexo · para hacer seguimiento</p><h3>Clientes para recontactar <button class="est-btn" style="margin-left:10px;vertical-align:middle" onclick="_estWaCopiar('perdidos',this)">📋 Copiar lista</button></h3>
+      <p class="est-sub">Compraban en al menos 3 de los últimos 6 meses y ${y===now.getFullYear()&&m===now.getMonth()?'hace más de 30 días que no compran':'no compraron en '+MONTHS[m]}. Ordenados por cuánto compraban.</p>
+      <div class="est-dt"><table class="est-cmp"><thead><tr><th>#</th><th style="text-align:left">Cliente</th><th style="text-align:left">Vendedor</th><th>Último pedido</th><th>Compraba por mes</th><th>Meses con compra<br><small style="color:#c7d7ee;font-weight:600">de los últimos 6</small></th></tr></thead>
+      <tbody>${L.perdidos.map((c,i)=>`<tr><td>${i+1}</td><td style="text-align:left"><b>${esc(c.cliente)}</b></td><td style="text-align:left">${esc(c.vend)}</td><td>${fFecha(c.ult)}${c.ultN?` <small>N° ${esc(c.ultN)}</small>`:''}</td><td>${fmt$(c.prom)}</td><td>${c.meses}</td></tr>`).join('')}</tbody></table></div></section>`;
+    if(L.espera.length) h+=`<section class="est-sec"><p class="est-eyebrow">Anexo · para hacer seguimiento</p><h3>Pedidos sin concretar <button class="est-btn" style="margin-left:10px;vertical-align:middle" onclick="_estWaCopiar('espera',this)">📋 Copiar lista</button></h3>
+      <p class="est-sub">"En espera de pago" hace más de 7 días (pedidos de este mes y del anterior), del más grande al más chico. Total: ${fmt$(L.espera.reduce((a,p)=>a+p.monto,0))}.</p>
+      <div class="est-dt"><table class="est-cmp"><thead><tr><th>#</th><th>N° pedido</th><th style="text-align:left">Cliente</th><th style="text-align:left">Vendedor</th><th>Monto</th><th>Días de espera</th></tr></thead>
+      <tbody>${L.espera.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.nro)}</td><td style="text-align:left"><b>${esc(p.cliente)}</b></td><td style="text-align:left">${esc(p.vend)}</td><td>${fmt$(p.monto)}</td><td>${p.dias}</td></tr>`).join('')}</tbody></table></div></section>`;
+    return h;
+  }
+  function waAnexosSlides(y,m,frame){
+    const L=waListas[ymKey(y,m)]; if(!L) return [];
+    const out=[], POR=15, L_=' style="text-align:left"';
+    for(let i=0;i<L.perdidos.length;i+=POR){ const ch=L.perdidos.slice(i,i+POR);
+      out.push(frame('Anexo · para hacer seguimiento',`Clientes para recontactar${L.perdidos.length>POR?` (${i+1}–${i+ch.length} de ${L.perdidos.length})`:''}`,`<table class="ep-tb ep-anx"><thead><tr><th>#</th><th${L_}>Cliente</th><th${L_}>Vendedor</th><th>Último pedido</th><th>Compraba por mes</th><th>Meses (de 6)</th></tr></thead><tbody>${ch.map((c,j)=>`<tr><td>${i+j+1}</td><td${L_}>${esc(c.cliente)}</td><td${L_}>${esc(c.vend)}</td><td>${fFecha(c.ult)}${c.ultN?' · N° '+esc(c.ultN):''}</td><td>${fmt$(c.prom)}</td><td>${c.meses}</td></tr>`).join('')}</tbody></table>`)); }
+    for(let i=0;i<L.espera.length;i+=POR){ const ch=L.espera.slice(i,i+POR);
+      out.push(frame('Anexo · para hacer seguimiento',`Pedidos sin concretar${L.espera.length>POR?` (${i+1}–${i+ch.length} de ${L.espera.length})`:''}`,`<table class="ep-tb ep-anx"><thead><tr><th>#</th><th>N° pedido</th><th${L_}>Cliente</th><th${L_}>Vendedor</th><th>Monto</th><th>Días de espera</th></tr></thead><tbody>${ch.map((p,j)=>`<tr><td>${i+j+1}</td><td>${esc(p.nro)}</td><td${L_}>${esc(p.cliente)}</td><td${L_}>${esc(p.vend)}</td><td>${fmt$(p.monto)}</td><td>${p.dias}</td></tr>`).join('')}</tbody></table>`)); }
+    return out;
   }
 
   /* ---------- DIAGNÓSTICO Y RECOMENDACIONES (reglas sobre los números del mes) ---------- */
@@ -65366,6 +65413,7 @@ document.addEventListener('DOMContentLoaded', () => {
     h+=`<section class="est-sec est-dark"><p class="est-eyebrow">Récords del mes</p><h3>Días récord</h3><div class="est-tiles est-t3">${rec('Más pedidos',P)}${rec('Más chats',C)}${rec('Más consultas',Q)}</div>
       ${mins.length?`<p class="est-small">Los mínimos del mes fueron ${mins.join(', ')}.</p>`:''}</section>`;
     h=h.replace('%%EST_RECS%%',recsHTML(buildRecs(y,m,st,rows,conDatos,wk),y,m));
+    h+=waAnexosHTML(y,m);
     return h+'</div>';
   }
 
@@ -65455,6 +65503,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rc=(l,s)=>`<div class="ep-card"><span class="l">${l}</span><span class="b">${s.max!=null?fmtN(s.max):'—'}</span><span class="s">${esc(s.max!=null?s.maxDays.map(d=>dayLabel(y,m,d)).join(', '):'')}</span></div>`;
     const mins=[['pedidos',P],['chats',C],['consultas',Q]].filter(([,s])=>s.min!=null).map(([l,s])=>`${fmtN(s.min)} ${l}`);
     slides.push(frame('Récords del mes','Días récord',`<div class="ep-grid3 ep-rec">${rc('Más pedidos',P)}${rc('Más chats',C)}${rc('Más consultas',Q)}</div>${mins.length?`<p class="ep-note">Los mínimos del mes fueron ${mins.join(', ')}.</p>`:''}`,{dark:true}));
+    slides.push(...waAnexosSlides(y,m,frame));
     return slides;
   }
   const EP_CSS=`
@@ -65481,7 +65530,7 @@ document.addEventListener('DOMContentLoaded', () => {
   .ep-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.ep-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.ep-grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
   .ep-card{background:#fff;border:1px solid ${PDFC.line};border-radius:8px;padding:22px 24px;display:flex;flex-direction:column;gap:8px}
   .ep-card .l{font-size:15px;color:${PDFC.ink};font-weight:600}.ep-card .b{font-size:54px;font-weight:700;color:${PDFC.navy};line-height:1}.ep-card .s{font-size:14px;color:${PDFC.muted}}
-  .ep-card .b.money{font-size:34px;white-space:nowrap;letter-spacing:-.01em}.ep-card .b.red{color:${PDFC.red}}.ep-card .b.blue{color:#1d5fae}
+  .ep-tb.ep-anx th,.ep-tb.ep-anx td{padding:7px 12px;font-size:14.5px}.ep-card .b.money{font-size:34px;white-space:nowrap;letter-spacing:-.01em}.ep-card .b.red{color:${PDFC.red}}.ep-card .b.blue{color:#1d5fae}
   .ep-funnel{display:grid;gap:16px;margin:10px 0 18px}.ep-fun{display:grid;grid-template-columns:180px 1fr;align-items:center}.ep-fun span{font-size:17px}.ep-fun div{display:flex;align-items:center;gap:14px}.ep-fun i{display:block;height:46px;border-radius:2px}.ep-fun b{font-size:30px;font-weight:700}
   .ep-grid3 .ep-card .b{font-size:46px}
   .ep-leg{display:flex;gap:22px;font-size:14px}.ep-leg span{display:inline-flex;align-items:center;gap:8px}.ep-leg i{display:inline-block;width:22px;height:4px;border-radius:2px}.ep-leg i.sq{width:14px;height:14px;border-radius:3px;border:1px solid ${PDFC.line}}
