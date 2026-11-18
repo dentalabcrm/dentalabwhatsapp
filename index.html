@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.421</title>
+<title>Dentalab Whatsapp CRM · v25.424</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -6044,6 +6044,12 @@
   #panel-estadistica { --c-ch:#bfdbfe; --c-co:#3b82f6; --c-pe:#ef4444; --c-sat:#60a5fa; --c-band:rgba(148,163,184,.10); --c-fer:rgba(245,158,11,.14); }
   #panel-estadistica { --c-juan:#3b82f6; --c-fede:#d97706; }
   body.light-mode #panel-estadistica { --c-juan:#1d5fae; --c-fede:#c2410c; }
+  .est-ejec { margin:14px 0 0; padding-left:20px; display:grid; gap:8px; font-size:15px; line-height:1.5; color:var(--text); }
+  .est-ejec li::marker { color:var(--c-pe); }
+  .est-pasos { list-style:none; margin:0; padding:0; display:grid; gap:10px; counter-reset:pp; }
+  .est-pasos li { counter-increment:pp; display:grid; grid-template-columns:34px 110px 1fr; gap:10px; align-items:baseline; background:var(--surface); border:1px solid var(--border2); border-radius:10px; padding:12px 14px; font-size:14px; line-height:1.45; }
+  .est-pasos li::before { content:counter(pp); font-weight:800; color:var(--c-pe); font-size:20px; }
+  .est-pasos li b { color:var(--text); }
   .est-chart .wa-avg { stroke:var(--text2); stroke-width:1.5; stroke-dasharray:6 5; }
   .est-chart .wa-avgl { fill:var(--text2); font-size:12px; font-weight:700; font-family:'DM Sans',sans-serif; }
   .est-chart rect.wa-hit:hover + g rect, .est-chart g.wa-col:hover rect { opacity:.85; }
@@ -45595,7 +45601,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.421';
+  const LATEST_VERSION = 'v25.424';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45608,6 +45614,33 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.424',
+      fecha: '2026-11-18',
+      titulo: 'Informe listo para presentar',
+      items: [
+        { tipo: 'nuevo', texto: 'Primera hoja "Resumen para presentar": facturado por WhatsApp, pedidos tomados en Yiqi, ticket promedio y plata pendiente sin concretar, con 3 frases que cuentan el mes.' },
+        { tipo: 'nuevo', texto: 'Hoja "Próximos pasos" al final: hasta 6 acciones concretas con responsable (Juan, Federico, Compras, Equipo), armadas con los pedidos en espera, los clientes para recontactar, los pedidos en Quiebre 2 y el diagnóstico.' },
+        { tipo: 'nuevo', texto: 'Dos botones: "⬇ PDF para presentar" (anexos con los 10 principales de cada lista) y "⬇ PDF completo" (listas enteras).' },
+        { tipo: 'mejora', texto: 'Los pedidos de la planilla se llaman "Pedidos anotados (planilla)" y la sección de Yiqi explica por qué no coinciden con los "pedidos tomados en Yiqi". Corregido "a el" / "de el" en el diagnóstico.' }
+      ]
+    },
+    {
+      version: 'v25.423',
+      fecha: '2026-11-18',
+      titulo: 'Informe: sin "Consumidor final" en clientes para recontactar',
+      items: [
+        { tipo: 'fix', texto: '"Consumidor final" ya no aparece en Clientes para recontactar ni en Clientes nuevos (no es un cliente al que se le pueda escribir).' }
+      ]
+    },
+    {
+      version: 'v25.422',
+      fecha: '2026-11-18',
+      titulo: 'PDF del informe: anexos sin cortes',
+      items: [
+        { tipo: 'fix', texto: 'En las hojas de anexos del PDF los nombres largos se cortaban en varios renglones y la tabla se salía de la hoja. Ahora la columna Cliente es más ancha y cada hoja se arma según el largo de los nombres, así entra completa.' }
+      ]
+    },
     {
       version: 'v25.421',
       fecha: '2026-11-18',
@@ -64776,7 +64809,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="est-top">
         <div><h2>📊 Estadística WhatsApp</h2><p>Carga diaria de chats, consultas y pedidos. Tocá una celda para cargar y repartir por tipo.</p></div>
         <div class="est-month"><button data-est="prev" aria-label="Mes anterior">‹</button><span>${MONTHS[m]} ${y}</span><button data-est="next" aria-label="Mes siguiente">›</button></div>
-        <div class="est-actions"><button class="est-btn" data-est="today">Hoy</button><button class="est-btn" data-est="flt-new" title="Anotar un producto que un cliente pidió y no hay stock">＋ Faltante</button><button class="est-btn" data-est="config">⚙ Columnas y tipos</button><button class="est-btn" data-est="xlsx">⬇ Exportar Excel</button><button class="est-btn primary" data-est="pdf">⬇ Descargar PDF</button></div>
+        <div class="est-actions"><button class="est-btn" data-est="today">Hoy</button><button class="est-btn" data-est="flt-new" title="Anotar un producto que un cliente pidió y no hay stock">＋ Faltante</button><button class="est-btn" data-est="config">⚙ Columnas y tipos</button><button class="est-btn" data-est="xlsx">⬇ Exportar Excel</button><button class="est-btn primary" data-est="pdf" title="Versión para presentar: resumen, diagnóstico, próximos pasos y los 10 principales de cada lista">⬇ PDF para presentar</button><button class="est-btn" data-est="pdf-full" title="Incluye las listas completas de clientes y pedidos">⬇ PDF completo</button></div>
       </div>`;
     h+=`<div class="est-views" role="tablist"><button class="${view==='planilla'?'on':''}" data-est="v-planilla" role="tab">📋 Planilla</button><button class="${view==='informe'?'on':''}" data-est="v-informe" role="tab">📈 Informe del mes</button><button class="${view==='anual'?'on':''}" data-est="v-anual" role="tab">📅 Comparativa anual</button></div>`;
     if(!loaded) h+=`<div class="est-notice">Cargando datos de Firebase…</div>`;
@@ -64930,7 +64963,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // 3. Clientes nuevos (no compraban en el último año)
     const antes=new Set(R.filter(r=>mesDe(r)<kM&&!/^(anulado|a anular)$/i.test(r.DESC_ESTADO||'')).map(r=>r.CLIE_ID_CLIE));
-    const nuevos=[...new Map(validasMes.filter(r=>r.CLIE_ID_CLIE!=null&&!antes.has(r.CLIE_ID_CLIE)).map(r=>[r.CLIE_ID_CLIE,r])).values()];
+    const esCF=n=>/consumidor\s*final/i.test(String(n||''));
+    const nuevos=[...new Map(validasMes.filter(r=>r.CLIE_ID_CLIE!=null&&!esCF(r.CLIE_NOMBRE)&&!antes.has(r.CLIE_ID_CLIE)).map(r=>[r.CLIE_ID_CLIE,r])).values()];
     if(nuevos.length) good.push({t:`${nuevos.length} cliente${nuevos.length>1?'s':''} nuevo${nuevos.length>1?'s':''}`,d:`Compraron por WhatsApp y no lo hacían en el último año: ${listaNom(nuevos.map(r=>String(r.CLIE_NOMBRE||'').trim()),3)}.`,a:'Mandarles un mensaje de bienvenida y sumarlos a la lista de difusión.'});
     // 4. Pedidos sin concretar: En espera de pago hace más de 7 días (del mes y del anterior)
     const kAnt=prevK[0].k, lim=Date.now()-7*864e5;
@@ -64949,7 +64983,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const compradoresMes=new Set(validasMes.map(r=>r.CLIE_ID_CLIE));
     const hist={}; R.filter(r=>valida(r)&&k6.includes(mesDe(r))&&r.CLIE_ID_CLIE!=null).forEach(r=>{const h=(hist[r.CLIE_ID_CLIE]=hist[r.CLIE_ID_CLIE]||{n:String(r.CLIE_NOMBRE||'').trim(),meses:new Set(),s:0,ult:0,ultN:'',vend:{}});h.meses.add(mesDe(r));if(fact(r))h.s+=monto(r);const t=new Date(r.PEDI_FECHA).getTime();if(t>h.ult){h.ult=t;h.ultN=r.PEDI_NUMERO_SOLO||'';}h.vend[r.VEHA_ID_VEHA]=(h.vend[r.VEHA_ID_VEHA]||0)+1;});
     const corte=enCurso?Date.now()-30*864e5:new Date(y,m,1).getTime();
-    const perdidos=Object.entries(hist).filter(([id,h])=>h.meses.size>=3&&!compradoresMes.has(isNaN(+id)?id:+id)&&!compradoresMes.has(id)&&h.ult<corte).map(([,h])=>h).sort((a,b)=>b.s-a.s);
+    const perdidos=Object.entries(hist).filter(([id,h])=>!esCF(h.n)&&h.meses.size>=3&&!compradoresMes.has(isNaN(+id)?id:+id)&&!compradoresMes.has(id)&&h.ult<corte).map(([,h])=>h).sort((a,b)=>b.s-a.s);
     if(perdidos.length) improve.push({t:`${perdidos.length} cliente${perdidos.length>1?'s':''} habitual${perdidos.length>1?'es':''} no compr${perdidos.length>1?'aron':'ó'}`,d:`Compraban casi todos los meses y ${enCurso?'hace más de 30 días que no compran':`no compraron en ${MONTHS[m]}`}: ${listaNom(perdidos.map(h=>h.n),4)}.`,a:'Escribirles por WhatsApp con algo concreto (lo que suelen comprar, una oferta o una novedad) para recuperarlos.'});
     // 8. Día de la semana que más factura (últimos 3 meses + el mes)
     const base3=R.filter(r=>fact(r)&&(mesDe(r)===kM||prevK.some(p=>p.k===mesDe(r))));
@@ -64961,6 +64995,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const vendDe=id=>{const v=WA_VEND.find(x=>x.id===Number(id));return v?v.c:'';};
     waListas[kM]={
       perdidos:perdidos.map(h=>({cliente:h.n,vend:vendDe(Object.entries(h.vend).sort((a,b)=>b[1]-a[1])[0][0]),ult:h.ult,ultN:h.ultN,prom:h.s/6,meses:h.meses.size})),
+      quiebre:qb.map(r=>({nro:r.PEDI_NUMERO_SOLO,cliente:String(r.CLIE_NOMBRE||'').trim(),monto:monto(r)})),
       espera:espera.map(r=>({nro:r.PEDI_NUMERO_SOLO,cliente:String(r.CLIE_NOMBRE||'').trim(),vend:vendDe(r.VEHA_ID_VEHA),monto:monto(r),dias:Math.floor((Date.now()-new Date(r.AUDI_FECHA_ALTA||r.PEDI_FECHA).getTime())/864e5)}))
     };
     return true;
@@ -64990,11 +65025,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function waAnexosSlides(y,m,frame){
     const L=waListas[ymKey(y,m)]; if(!L) return [];
-    const out=[], POR=15, L_=' style="text-align:left"';
-    for(let i=0;i<L.perdidos.length;i+=POR){ const ch=L.perdidos.slice(i,i+POR);
-      out.push(frame('Anexo · para hacer seguimiento',`Clientes para recontactar${L.perdidos.length>POR?` (${i+1}–${i+ch.length} de ${L.perdidos.length})`:''}`,`<table class="ep-tb ep-anx"><thead><tr><th>#</th><th${L_}>Cliente</th><th${L_}>Vendedor</th><th>Último pedido</th><th>Compraba por mes</th><th>Meses (de 6)</th></tr></thead><tbody>${ch.map((c,j)=>`<tr><td>${i+j+1}</td><td${L_}>${esc(c.cliente)}</td><td${L_}>${esc(c.vend)}</td><td>${fFecha(c.ult)}${c.ultN?' · N° '+esc(c.ultN):''}</td><td>${fmt$(c.prom)}</td><td>${c.meses}</td></tr>`).join('')}</tbody></table>`)); }
-    for(let i=0;i<L.espera.length;i+=POR){ const ch=L.espera.slice(i,i+POR);
-      out.push(frame('Anexo · para hacer seguimiento',`Pedidos sin concretar${L.espera.length>POR?` (${i+1}–${i+ch.length} de ${L.espera.length})`:''}`,`<table class="ep-tb ep-anx"><thead><tr><th>#</th><th>N° pedido</th><th${L_}>Cliente</th><th${L_}>Vendedor</th><th>Monto</th><th>Días de espera</th></tr></thead><tbody>${ch.map((p,j)=>`<tr><td>${i+j+1}</td><td>${esc(p.nro)}</td><td${L_}>${esc(p.cliente)}</td><td${L_}>${esc(p.vend)}</td><td>${fmt$(p.monto)}</td><td>${p.dias}</td></tr>`).join('')}</tbody></table>`)); }
+    const out=[], CAP=14, L_=' style="text-align:left"';
+    if(!pdfCompleto){ const TOP=10; const nota=(n,t)=>n>TOP?` (${TOP} principales de ${n})`:'';
+      const cg1='<colgroup><col style="width:5%"><col style="width:41%"><col style="width:11%"><col style="width:20%"><col style="width:13%"><col style="width:10%"></colgroup>';
+      const cg2='<colgroup><col style="width:5%"><col style="width:12%"><col style="width:46%"><col style="width:11%"><col style="width:14%"><col style="width:12%"></colgroup>';
+      const pie=n=>n>TOP?`<p class="ep-note">La lista completa está en el "PDF completo" y en la pestaña Estadística del CRM.</p>`:'';
+      if(L.perdidos.length) out.push(frame('Anexo · para hacer seguimiento',`Clientes para recontactar${nota(L.perdidos.length)}`,`<table class="ep-tb ep-anx">${cg1}<thead><tr><th>#</th><th${L_}>Cliente</th><th${L_}>Vendedor</th><th>Último pedido</th><th>Compraba por mes</th><th>Meses (de 6)</th></tr></thead><tbody>${L.perdidos.slice(0,TOP).map((c,i)=>`<tr><td>${i+1}</td><td${L_}>${esc(c.cliente)}</td><td${L_}>${esc(c.vend)}</td><td>${fFecha(c.ult)}${c.ultN?' · N° '+esc(c.ultN):''}</td><td>${fmt$(c.prom)}</td><td>${c.meses}</td></tr>`).join('')}</tbody></table>${pie(L.perdidos.length)}`));
+      if(L.espera.length) out.push(frame('Anexo · para hacer seguimiento',`Pedidos sin concretar${nota(L.espera.length)}`,`<table class="ep-tb ep-anx">${cg2}<thead><tr><th>#</th><th>N° pedido</th><th${L_}>Cliente</th><th${L_}>Vendedor</th><th>Monto</th><th>Días de espera</th></tr></thead><tbody>${L.espera.slice(0,TOP).map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.nro)}</td><td${L_}>${esc(p.cliente)}</td><td${L_}>${esc(p.vend)}</td><td>${fmt$(p.monto)}</td><td>${p.dias}</td></tr>`).join('')}</tbody></table>${pie(L.espera.length)}`));
+      return out; }
+    // Paginar por "líneas": un nombre largo ocupa 2 renglones, así la tabla nunca se sale de la hoja
+    const paginar=(arr,len)=>{ const pags=[]; let cur=[],u=0; arr.forEach((x,i)=>{ const w=len(x)>46?2:1; if(u+w>CAP&&cur.length){pags.push(cur);cur=[];u=0;} cur.push([x,i]); u+=w; }); if(cur.length) pags.push(cur); return pags; };
+    const rango=(pg,tot)=>tot>pg.length?` (${pg[0][1]+1}–${pg[pg.length-1][1]+1} de ${tot})`:'';
+    const cg1='<colgroup><col style="width:5%"><col style="width:41%"><col style="width:11%"><col style="width:20%"><col style="width:13%"><col style="width:10%"></colgroup>';
+    const cg2='<colgroup><col style="width:5%"><col style="width:12%"><col style="width:46%"><col style="width:11%"><col style="width:14%"><col style="width:12%"></colgroup>';
+    paginar(L.perdidos,c=>c.cliente.length).forEach(pg=>{
+      out.push(frame('Anexo · para hacer seguimiento',`Clientes para recontactar${rango(pg,L.perdidos.length)}`,`<table class="ep-tb ep-anx">${cg1}<thead><tr><th>#</th><th${L_}>Cliente</th><th${L_}>Vendedor</th><th>Último pedido</th><th>Compraba por mes</th><th>Meses (de 6)</th></tr></thead><tbody>${pg.map(([c,i])=>`<tr><td>${i+1}</td><td${L_}>${esc(c.cliente)}</td><td${L_}>${esc(c.vend)}</td><td>${fFecha(c.ult)}${c.ultN?' · N° '+esc(c.ultN):''}</td><td>${fmt$(c.prom)}</td><td>${c.meses}</td></tr>`).join('')}</tbody></table>`)); });
+    paginar(L.espera,p=>p.cliente.length*0.85).forEach(pg=>{
+      out.push(frame('Anexo · para hacer seguimiento',`Pedidos sin concretar${rango(pg,L.espera.length)}`,`<table class="ep-tb ep-anx">${cg2}<thead><tr><th>#</th><th>N° pedido</th><th${L_}>Cliente</th><th${L_}>Vendedor</th><th>Monto</th><th>Días de espera</th></tr></thead><tbody>${pg.map(([p,i])=>`<tr><td>${i+1}</td><td>${esc(p.nro)}</td><td${L_}>${esc(p.cliente)}</td><td${L_}>${esc(p.vend)}</td><td>${fmt$(p.monto)}</td><td>${p.dias}</td></tr>`).join('')}</tbody></table>`)); });
     return out;
   }
 
@@ -65065,7 +65112,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function recsHTML(r,y,m){
     const enCurso=y===now.getFullYear()&&m===now.getMonth();
-    const item=x=>`<li><b>${esc(x.t)}</b><span>${esc(x.d)}</span>${x.a?`<em>👉 ${esc(x.a)}</em>`:''}</li>`;
+    const item=x=>`<li><b>${esc(gram(x.t))}</b><span>${esc(gram(x.d))}</span>${x.a?`<em>👉 ${esc(gram(x.a))}</em>`:''}</li>`;
     const col=(cls,ttl,arr,empty)=>`<div class="est-rc ${cls}"><h4>${ttl}</h4>${arr.length?`<ul>${arr.map(item).join('')}</ul>`:`<p class="est-small">${empty}</p>`}</div>`;
     return `<section class="est-sec"><p class="est-eyebrow">Diagnóstico del mes</p><h3>🧭 Qué está bien, qué pulir y qué mejorar</h3>
       <p class="est-sub">${enCurso?'Mes en curso: el diagnóstico se actualiza a medida que se cargan los días. ':''}${r.prevN?`Se compara con ${r.prevN===1?'el mes anterior':`el promedio de los últimos ${r.prevN} meses`}, por día hábil.`:'Todavía no hay meses anteriores para comparar.'}</p>
@@ -65250,7 +65297,8 @@ document.addEventListener('DOMContentLoaded', () => {
       let tn=0,ts=0,tf=0; conDatos.forEach(k=>{const b=(D.agg[k]||{})[v.id]; if(b){tn+=b.n;ts+=b.s;tf+=b.nf||0;}});
       return {...v,mesN:mm.n,mesNF:mm.nf||0,mesS:mm.s,mesT:mm.nf?mm.s/mm.nf:null,promS:ts/nM,promN:tn/nM,promT:tf?ts/tf:null};
     });
-    const tot={mesN:per.reduce((a,p)=>a+p.mesN,0),mesNF:per.reduce((a,p)=>a+p.mesNF,0),mesS:per.reduce((a,p)=>a+p.mesS,0),promS:per.reduce((a,p)=>a+p.promS,0),promN:per.reduce((a,p)=>a+p.promN,0)};
+    let _ts=0,_tf=0; conDatos.forEach(k=>WA_VEND.forEach(v=>{const b=(D.agg[k]||{})[v.id]; if(b){_ts+=b.s;_tf+=b.nf||0;}}));
+    const tot={promT:_tf?_ts/_tf:null,mesN:per.reduce((a,p)=>a+p.mesN,0),mesNF:per.reduce((a,p)=>a+p.mesNF,0),mesS:per.reduce((a,p)=>a+p.mesS,0),promS:per.reduce((a,p)=>a+p.promS,0),promN:per.reduce((a,p)=>a+p.promN,0)};
     const serie=[]; for(let i=11;i>=0;i--){ const d=new Date(y,m-i,1),k=ymKey(d.getFullYear(),d.getMonth()); serie.push({k,lbl:MONTHS[d.getMonth()].slice(0,3)+' '+String(d.getFullYear()).slice(2),v:WA_VEND.map(v=>((D.agg[k]||{})[v.id])||{n:0,s:0,nf:0})}); }
     return {per,tot,serie,nMeses:conDatos.length,enCurso,desdeLbl:conDatos.length?conDatos[conDatos.length-1]:null};
   }
@@ -65314,6 +65362,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="est-chart">${G.pedidos}</div></div>`; })()}
     <div class="est-dt" style="margin-top:12px"><table class="est-cmp"><thead><tr><th>Mes</th>${WA_VEND.map(v=>`<th>${v.c} · pedidos</th><th>${v.c} · ventas</th>`).join('')}<th>Total ventas</th></tr></thead>
       <tbody>${M.serie.map(r=>`<tr><td>${esc(r.lbl)}</td>${r.v.map(b=>`<td>${fmtN(b.n)}</td><td>${fmt$(b.s)}</td>`).join('')}<td><b>${fmt$(r.v.reduce((a,b)=>a+b.s,0))}</b></td></tr>`).join('')}</tbody></table></div>
+    <p class="est-small"><b>¿Por qué no coincide con los pedidos de la planilla?</b> La planilla cuenta los pedidos que se anotan a mano cada día; acá se cuentan los pedidos cargados en Yiqi con origen WhatsApp por Juan o Federico. Puede haber diferencias por pedidos cargados otro día, por otro vendedor, unificados, o que después se anularon.</p>
     <p class="est-small">Datos de Yiqi: pedidos con Origen WhatsApp tomados por Juan Martin Gaffuri o Federico Silva, Pedidos tomados: A reservar, Entregado, Quiebre 2 y Staging Out. Ventas, ticket y promedio mensual en pesos: solo Entregado y Staging Out (lo facturado). Monto con IVA (Total Pedido Moneda Default). El promedio mensual toma los últimos 12 meses completos${M.enCurso?' (el mes en curso no entra)':''}.</p></section>`;
     return h;
   }
@@ -65329,6 +65378,55 @@ document.addEventListener('DOMContentLoaded', () => {
 ];
   }
 
+  /* ---------- RESUMEN EJECUTIVO Y PRÓXIMOS PASOS (para presentar) ---------- */
+  let pdfCompleto=false;
+  const gram=t=>String(t||'').replace(/\b([Aa]) el\b/g,'$1l').replace(/\b([Dd])e el\b/g,'$1el');
+  function ejecModel(y,m,st,recs){
+    const M=waModel(y,m), L=waListas[ymKey(y,m)]||null, P=st.pedidos,C=st.chats,Q=st.consultas;
+    const conv=Q.sum?P.sum/Q.sum:null, mesTit=MONTHS[m];
+    const k=[], frases=[];
+    if(M&&!M.err){
+      const dv=M.tot.promS?M.tot.mesS/M.tot.promS-1:null, tk=M.tot.mesNF?M.tot.mesS/M.tot.mesNF:null, dt=tk&&M.tot.promT?tk/M.tot.promT-1:null;
+      const sg=x=>(x>0?'+':'')+fmtP(x);
+      k.push({l:'Facturado por WhatsApp',b:fmt$(M.tot.mesS),s:M.enCurso?'mes en curso':(dv!=null?`${sg(dv)} vs promedio mensual`:''),cls:'red money'});
+      k.push({l:'Pedidos tomados en Yiqi',b:fmtN(M.tot.mesN),s:`promedio ${fmtN(M.tot.promN)} por mes`});
+      k.push({l:'Ticket promedio',b:fmt$(tk),s:dt!=null?`${sg(dt)} vs últimos 12 meses`:'por pedido facturado',cls:'money'});
+      const pend=L?L.espera.reduce((a,p)=>a+p.monto,0):0;
+      k.push({l:'Pendiente sin concretar',b:fmt$(pend),s:L?`${L.espera.length} pedidos en espera de pago`:'',cls:'money'});
+      frases.push(`Juan y Federico facturaron ${fmt$(M.tot.mesS)} por WhatsApp${M.enCurso?' en lo que va del mes':''}, con ${fmtN(M.tot.mesN)} pedidos tomados${!M.enCurso&&dv!=null?` (${dv>=0?'un':'un'} ${fmtP(Math.abs(dv))} ${dv>=0?'más':'menos'} que el promedio mensual del último año)`:''}.`);
+    } else {
+      k.push({l:'Chats',b:fmtN(C.sum),s:C.avg!=null?fmtN(C.avg)+' por día hábil':''},{l:'Consultas',b:fmtN(Q.sum),s:''},{l:'Pedidos anotados',b:fmtN(P.sum),s:'en la planilla',cls:'red'},{l:'Conversión',b:fmtP(conv),s:'consultas que terminan en pedido'});
+    }
+    if(C.sum) frases.push(`Entraron ${fmtN(C.sum)} chats y ${fmtN(Q.sum)} consultas; el ${fmtP(conv)} de las consultas terminó en pedido.`);
+    if(L&&(L.espera.length||L.perdidos.length)) frases.push(`Para atender: ${[L.espera.length?`${L.espera.length} pedidos sin concretar por ${fmt$(L.espera.reduce((a,p)=>a+p.monto,0))}`:'',L.perdidos.length?`${L.perdidos.length} clientes habituales que no compraron en ${mesTit}`:''].filter(Boolean).join(' y ')}.`);
+    else if(recs&&recs.improve.length) frases.push(`Para atender: ${gram(recs.improve[0].t).toLowerCase()}.`);
+    return {k,frases};
+  }
+  function pasosModel(y,m,recs){
+    const L=waListas[ymKey(y,m)], out=[];
+    if(L){
+      WA_VEND.forEach(v=>{
+        const es=L.espera.filter(p=>p.vend===v.c); if(es.length) out.push({q:v.c,t:`Cerrar o anular sus ${es.length} pedido${es.length>1?'s':''} en espera de pago (${fmt$(es.reduce((a,p)=>a+p.monto,0))}), empezando por el N° ${es[0].nro} de ${es[0].cliente} (${fmt$(es[0].monto)}).`});
+        const pe=L.perdidos.filter(c=>c.vend===v.c); if(pe.length) out.push({q:v.c,t:`Recontactar a sus ${pe.length} cliente${pe.length>1?'s':''} habitual${pe.length>1?'es':''} que no compraron; primero ${pe.slice(0,3).map(c=>c.cliente).join(', ')}.`});
+      });
+      if(L.quiebre&&L.quiebre.length) out.push({q:'Compras',t:`Confirmar la fecha de llegada de los ${L.quiebre.length} pedido${L.quiebre.length>1?'s':''} en Quiebre 2 (${fmt$(L.quiebre.reduce((a,p)=>a+p.monto,0))}) y avisarle a cada cliente.`});
+    }
+    const yq=/pedidos sin concretar|habitual|frenado|ticket de|devoluci/i;
+    (recs?recs.improve.concat(recs.polish):[]).filter(x=>x.a&&!yq.test(x.t)&&!/^Faltan cargar/i.test(x.t)).slice(0,2).forEach(x=>out.push({q:'Equipo',t:gram(x.a)}));
+    return out.slice(0,6);
+  }
+  function ejecHTML(y,m,st,recs){
+    const E=ejecModel(y,m,st,recs), mesTit=MONTHS[m].charAt(0).toUpperCase()+MONTHS[m].slice(1);
+    return `<section class="est-sec est-dark"><p class="est-eyebrow">Resumen para presentar</p><h3>${mesTit} ${y} en una hoja</h3>
+      <div class="est-tiles">${E.k.map(t=>`<div class="est-tile"><span class="l">${esc(t.l)}</span><span class="b ${/red/.test(t.cls||'')?'est-red':''}">${t.b}</span><span class="s">${esc(t.s)}</span></div>`).join('')}</div>
+      <ul class="est-ejec">${E.frases.map(f=>`<li>${esc(f)}</li>`).join('')}</ul></section>`;
+  }
+  function pasosHTML(y,m,recs){
+    const A=pasosModel(y,m,recs); if(!A.length) return '';
+    return `<section class="est-sec"><p class="est-eyebrow">Para el mes que viene</p><h3>Próximos pasos</h3>
+      <ol class="est-pasos">${A.map(a=>`<li><b>${esc(a.q)}</b><span>${esc(a.t)}</span></li>`).join('')}</ol></section>`;
+  }
+
   function informeHTML(y,m,st){
     const n=dim(y,m), rows=[];
     for(let d=1;d<=n;d++){ const k=dkey(y,m,d),dow=new Date(y,m,d).getDay(),s=status(k,dow),day=days[k];
@@ -65339,13 +65437,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const fer=rows.filter(r=>r.s==='feriado').map(r=>`${DOW[r.dow].toLowerCase()} ${r.d}`);
     const conv=Q.sum?P.sum/Q.sum:null, chQ=C.sum?Q.sum/C.sum:null, chP=C.sum?P.sum/C.sum:null;
     const mesTit=MONTHS[m].charAt(0).toUpperCase()+MONTHS[m].slice(1);
-    let h=`<div class="est-rep">`;
+    let h=`<div class="est-rep">%%EST_EJEC%%`;
     // 1. Números
     h+=`<section class="est-sec"><p class="est-eyebrow">Resumen del mes</p><h3>${mesTit} en números</h3>
       <div class="est-tiles">
         <div class="est-tile"><span class="l">Chats totales</span><span class="b">${fmtN(C.sum)}</span><span class="s">${C.avg!=null?fmtN(C.avg)+' por día hábil':'—'}</span></div>
         <div class="est-tile"><span class="l">Consultas</span><span class="b">${fmtN(Q.sum)}</span><span class="s">${Q.avg!=null?fmtN(Q.avg)+' por día hábil':'—'}</span></div>
-        <div class="est-tile"><span class="l">Pedidos</span><span class="b est-red">${fmtN(P.sum)}</span><span class="s">${P.avg!=null?fmtN(P.avg)+' por día hábil':'—'}</span></div>
+        <div class="est-tile"><span class="l">Pedidos anotados (planilla)</span><span class="b est-red">${fmtN(P.sum)}</span><span class="s">${P.avg!=null?fmtN(P.avg)+' por día hábil':'—'}</span></div>
         <div class="est-tile"><span class="l">Conversión</span><span class="b">${fmtP(conv)}</span><span class="s">de las consultas terminan en pedido</span></div>
       </div>
       <p class="est-small">Se contaron ${conDatos.length} días hábiles con datos, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p></section>%%EST_RECS%%`;
@@ -65412,7 +65510,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const mins=[['pedidos',P],['chats',C],['consultas',Q]].filter(([,s])=>s.min!=null).map(([l,s])=>`${fmtN(s.min)} ${l} (${s.min!=null?rows.filter(r=>total(days[r.k],l)===s.min).map(r=>dayLabel(y,m,r.d)).slice(0,2).join(', '):''})`);
     h+=`<section class="est-sec est-dark"><p class="est-eyebrow">Récords del mes</p><h3>Días récord</h3><div class="est-tiles est-t3">${rec('Más pedidos',P)}${rec('Más chats',C)}${rec('Más consultas',Q)}</div>
       ${mins.length?`<p class="est-small">Los mínimos del mes fueron ${mins.join(', ')}.</p>`:''}</section>`;
-    h=h.replace('%%EST_RECS%%',recsHTML(buildRecs(y,m,st,rows,conDatos,wk),y,m));
+    const _recs=buildRecs(y,m,st,rows,conDatos,wk);
+    h=h.replace('%%EST_RECS%%',recsHTML(_recs,y,m));
+    h=h.replace('%%EST_EJEC%%',ejecHTML(y,m,st,_recs));
+    h+=pasosHTML(y,m,_recs);
     h+=waAnexosHTML(y,m);
     return h+'</div>';
   }
@@ -65461,14 +65562,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const card=(l,b,s,cls)=>`<div class="ep-card"><span class="l">${l}</span><span class="b ${cls||''}">${b}</span><span class="s">${s||''}</span></div>`;
     // portada
     slides.push(`<div class="ep-slide cover"><img class="ep-cover-logo" src="${EST_LOGO}"><div class="ep-dia d1"></div><div class="ep-dia d2"></div><div class="ep-dia d3"></div><div class="ep-dia d4"></div><div class="ep-dia d5"></div><p class="ep-eye">Informe mensual</p><h1>Estadística<br>de WhatsApp</h1><div class="ep-rule"></div><p class="ep-per">${per}</p><p class="ep-cap">Chats, consultas y pedidos del mes</p></div>`);
+    // resumen para presentar
+    { const E=ejecModel(y,m,st,recs);
+      slides.push(frame('Resumen para presentar',`${mes} ${y} en una hoja`,`<div class="ep-grid4">${E.k.map(t=>card(t.l,t.b,t.s,t.cls)).join('')}</div><ul class="ep-ejec">${E.frases.map(f=>`<li>${esc(f)}</li>`).join('')}</ul>`)); }
     // números
-    slides.push(frame('Resumen del mes',`${mes} en números`,`<div class="ep-grid4">${card('Chats totales',fmtN(C.sum),C.avg!=null?fmtN(C.avg)+' por día hábil':'')}${card('Consultas',fmtN(Q.sum),Q.avg!=null?fmtN(Q.avg)+' por día hábil':'')}${card('Pedidos',fmtN(P.sum),P.avg!=null?fmtN(P.avg)+' por día hábil':'','red')}${card('Conversión',fmtP(conv),'de las consultas terminan en pedido')}</div><p class="ep-note">Se contaron ${conDatos.length} días hábiles, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p>`));
+    slides.push(frame('Resumen del mes',`${mes} en números`,`<div class="ep-grid4">${card('Chats totales',fmtN(C.sum),C.avg!=null?fmtN(C.avg)+' por día hábil':'')}${card('Consultas',fmtN(Q.sum),Q.avg!=null?fmtN(Q.avg)+' por día hábil':'')}${card('Pedidos anotados (planilla)',fmtN(P.sum),P.avg!=null?fmtN(P.avg)+' por día hábil':'','red')}${card('Conversión',fmtP(conv),'de las consultas terminan en pedido')}</div><p class="ep-note">Se contaron ${conDatos.length} días hábiles, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p>`));
     { const ws=waSlide(y,m,frame,card); if(ws) slides.push(...ws); }
     // embudo
     const fm=Math.max(C.sum,Q.sum,P.sum,1), fb=(l,v,c,tc)=>`<div class="ep-fun"><span>${l}</span><div><i style="width:${Math.max(2,v/fm*82)}%;background:${c}"></i><b style="color:${tc||PDFC.navy}">${fmtN(v)}</b></div></div>`;
     slides.push(frame('Embudo del mes','Del chat al pedido',`<div class="ep-funnel">${fb('Chats totales',C.sum,PDFC.navy)}${fb('Consultas',Q.sum,PDFC.blue,PDFC.blue)}${fb('Pedidos',P.sum,PDFC.red,PDFC.red)}</div><div class="ep-grid3">${card('',fmtP(chQ),'de los chats son consultas','blue')}${card('',fmtP(conv),'de las consultas terminan en pedido','red')}${card('',fmtP(chP),'de los chats terminan en pedido','red')}</div>`));
     // diagnóstico
-    const li=x=>`<li><b>${esc(x.t)}</b><span>${esc(x.d)}</span>${x.a?`<em>${esc(x.a)}</em>`:''}</li>`;
+    const li=x=>`<li><b>${esc(gram(x.t))}</b><span>${esc(gram(x.d))}</span>${x.a?`<em>${esc(gram(x.a))}</em>`:''}</li>`;
     const col=(c,t,a,e,i0)=>`<div class="ep-rc" style="border-top-color:${c}"><h4>${t}</h4>${a.slice(i0,i0+3).length?`<ul>${a.slice(i0,i0+3).map(li).join('')}</ul>`:`<p>${i0?'—':e}</p>`}</div>`;
     const nPag=Math.max(1,Math.ceil(Math.max(recs.good.length,recs.polish.length,recs.improve.length)/3));
     for(let pgD=0;pgD<nPag;pgD++){ const i0=pgD*3;
@@ -65503,6 +65607,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rc=(l,s)=>`<div class="ep-card"><span class="l">${l}</span><span class="b">${s.max!=null?fmtN(s.max):'—'}</span><span class="s">${esc(s.max!=null?s.maxDays.map(d=>dayLabel(y,m,d)).join(', '):'')}</span></div>`;
     const mins=[['pedidos',P],['chats',C],['consultas',Q]].filter(([,s])=>s.min!=null).map(([l,s])=>`${fmtN(s.min)} ${l}`);
     slides.push(frame('Récords del mes','Días récord',`<div class="ep-grid3 ep-rec">${rc('Más pedidos',P)}${rc('Más chats',C)}${rc('Más consultas',Q)}</div>${mins.length?`<p class="ep-note">Los mínimos del mes fueron ${mins.join(', ')}.</p>`:''}`,{dark:true}));
+    { const A=pasosModel(y,m,recs); if(A.length) slides.push(frame('Para el mes que viene','Próximos pasos',`<ol class="ep-pasos">${A.map(a=>`<li><b>${esc(a.q)}</b><span>${esc(a.t)}</span></li>`).join('')}</ol>`)); }
     slides.push(...waAnexosSlides(y,m,frame));
     return slides;
   }
@@ -65530,7 +65635,7 @@ document.addEventListener('DOMContentLoaded', () => {
   .ep-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.ep-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.ep-grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
   .ep-card{background:#fff;border:1px solid ${PDFC.line};border-radius:8px;padding:22px 24px;display:flex;flex-direction:column;gap:8px}
   .ep-card .l{font-size:15px;color:${PDFC.ink};font-weight:600}.ep-card .b{font-size:54px;font-weight:700;color:${PDFC.navy};line-height:1}.ep-card .s{font-size:14px;color:${PDFC.muted}}
-  .ep-tb.ep-anx th,.ep-tb.ep-anx td{padding:7px 12px;font-size:14.5px}.ep-card .b.money{font-size:34px;white-space:nowrap;letter-spacing:-.01em}.ep-card .b.red{color:${PDFC.red}}.ep-card .b.blue{color:#1d5fae}
+  .ep-ejec{margin:30px 0 0;padding:0 0 0 22px;display:grid;gap:14px;font-size:21px;line-height:1.45;color:${PDFC.ink}}.ep-ejec li::marker{color:${PDFC.red}}.ep-pasos{margin:4px 0 0;padding:0;list-style:none;display:grid;gap:9px;counter-reset:pp}.ep-pasos li{counter-increment:pp;display:grid;grid-template-columns:40px 120px 1fr;align-items:baseline;gap:10px;background:#fff;border:1px solid ${PDFC.line};border-radius:8px;padding:10px 16px;font-size:16px;line-height:1.35}.ep-pasos li::before{content:counter(pp);font-weight:800;color:${PDFC.red};font-size:24px}.ep-pasos li b{color:${PDFC.navy}}.ep-tb.ep-anx{table-layout:fixed;width:100%}.ep-tb.ep-anx th,.ep-tb.ep-anx td{padding:7px 12px;font-size:14px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ep-tb.ep-anx td:nth-child(2),.ep-tb.ep-anx td:nth-child(3){white-space:normal}.ep-card .b.money{font-size:34px;white-space:nowrap;letter-spacing:-.01em}.ep-card .b.red{color:${PDFC.red}}.ep-card .b.blue{color:#1d5fae}
   .ep-funnel{display:grid;gap:16px;margin:10px 0 18px}.ep-fun{display:grid;grid-template-columns:180px 1fr;align-items:center}.ep-fun span{font-size:17px}.ep-fun div{display:flex;align-items:center;gap:14px}.ep-fun i{display:block;height:46px;border-radius:2px}.ep-fun b{font-size:30px;font-weight:700}
   .ep-grid3 .ep-card .b{font-size:46px}
   .ep-leg{display:flex;gap:22px;font-size:14px}.ep-leg span{display:inline-flex;align-items:center;gap:8px}.ep-leg i{display:inline-block;width:22px;height:4px;border-radius:2px}.ep-leg i.sq{width:14px;height:14px;border-radius:3px;border:1px solid ${PDFC.line}}
@@ -65590,7 +65695,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const mrows=MONTHS.map((mn,i)=>`<tr><td>${mn.charAt(0).toUpperCase()+mn.slice(1)}</td>${years.map((y,yi)=>{const st=mStats[y][i];if(!st||!st.pedidos.cnt)return '<td class="na">—</td>';const pv=yi>0?mStats[years[yi-1]][i]:null;const r=pv&&pv.pedidos.cnt?rateLabel(st.pedidos.avg,pv.pedidos.avg):null;return `<td class="${r?r.cls:''}">${fmtN(st.pedidos.sum)}${y===Y1&&i===cutM?' (en curso)':''}${r&&!r.zero?` <small>${r.r>0?'+':''}${fmtP(r.r)}</small>`:''}</td>`}).join('')}</tr>`).join('');
     slides.push(frame('Pedidos','Pedidos por mes y año',`<table class="ep-tb ep-cmp ep-mxy"><thead><tr><th>Mes</th>${years.map(y=>`<th>${y}</th>`).join('')}</tr></thead><tbody>${mrows}<tr class="tot"><td>Total</td>${full.map(o=>`<td>${fmtN(o.a.ped)}</td>`).join('')}</tr></tbody></table>`));
     if(A.fltAny) slides.push(frame('Mercadería faltante','Productos pedidos sin stock, por mes',`<table class="ep-tb ep-cmp ep-mxy"><thead><tr><th>Mes</th>${years.map(y=>`<th>${y}</th>`).join('')}</tr></thead><tbody>${MONTHS.map((mn,i)=>`<tr><td>${mn.charAt(0).toUpperCase()+mn.slice(1)}</td>${years.map(y=>`<td>${A.fltYM[y][i]||'—'}</td>`).join('')}</tr>`).join('')}<tr class="tot"><td>Total</td>${years.map(y=>`<td>${A.fltYM[y].reduce((a,b)=>a+b,0)||'—'}</td>`).join('')}</tr></tbody></table>`));
-    const li=x=>`<li><b>${esc(x.t)}</b><span>${esc(x.d)}</span>${x.a?`<em>${esc(x.a)}</em>`:''}</li>`;
+    const li=x=>`<li><b>${esc(gram(x.t))}</b><span>${esc(gram(x.d))}</span>${x.a?`<em>${esc(gram(x.a))}</em>`:''}</li>`;
     const cc=(c,t,a,e)=>`<div class="ep-rc" style="border-top-color:${c}"><h4>${t}</h4>${a.length?`<ul>${a.slice(0,3).map(li).join('')}</ul>`:`<p>${e}</p>`}</div>`;
     slides.push(frame('Diagnóstico anual','Qué está bien, qué pulir y qué mejorar',`<div class="ep-grid3 ep-recs">${cc('#22c55e','En qué estamos bien',good,'Todavía nada para destacar.')}${cc('#f59e0b','Qué hay que pulir',polish,'Nada para pulir por ahora.')}${cc(PDFC.blue,'Qué mejorar y cómo',improve,'No hay alertas.')}</div>`));
     slides.push(frame('Años en números','Pedidos por día hábil',`<div class="ep-grid3 ep-rec">${full.slice(-3).map(o=>`<div class="ep-card"><span class="l">${o.y}${o.y===Y1?' (hasta hoy)':''}</span><span class="b">${fmtN(o.a.pedDia)}</span><span class="s">${fmtN(o.a.ped)} pedidos en ${fmtN(o.a.dias)} días hábiles</span></div>`).join('')}</div><p class="ep-note">Promedio de pedidos por día hábil de cada año.</p>`,{dark:true}));
@@ -65620,7 +65725,7 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.addImage(cv.toDataURL('image/jpeg',0.9),'JPEG',0,0,960,540);
       }
       wrap.remove();
-      doc.save(anual?`Comparativa_anual_WhatsApp_${EST_ANIO_DESDE}-${now.getFullYear()}.pdf`:`Estadistica_WhatsApp_${mes}_${y}.pdf`);
+      doc.save(anual?`Comparativa_anual_WhatsApp_${EST_ANIO_DESDE}-${now.getFullYear()}.pdf`:`Estadistica_WhatsApp_${mes}_${y}${pdfCompleto?'_completo':''}.pdf`);
       toast('✓ PDF descargado','ok');
     }catch(e){ console.error('[Estadística] PDF',e); document.querySelectorAll('.ep-wrap').forEach(x=>x.remove()); toast('⚠ No se pudo generar el PDF: '+(e&&e.message||e),'warn'); }
   }
@@ -65853,7 +65958,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if(a==='today'){cur={y:now.getFullYear(),m:now.getMonth()};render();return}
       if(a==='config'){openDrawer('config',{cfg:clone(config)});return}
       if(a==='xlsx'){exportXlsx();return}
-      if(a==='pdf'){exportPdf();return}
+      if(a==='pdf'){pdfCompleto=false;exportPdf();return}
+      if(a==='pdf-full'){pdfCompleto=true;exportPdf().finally(()=>{pdfCompleto=false;});return}
       if(a==='import'){importHist();return}
       if(a==='close'){closeDrawer();return}
       if(a==='flt-new'){fltNuevo();return}
