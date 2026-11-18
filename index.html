@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.414</title>
+<title>Dentalab Whatsapp CRM · v25.416</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45588,7 +45588,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.414';
+  const LATEST_VERSION = 'v25.416';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45601,6 +45601,23 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.416',
+      fecha: '2026-11-18',
+      titulo: 'Informe: ventas WhatsApp solo con los estados que cuentan',
+      items: [
+        { tipo: 'fix', texto: 'Las ventas de Juan y Federico en el informe cuentan solo los pedidos en A reservar, Entregado, Quiebre 2 y Staging Out. Quedan afuera En espera de pago, Anulado y Con devolución.' }
+      ]
+    },
+    {
+      version: 'v25.415',
+      fecha: '2026-11-18',
+      titulo: 'Informe de Estadística: ventas WhatsApp de Juan y Federico desde Yiqi',
+      items: [
+        { tipo: 'nuevo', texto: 'El informe del mes (y su PDF) suma la sección "Ventas en Yiqi · Origen WhatsApp": promedio mensual de ventas de Juan Martin Gaffuri + Federico Silva (últimos 12 meses completos), y por cada uno: pedidos tomados, ventas y ticket promedio del mes, promedio mensual de ventas y de pedidos. Incluye la tabla de los últimos 12 meses.' },
+        { tipo: 'mejora', texto: 'Se toman los pedidos de Yiqi con Origen WhatsApp, sin Anulados ni "A anular"; monto con IVA (Total Pedido Moneda Default).' }
+      ]
+    },
     {
       version: 'v25.414',
       fecha: '2026-11-18',
@@ -65016,6 +65033,101 @@ document.addEventListener('DOMContentLoaded', () => {
     const cls=Math.abs(r)<EST_SIN_CAMBIOS?'reg':(r>0?'good':'bad');
     const txt=zero?'= Sin cambios':(cls==='reg'?(r>0?'↗ Leve suba':'↘ Leve baja'):(cls==='good'?'▲ Mejoró':'▼ Empeoró'));
     return {cls,txt,r,zero}; }
+
+  /* ---------- VENTAS WHATSAPP DESDE YIQI (Juan Martin Gaffuri y Federico Silva) ---------- */
+  // Pedidos de Yiqi con Origen = WhatsApp (13) y Vendedor = Juan (4) o Federico (8), sin Anulados / A anular.
+  // Monto: Total Pedido Moneda Default (con IVA). Promedio mensual = últimos 12 meses completos.
+  // Solo estos estados cuentan como venta (mismo filtro que la planilla de Yiqi)
+  const WA_ESTADOS=/^(a reservar|entregado|quiebre 2|staging out)$/i;
+  const WA_VEND=[{id:4,n:'Juan Martin Gaffuri',c:'Juan'},{id:8,n:'Federico Silva',c:'Federico'}];
+  const waCache={}; let waLoading={};
+  const fmt$=v=>v==null||!isFinite(v)?'—':'$ '+new Intl.NumberFormat('es-AR',{maximumFractionDigits:0}).format(Math.round(v));
+  const ymKey=(y,m)=>`${y}-${pad(m+1)}`;
+  async function waFetch(y,m){
+    const tok=await (window._yiqiGetTokenGlobal?window._yiqiGetTokenGlobal():null);
+    if(!tok) throw new Error('SIN_LOGIN');
+    const H={'Authorization':'Bearer '+tok,'Content-Type':'application/json'};
+    const d0=new Date(y,m-12,1), d1=new Date(y,m+1,1);
+    const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const cols=['ID','PEDI_FECHA','VEHA_ID_VEHA','PEDI_TOTAL_MD','PEDI_TOTAL','DESC_ESTADO','EXTE_ID_EXTE'];
+    const q=async(filters,page)=>{ const r=await yiqiFetch('https://api.yiqi.com.ar/api/public/PEDIDO/query?schemaId=328',{method:'POST',headers:H,
+        body:JSON.stringify({page,pageSize:500,columns:cols.map((f,i)=>({field:f,title:f,order:i+1})),filters:filters.map(f=>({columnName:f[0],operator:f[1],value:f[2]}))})});
+      if(!r.ok) throw new Error('Yiqi HTTP '+r.status+' '+(await r.text().catch(()=>'')).slice(0,150));
+      const j=await r.json(); return {data:j.data||j.items||(Array.isArray(j)?j:[]),total:j.total||0}; };
+    const todo=async(filters)=>{ const out=[]; for(let p=1;p<=20;p++){ const r=await q(filters,p); out.push(...r.data); if(r.data.length<500||(r.total&&out.length>=r.total)) break; } return out; };
+    const base=[['EXTE_ID_EXTE','=',13],['PEDI_FECHA','>=',iso(d0)],['PEDI_FECHA','<',iso(d1)]];
+    let rows;
+    try{ rows=await todo(base.concat([['VEHA_ID_VEHA','IN',WA_VEND.map(v=>v.id)]])); }
+    catch(e){ rows=[]; for(const v of WA_VEND) rows.push(...await todo(base.concat([['VEHA_ID_VEHA','=',v.id]]))); }
+    // Agregar por mes y vendedor (filtros de nuevo acá por si Yiqi ignorara alguno)
+    const agg={};
+    rows.forEach(r=>{
+      if(Number(r.EXTE_ID_EXTE)!==13) return;
+      const v=WA_VEND.find(x=>x.id===Number(r.VEHA_ID_VEHA)); if(!v) return;
+      if(!WA_ESTADOS.test(String(r.DESC_ESTADO||'').trim())) return;
+      const f=new Date(r.PEDI_FECHA); if(isNaN(f)||f<d0||f>=d1) return;
+      const k=ymKey(f.getFullYear(),f.getMonth());
+      const a=(agg[k]=agg[k]||{}); const b=(a[v.id]=a[v.id]||{n:0,s:0});
+      b.n++; b.s+=Number(r.PEDI_TOTAL_MD!=null?r.PEDI_TOTAL_MD:r.PEDI_TOTAL)||0;
+    });
+    return {agg,ts:Date.now()};
+  }
+  function waGet(y,m){
+    const k=ymKey(y,m);
+    if(waCache[k]) return waCache[k];
+    if(!waLoading[k]){
+      waLoading[k]=waFetch(y,m).then(d=>{waCache[k]=d;}).catch(e=>{waCache[k]={err:e.message==='SIN_LOGIN'?'Para ver las ventas de Yiqi hay que tener cargado el usuario de Yiqi en el CRM (por ej. abriendo la pestaña Pedidos).':'No se pudieron leer las ventas de Yiqi: '+e.message};})
+        .finally(()=>{delete waLoading[k]; try{ if(view==='informe'&&cur.y===y&&cur.m===m) render(); }catch(_){}});
+    }
+    return null;
+  }
+  async function waEnsure(y,m){ const k=ymKey(y,m); if(waCache[k]) return waCache[k]; waGet(y,m); await waLoading[k]; return waCache[k]; }
+  function waModel(y,m){
+    const D=waCache[ymKey(y,m)]; if(!D||D.err) return D||null;
+    const hoy=new Date(), enCurso=(y===hoy.getFullYear()&&m===hoy.getMonth());
+    const mes=D.agg[ymKey(y,m)]||{};
+    // últimos 12 meses completos (si el mes del informe está en curso, no entra en el promedio)
+    const meses=[]; for(let i=enCurso?1:0;i<(enCurso?13:12);i++){ const d=new Date(y,m-i,1); meses.push(ymKey(d.getFullYear(),d.getMonth())); }
+    const conDatos=meses.filter(k=>D.agg[k]);
+    const nM=conDatos.length||1;
+    const per=WA_VEND.map(v=>{
+      const mm=mes[v.id]||{n:0,s:0};
+      let tn=0,ts=0; conDatos.forEach(k=>{const b=(D.agg[k]||{})[v.id]; if(b){tn+=b.n;ts+=b.s;}});
+      return {...v,mesN:mm.n,mesS:mm.s,mesT:mm.n?mm.s/mm.n:null,promS:ts/nM,promN:tn/nM,promT:tn?ts/tn:null};
+    });
+    const tot={mesN:per.reduce((a,p)=>a+p.mesN,0),mesS:per.reduce((a,p)=>a+p.mesS,0),promS:per.reduce((a,p)=>a+p.promS,0),promN:per.reduce((a,p)=>a+p.promN,0)};
+    const serie=[]; for(let i=11;i>=0;i--){ const d=new Date(y,m-i,1),k=ymKey(d.getFullYear(),d.getMonth()); serie.push({k,lbl:MONTHS[d.getMonth()].slice(0,3)+' '+String(d.getFullYear()).slice(2),v:WA_VEND.map(v=>((D.agg[k]||{})[v.id])||{n:0,s:0})}); }
+    return {per,tot,serie,nMeses:conDatos.length,enCurso,desdeLbl:conDatos.length?conDatos[conDatos.length-1]:null};
+  }
+  function waSecHTML(y,m){
+    const k=ymKey(y,m), D=waCache[k];
+    const head=`<section class="est-sec"><p class="est-eyebrow">Ventas en Yiqi · Origen WhatsApp</p><h3>Juan y Federico</h3>`;
+    if(!D){ waGet(y,m); return head+`<div class="est-card"><p class="est-small">⏳ Leyendo los pedidos de Yiqi…</p></div></section>`; }
+    if(D.err) return head+`<div class="est-card"><p class="est-small">⚠ ${esc(D.err)}</p></div></section>`;
+    const M=waModel(y,m), mesTit=MONTHS[m];
+    const tile=(l,b,s,cls)=>`<div class="est-tile"><span class="l">${l}</span><span class="b ${cls||''}">${b}</span><span class="s">${s||''}</span></div>`;
+    let h=head+`<div class="est-tiles">
+      ${tile('Promedio mensual de ventas WhatsApp',fmt$(M.tot.promS),`Juan + Federico · últimos ${M.nMeses} meses completos`,'est-red')}
+      ${tile('Pedidos por mes (promedio)',fmtN(M.tot.promN),'entre los dos')}
+      ${tile(`Ventas de ${mesTit}${M.enCurso?' (en curso)':''}`,fmt$(M.tot.mesS),`${fmtN(M.tot.mesN)} pedidos`)}
+      ${tile('Ticket promedio del mes',fmt$(M.tot.mesN?M.tot.mesS/M.tot.mesN:null),'por pedido')}
+    </div>
+    <div class="est-dt" style="margin-top:12px"><table class="est-cmp"><thead><tr><th>Vendedor</th><th>Pedidos tomados<br><small style="color:#c7d7ee;font-weight:600">${mesTit}</small></th><th>Ventas<br><small style="color:#c7d7ee;font-weight:600">${mesTit}</small></th><th>Ticket promedio<br><small style="color:#c7d7ee;font-weight:600">${mesTit}</small></th><th>Promedio mensual<br><small style="color:#c7d7ee;font-weight:600">de ventas</small></th><th>Pedidos por mes<br><small style="color:#c7d7ee;font-weight:600">promedio</small></th><th>Ticket promedio<br><small style="color:#c7d7ee;font-weight:600">12 meses</small></th></tr></thead>
+      <tbody>${M.per.map(p=>`<tr><td><b>${esc(p.n)}</b></td><td>${fmtN(p.mesN)}</td><td>${fmt$(p.mesS)}</td><td>${fmt$(p.mesT)}</td><td><b>${fmt$(p.promS)}</b></td><td>${fmtN(p.promN)}</td><td>${fmt$(p.promT)}</td></tr>`).join('')}
+      <tr><td><b>Total</b></td><td><b>${fmtN(M.tot.mesN)}</b></td><td><b>${fmt$(M.tot.mesS)}</b></td><td>${fmt$(M.tot.mesN?M.tot.mesS/M.tot.mesN:null)}</td><td><b>${fmt$(M.tot.promS)}</b></td><td>${fmtN(M.tot.promN)}</td><td></td></tr></tbody></table></div>
+    <div class="est-dt" style="margin-top:12px"><table class="est-cmp"><thead><tr><th>Mes</th>${WA_VEND.map(v=>`<th>${v.c} · pedidos</th><th>${v.c} · ventas</th>`).join('')}<th>Total ventas</th></tr></thead>
+      <tbody>${M.serie.map(r=>`<tr><td>${esc(r.lbl)}</td>${r.v.map(b=>`<td>${fmtN(b.n)}</td><td>${fmt$(b.s)}</td>`).join('')}<td><b>${fmt$(r.v.reduce((a,b)=>a+b.s,0))}</b></td></tr>`).join('')}</tbody></table></div>
+    <p class="est-small">Datos de Yiqi: pedidos con Origen WhatsApp tomados por Juan Martin Gaffuri o Federico Silva, en estado A reservar, Entregado, Quiebre 2 o Staging Out (no cuentan En espera de pago, Anulado ni Con devolución). Monto con IVA (Total Pedido Moneda Default). El promedio mensual toma los últimos 12 meses completos${M.enCurso?' (el mes en curso no entra)':''}.</p></section>`;
+    return h;
+  }
+  function waSlide(y,m,frame,card){
+    const D=waCache[ymKey(y,m)]; if(!D||D.err) return null;
+    const M=waModel(y,m), mesTit=MONTHS[m];
+    return frame('Ventas en Yiqi · Origen WhatsApp','Juan y Federico',`<div class="ep-grid4">${card('Promedio mensual de ventas',fmt$(M.tot.promS),`Juan + Federico · últimos ${M.nMeses} meses`,'red money')}${card('Pedidos por mes',fmtN(M.tot.promN),'promedio entre los dos')}${card(`Ventas de ${mesTit}`,fmt$(M.tot.mesS),`${fmtN(M.tot.mesN)} pedidos${M.enCurso?' (mes en curso)':''}`,'money')}${card('Ticket promedio',fmt$(M.tot.mesN?M.tot.mesS/M.tot.mesN:null),'por pedido en el mes','money')}</div>
+      <table class="ep-tb" style="margin-top:22px"><thead><tr><th>Vendedor</th><th>Pedidos ${mesTit}</th><th>Ventas ${mesTit}</th><th>Ticket ${mesTit}</th><th>Prom. mensual ventas</th><th>Pedidos/mes prom.</th></tr></thead><tbody>${M.per.map(p=>`<tr><td>${esc(p.n)}</td><td>${fmtN(p.mesN)}</td><td>${fmt$(p.mesS)}</td><td>${fmt$(p.mesT)}</td><td><b>${fmt$(p.promS)}</b></td><td>${fmtN(p.promN)}</td></tr>`).join('')}</tbody></table>
+      <p class="ep-note">Pedidos de Yiqi con Origen WhatsApp en estado A reservar, Entregado, Quiebre 2 o Staging Out. Monto con IVA. Promedio de los últimos 12 meses completos.</p>`);
+  }
+
   function informeHTML(y,m,st){
     const n=dim(y,m), rows=[];
     for(let d=1;d<=n;d++){ const k=dkey(y,m,d),dow=new Date(y,m,d).getDay(),s=status(k,dow),day=days[k];
@@ -65036,6 +65148,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="est-tile"><span class="l">Conversión</span><span class="b">${fmtP(conv)}</span><span class="s">de las consultas terminan en pedido</span></div>
       </div>
       <p class="est-small">Se contaron ${conDatos.length} días hábiles con datos, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p></section>%%EST_RECS%%`;
+    h+=waSecHTML(y,m);
     // 2. Embudo
     const fmax=Math.max(C.sum,Q.sum,P.sum,1);
     const fb=(lbl,v,cls)=>`<div class="est-fun"><span class="est-fun-l">${lbl}</span><span class="est-fun-t"><i class="${cls}" style="width:${Math.max(1.5,v/fmax*100)}%"></i><b>${fmtN(v)}</b></span></div>`;
@@ -65148,6 +65261,7 @@ document.addEventListener('DOMContentLoaded', () => {
     slides.push(`<div class="ep-slide cover"><img class="ep-cover-logo" src="${EST_LOGO}"><div class="ep-dia d1"></div><div class="ep-dia d2"></div><div class="ep-dia d3"></div><div class="ep-dia d4"></div><div class="ep-dia d5"></div><p class="ep-eye">Informe mensual</p><h1>Estadística<br>de WhatsApp</h1><div class="ep-rule"></div><p class="ep-per">${per}</p><p class="ep-cap">Chats, consultas y pedidos del mes</p></div>`);
     // números
     slides.push(frame('Resumen del mes',`${mes} en números`,`<div class="ep-grid4">${card('Chats totales',fmtN(C.sum),C.avg!=null?fmtN(C.avg)+' por día hábil':'')}${card('Consultas',fmtN(Q.sum),Q.avg!=null?fmtN(Q.avg)+' por día hábil':'')}${card('Pedidos',fmtN(P.sum),P.avg!=null?fmtN(P.avg)+' por día hábil':'','red')}${card('Conversión',fmtP(conv),'de las consultas terminan en pedido')}</div><p class="ep-note">Se contaron ${conDatos.length} días hábiles, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p>`));
+    { const ws=waSlide(y,m,frame,card); if(ws) slides.push(ws); }
     // embudo
     const fm=Math.max(C.sum,Q.sum,P.sum,1), fb=(l,v,c,tc)=>`<div class="ep-fun"><span>${l}</span><div><i style="width:${Math.max(2,v/fm*82)}%;background:${c}"></i><b style="color:${tc||PDFC.navy}">${fmtN(v)}</b></div></div>`;
     slides.push(frame('Embudo del mes','Del chat al pedido',`<div class="ep-funnel">${fb('Chats totales',C.sum,PDFC.navy)}${fb('Consultas',Q.sum,PDFC.blue,PDFC.blue)}${fb('Pedidos',P.sum,PDFC.red,PDFC.red)}</div><div class="ep-grid3">${card('',fmtP(chQ),'de los chats son consultas','blue')}${card('',fmtP(conv),'de las consultas terminan en pedido','red')}${card('',fmtP(chP),'de los chats terminan en pedido','red')}</div>`));
@@ -65211,7 +65325,7 @@ document.addEventListener('DOMContentLoaded', () => {
   .ep-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.ep-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.ep-grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
   .ep-card{background:#fff;border:1px solid ${PDFC.line};border-radius:8px;padding:22px 24px;display:flex;flex-direction:column;gap:8px}
   .ep-card .l{font-size:15px;color:${PDFC.ink};font-weight:600}.ep-card .b{font-size:54px;font-weight:700;color:${PDFC.navy};line-height:1}.ep-card .s{font-size:14px;color:${PDFC.muted}}
-  .ep-card .b.red{color:${PDFC.red}}.ep-card .b.blue{color:#1d5fae}
+  .ep-card .b.money{font-size:34px;white-space:nowrap;letter-spacing:-.01em}.ep-card .b.red{color:${PDFC.red}}.ep-card .b.blue{color:#1d5fae}
   .ep-funnel{display:grid;gap:16px;margin:10px 0 18px}.ep-fun{display:grid;grid-template-columns:180px 1fr;align-items:center}.ep-fun span{font-size:17px}.ep-fun div{display:flex;align-items:center;gap:14px}.ep-fun i{display:block;height:46px;border-radius:2px}.ep-fun b{font-size:30px;font-weight:700}
   .ep-grid3 .ep-card .b{font-size:46px}
   .ep-leg{display:flex;gap:22px;font-size:14px}.ep-leg span{display:inline-flex;align-items:center;gap:8px}.ep-leg i{display:inline-block;width:22px;height:4px;border-radius:2px}.ep-leg i.sq{width:14px;height:14px;border-radius:3px;border:1px solid ${PDFC.line}}
@@ -65285,6 +65399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!anual&&!Object.keys(days).some(k=>k.startsWith(dkey(y,m,1).slice(0,7)))){ toast('⚠ No hay datos cargados en '+MONTHS[m]+' para armar el informe','warn'); return; }
     toast('⏳ Generando PDF…','ok');
     try{
+      if(!anual){ try{ await waEnsure(y,m); }catch(e){} }
       if(typeof html2canvas==='undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
       const JsPDF=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF; if(!JsPDF) throw new Error('jsPDF no está disponible');
       const wrap=document.createElement('div'); wrap.className='ep-wrap';
