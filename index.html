@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.428</title>
+<title>Dentalab Whatsapp CRM · v25.429</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45605,7 +45605,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.428';
+  const LATEST_VERSION = 'v25.429';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45618,6 +45618,15 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.429',
+      fecha: '2026-11-18',
+      titulo: 'Informe: pedidos de WhatsApp cargados a otros vendedores',
+      items: [
+        { tipo: 'nuevo', texto: 'Nueva sección (pantalla y PDF) con los pedidos de Origen WhatsApp cargados a nombre de otros vendedores (Jorge Campagnoli, Carlos Cirigliano, Gregorio y Aris Samandjian, Showroom, Local y cualquier vendedor nuevo como Exposición / Congreso). Se muestran aparte, sin sumarse a Juan y Federico: pedidos y facturado del mes por vendedor, promedio mensual, qué parte de todo WhatsApp representan y gráfico de los últimos 12 meses.' },
+        { tipo: 'mejora', texto: 'El resumen para presentar suma una frase con esos pedidos.' }
+      ]
+    },
     {
       version: 'v25.428',
       fecha: '2026-11-18',
@@ -65295,8 +65304,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const todo=async(filters)=>{ const out=[]; for(let p=1;p<=20;p++){ const r=await q(filters,p); out.push(...r.data); if(r.data.length<500||(r.total&&out.length>=r.total)) break; } return out; };
     const base=[['EXTE_ID_EXTE','=',13],['PEDI_FECHA','>=',iso(d0)],['PEDI_FECHA','<',iso(d1)]];
     let rows;
-    try{ rows=await todo(base.concat([['VEHA_ID_VEHA','IN',WA_VEND.map(v=>v.id)]])); }
-    catch(e){ rows=[]; for(const v of WA_VEND) rows.push(...await todo(base.concat([['VEHA_ID_VEHA','=',v.id]]))); }
+    // Todos los pedidos de WhatsApp (Juan y Federico + los cargados a nombre de otros vendedores)
+    rows=await todo(base);
     // Agregar por mes y vendedor (filtros de nuevo acá por si Yiqi ignorara alguno)
     const agg={};
     const crudos=rows.filter(r=>Number(r.EXTE_ID_EXTE)===13&&WA_VEND.some(x=>x.id===Number(r.VEHA_ID_VEHA))).map(r=>({PEDI_FECHA:r.PEDI_FECHA,AUDI_FECHA_ALTA:r.AUDI_FECHA_ALTA,PEDI_NUMERO_SOLO:r.PEDI_NUMERO_SOLO,VEHA_ID_VEHA:r.VEHA_ID_VEHA,CLIE_ID_CLIE:r.CLIE_ID_CLIE,CLIE_NOMBRE:r.CLIE_NOMBRE,PEDI_TOTAL_MD:r.PEDI_TOTAL_MD,PEDI_TOTAL:r.PEDI_TOTAL,DESC_ESTADO:r.DESC_ESTADO}));
@@ -65311,7 +65320,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if(tom) b.n++;
       if(fac){ b.nf++; b.s+=Number(r.PEDI_TOTAL_MD!=null?r.PEDI_TOTAL_MD:r.PEDI_TOTAL)||0; }
     });
-    return {agg,rows:crudos,ts:Date.now()};
+    const otros=rows.filter(r=>Number(r.EXTE_ID_EXTE)===13&&!OTROS_EXCLUIR.has(r.VEHA_ID_VEHA==null?-1:Number(r.VEHA_ID_VEHA))&&r.VEHA_ID_VEHA!=null).filter(r=>{const f=new Date(r.PEDI_FECHA);return !isNaN(f)&&f>=d0&&f<d1;})
+      .map(r=>({PEDI_FECHA:r.PEDI_FECHA,VEHA_ID_VEHA:r.VEHA_ID_VEHA,PEDI_TOTAL_MD:r.PEDI_TOTAL_MD,PEDI_TOTAL:r.PEDI_TOTAL,DESC_ESTADO:r.DESC_ESTADO}));
+    return {agg,rows:crudos,otros,ts:Date.now()};
   }
   function waGet(y,m){
     const k=ymKey(y,m);
@@ -65417,6 +65428,67 @@ document.addEventListener('DOMContentLoaded', () => {
 ];
   }
 
+  /* ---------- PEDIDOS DE WHATSAPP CARGADOS A OTROS VENDEDORES (por separado de Juan y Federico) ---------- */
+  // Juan y Federico a veces cargan pedidos de WhatsApp a nombre de otros vendedores: se cuentan aparte.
+  // Se excluyen los que no son "otros vendedores" del equipo: Eduardo Balassanian (7), POS Factura (6), Mostrador (10), Patricia Bazan (11), Mercado Libre (13).
+  const OTROS_NOMBRES={5:'Jorge Campagnoli',3:'Carlos Cirigliano',2:'Gregorio Samandjian',12:'Aris Samandjian',9:'Showroom',1:'Local'};
+  const OTROS_EXCLUIR=new Set([4,8,7,6,10,11,13]);
+  const otroNombre=id=>OTROS_NOMBRES[id]||(id==null?'Sin vendedor':`Vendedor #${id}`);
+  function otrosModel(y,m){
+    const D=waCache[ymKey(y,m)]; if(!D||D.err||!D.otros) return null;
+    const hoy=new Date(), enCurso=(y===hoy.getFullYear()&&m===hoy.getMonth());
+    const monto=r=>Number(r.PEDI_TOTAL_MD!=null?r.PEDI_TOTAL_MD:r.PEDI_TOTAL)||0;
+    const mesDe=r=>{const f=new Date(r.PEDI_FECHA);return ymKey(f.getFullYear(),f.getMonth());};
+    const tom=r=>WA_ESTADOS.test(String(r.DESC_ESTADO||'').trim()), fac=r=>WA_FACT.test(String(r.DESC_ESTADO||'').trim());
+    const kM=ymKey(y,m);
+    const meses=[]; for(let i=enCurso?1:0;i<(enCurso?13:12);i++){const d=new Date(y,m-i,1);meses.push(ymKey(d.getFullYear(),d.getMonth()));}
+    const ids=[...new Set(D.otros.map(r=>r.VEHA_ID_VEHA==null?null:Number(r.VEHA_ID_VEHA)))];
+    const per=ids.map(id=>{
+      const R=D.otros.filter(r=>(r.VEHA_ID_VEHA==null?null:Number(r.VEHA_ID_VEHA))===id);
+      const mes=R.filter(r=>mesDe(r)===kM), mesF=mes.filter(fac);
+      const anio=R.filter(r=>meses.includes(mesDe(r)));
+      return {id,n:otroNombre(id),mesN:mes.filter(tom).length,mesS:mesF.reduce((a,r)=>a+monto(r),0),mesNF:mesF.length,
+        promN:anio.filter(tom).length/12,promS:anio.filter(fac).reduce((a,r)=>a+monto(r),0)/12};
+    }).filter(p=>p.mesN||p.promN>=0.1).sort((a,b)=>b.mesN-a.mesN||b.promN-a.promN);
+    const tot={mesN:per.reduce((a,p)=>a+p.mesN,0),mesS:per.reduce((a,p)=>a+p.mesS,0),mesNF:per.reduce((a,p)=>a+p.mesNF,0),promN:per.reduce((a,p)=>a+p.promN,0),promS:per.reduce((a,p)=>a+p.promS,0)};
+    const serie=[]; for(let i=11;i>=0;i--){const d=new Date(y,m-i,1),k=ymKey(d.getFullYear(),d.getMonth()); const R=D.otros.filter(r=>mesDe(r)===k&&tom(r)); serie.push({lbl:MONTHS[d.getMonth()].slice(0,3)+' '+String(d.getFullYear()).slice(2),n:R.length});}
+    const jf=waModel(y,m); const pctJF=jf&&!jf.err&&(jf.tot.mesN+tot.mesN)?tot.mesN/(jf.tot.mesN+tot.mesN):null;
+    return {per,tot,serie,enCurso,pctJF};
+  }
+  function otrosHTML(y,m){
+    const O=otrosModel(y,m); if(!O||!O.per.length) return '';
+    const mesTit=MONTHS[m], L_=' style="text-align:left"';
+    const tile=(l,b,s,cls)=>`<div class="est-tile"><span class="l">${l}</span><span class="b ${cls||''}">${b}</span><span class="s">${s||''}</span></div>`;
+    const mx=Math.max(1,...O.serie.map(s=>s.n));
+    return `<section class="est-sec"><p class="est-eyebrow">WhatsApp · cargados a otros vendedores</p><h3>Pedidos de WhatsApp a nombre de otros vendedores</h3>
+      <p class="est-sub">Pedidos con Origen WhatsApp cargados a nombre de Jorge, Carlos, Gregorio, Aris, Showroom, Local, etc. Se muestran aparte: no se suman a los de Juan y Federico.</p>
+      <div class="est-tiles">
+        ${tile(`Pedidos tomados en ${mesTit}`,fmtN(O.tot.mesN),O.pctJF!=null?`${fmtP(O.pctJF)} de todos los pedidos de WhatsApp`:'')}
+        ${tile(`Facturado en ${mesTit}`,fmt$(O.tot.mesS),`${fmtN(O.tot.mesNF)} pedidos facturados`)}
+        ${tile('Pedidos por mes (promedio)',fmtN(O.tot.promN),'últimos 12 meses')}
+        ${tile('Facturado por mes (promedio)',fmt$(O.tot.promS),'últimos 12 meses')}
+      </div>
+      <div class="est-two" style="margin-top:12px">
+        <div class="est-dt"><table class="est-cmp"><thead><tr><th${L_}>Vendedor</th><th>Pedidos ${mesTit}</th><th>Facturado ${mesTit}</th><th>Pedidos/mes<br><small style="color:#c7d7ee;font-weight:600">promedio</small></th></tr></thead>
+          <tbody>${O.per.map(p=>`<tr><td${L_}><b>${esc(p.n)}</b></td><td>${fmtN(p.mesN)}</td><td>${fmt$(p.mesS)}</td><td>${fmtN(p.promN)}</td></tr>`).join('')}
+          <tr><td${L_}><b>Total</b></td><td><b>${fmtN(O.tot.mesN)}</b></td><td><b>${fmt$(O.tot.mesS)}</b></td><td><b>${fmtN(O.tot.promN)}</b></td></tr></tbody></table></div>
+        <div class="est-card"><h4>Pedidos por mes <span>últimos 12 meses</span></h4>
+          <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:6px;align-items:end;height:150px;margin-top:10px">${O.serie.map(s=>`<div title="${esc(s.lbl)}: ${s.n} pedidos" style="display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%"><span style="font-size:11px;color:var(--text2);margin-bottom:3px">${s.n||''}</span><i style="display:block;width:70%;height:${Math.max(2,s.n/mx*110)}px;background:var(--c-sat);border-radius:3px 3px 0 0"></i></div>`).join('')}</div>
+          <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:6px;margin-top:4px">${O.serie.map(s=>`<span style="font-size:10.5px;color:var(--text3);text-align:center">${esc(s.lbl.split(' ')[0])}</span>`).join('')}</div></div>
+      </div>
+      <p class="est-small">Mismos criterios que Juan y Federico: pedidos tomados = A reservar, Entregado, Quiebre 2 y Staging Out; facturado = Entregado y Staging Out. No incluye MercadoLibre, POS, Mostrador, Eduardo Balassanian ni Patricia Bazan.</p></section>`;
+  }
+  function otrosSlide(y,m,frame,card){
+    const O=otrosModel(y,m); if(!O||!O.per.length) return null;
+    const mesTit=MONTHS[m], L_=' style="text-align:left"', mx=Math.max(1,...O.serie.map(s=>s.n));
+    const W=520,H=190,step=W/12;
+    const bars=O.serie.map((s,i)=>{const h=s.n/mx*130;return `<rect x="${i*step+step*.2}" y="${150-h}" width="${step*.6}" height="${h}" rx="2" fill="${PDFC.navy}"/><text x="${i*step+step/2}" y="${144-h}" font-size="12" text-anchor="middle" fill="${PDFC.ink}">${s.n||''}</text><text x="${i*step+step/2}" y="170" font-size="12" text-anchor="middle" fill="${PDFC.muted}">${s.lbl.split(' ')[0]}</text>`;}).join('');
+    return frame('WhatsApp · cargados a otros vendedores','Pedidos de WhatsApp a nombre de otros vendedores',`<div class="ep-grid4">${card(`Pedidos de ${mesTit}`,fmtN(O.tot.mesN),O.pctJF!=null?`${fmtP(O.pctJF)} de todo WhatsApp`:'')}${card(`Facturado ${mesTit}`,fmt$(O.tot.mesS),`${fmtN(O.tot.mesNF)} facturados`,'money')}${card('Pedidos por mes',fmtN(O.tot.promN),'promedio 12 meses')}${card('Facturado por mes',fmt$(O.tot.promS),'promedio 12 meses','money')}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:20px;align-items:start"><table class="ep-tb ep-anx"><colgroup><col style="width:42%"><col style="width:16%"><col style="width:24%"><col style="width:18%"></colgroup><thead><tr><th${L_}>Vendedor</th><th>Pedidos</th><th>Facturado</th><th>Ped./mes</th></tr></thead><tbody>${O.per.map(p=>`<tr><td${L_}>${esc(p.n)}</td><td>${fmtN(p.mesN)}</td><td>${fmt$(p.mesS)}</td><td>${fmtN(p.promN)}</td></tr>`).join('')}<tr><td${L_}><b>Total</b></td><td><b>${fmtN(O.tot.mesN)}</b></td><td><b>${fmt$(O.tot.mesS)}</b></td><td><b>${fmtN(O.tot.promN)}</b></td></tr></tbody></table>
+      <div><p class="ep-axis" style="margin:0 0 4px;font-weight:700">Pedidos por mes (últimos 12)</p><svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="DM Sans, Arial, sans-serif"><line x1="0" x2="${W}" y1="150" y2="150" stroke="${PDFC.line}"/>${bars}</svg></div></div>
+      <p class="ep-note">Pedidos con Origen WhatsApp cargados a nombre de otros vendedores (Juan y Federico los cargan por ellos). No se suman a los de Juan y Federico.</p>`);
+  }
+
   /* ---------- CLIENTES DEL MES (pedidos WhatsApp de Juan y Federico en Yiqi) ---------- */
   function cliModel(y,m){
     const D=waCache[ymKey(y,m)]; if(!D||D.err||!D.rows) return null;
@@ -65496,6 +65568,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       k.push({l:'Chats',b:fmtN(C.sum),s:C.avg!=null?fmtN(C.avg)+' por día hábil':''},{l:'Consultas',b:fmtN(Q.sum),s:''},{l:'Pedidos anotados',b:fmtN(P.sum),s:'en la planilla',cls:'red'},{l:'Conversión',b:fmtP(conv),s:'consultas que terminan en pedido'});
     }
+    { const O=otrosModel(y,m); if(O&&O.tot.mesN) frases.push(`Además se cargaron ${fmtN(O.tot.mesN)} pedidos de WhatsApp a nombre de otros vendedores (${O.per.filter(p=>p.mesN).slice(0,3).map(p=>p.n.split(' ')[0]).join(', ')}${O.per.filter(p=>p.mesN).length>3?' y otros':''}), por ${fmt$(O.tot.mesS)} facturados.`); }
     if(C.sum) frases.push(`Entraron ${fmtN(C.sum)} chats y ${fmtN(Q.sum)} consultas; el ${fmtP(conv)} de las consultas terminó en pedido.`);
     if(L&&(L.espera.length||L.perdidos.length)) frases.push(`Para atender: ${[L.espera.length?`${L.espera.length} pedidos sin concretar por ${fmt$(L.espera.reduce((a,p)=>a+p.monto,0))}`:'',L.perdidos.length?`${L.perdidos.length} clientes habituales que no compraron en ${mesTit}`:''].filter(Boolean).join(' y ')}.`);
     else if(recs&&recs.improve.length) frases.push(`Para atender: ${gram(recs.improve[0].t).toLowerCase()}.`);
@@ -65547,6 +65620,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <p class="est-small">Se contaron ${conDatos.length} días hábiles con datos, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p></section>%%EST_RECS%%`;
     h+=waSecHTML(y,m);
+    h+=otrosHTML(y,m);
     h+=cliHTML(y,m);
     // 2. Embudo
     const fmax=Math.max(C.sum,Q.sum,P.sum,1);
@@ -65668,6 +65742,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // números
     slides.push(frame('Resumen del mes',`${mes} en números`,`<div class="ep-grid4">${card('Chats totales',fmtN(C.sum),C.avg!=null?fmtN(C.avg)+' por día hábil':'')}${card('Consultas',fmtN(Q.sum),Q.avg!=null?fmtN(Q.avg)+' por día hábil':'')}${card('Pedidos anotados (planilla)',fmtN(P.sum),P.avg!=null?fmtN(P.avg)+' por día hábil':'','red')}${card('Conversión',fmtP(conv),'de las consultas terminan en pedido')}</div><p class="ep-note">Se contaron ${conDatos.length} días hábiles, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p>`));
     { const ws=waSlide(y,m,frame,card); if(ws) slides.push(...ws); }
+    { const os=otrosSlide(y,m,frame,card); if(os) slides.push(os); }
     slides.push(...cliSlides(y,m,frame,card));
     // embudo
     const fm=Math.max(C.sum,Q.sum,P.sum,1), fb=(l,v,c,tc)=>`<div class="ep-fun"><span>${l}</span><div><i style="width:${Math.max(2,v/fm*82)}%;background:${c}"></i><b style="color:${tc||PDFC.navy}">${fmtN(v)}</b></div></div>`;
@@ -65711,7 +65786,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { const A=pasosModel(y,m,recs); if(A.length) slides.push(frame('Para el mes que viene','Próximos pasos',`<ol class="ep-pasos">${A.map(a=>`<li><b>${esc(a.q)}</b><span>${esc(a.t)}</span></li>`).join('')}</ol>`)); }
     slides.push(...waAnexosSlides(y,m,frame));
     // Orden de presentación: resumen → ventas → clientes → atención por WhatsApp → diagnóstico y próximos pasos → anexos
-    const RANK=[['Resumen para presentar',1],['Ventas en Yiqi',2],['Clientes · Origen',3],['Resumen del mes',4],['Embudo del mes',5],['Contra otros períodos',6],['Por día de la semana',8],['Por día',7],['Entrega de pedidos',9],['Repartos',10],['Mercadería faltante',11],['Récords del mes',12],['Diagnóstico del mes',13],['Para el mes que viene',14],['Anexo',15]];
+    const RANK=[['Resumen para presentar',1],['Ventas en Yiqi',2],['WhatsApp · cargados',2.5],['Clientes · Origen',3],['Resumen del mes',4],['Embudo del mes',5],['Contra otros períodos',6],['Por día de la semana',8],['Por día',7],['Entrega de pedidos',9],['Repartos',10],['Mercadería faltante',11],['Récords del mes',12],['Diagnóstico del mes',13],['Para el mes que viene',14],['Anexo',15]];
     const rk=h=>{ if(/ep-slide cover/.test(h)) return 0; const m=h.match(/<p class="ep-eye">([^<]*)<\/p>/); const e=m?m[1]:''; const r=RANK.find(([k])=>e.startsWith(k)); return r?r[1]:9.5; };
     let orden=slides.map((h,i)=>({h,i,r:rk(h)})).sort((a,b)=>a.r-b.r||a.i-b.i);
     if(!pdfCompleto) orden=orden.filter(x=>x.r!==12); // "Días récord" solo en el PDF completo
