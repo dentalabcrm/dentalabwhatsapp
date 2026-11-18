@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.405</title>
+<title>Dentalab Whatsapp CRM · v25.406</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45588,7 +45588,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.405';
+  const LATEST_VERSION = 'v25.406';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45601,6 +45601,15 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.406',
+      fecha: '2026-11-17',
+      titulo: 'Pedidos Yiqi: elegir, ocultar y ordenar columnas + Vendedor',
+      items: [
+        { tipo: 'nuevo', texto: 'Botón "⚙ Columnas" en la grilla de Pedidos: tildá/destildá para mostrar u ocultar, y ordená con ▲▼ o arrastrando. También se pueden arrastrar los encabezados de la tabla. "Restablecer" vuelve al orden original. Se recuerda en esta computadora.' },
+        { tipo: 'nuevo', texto: 'Columna Vendedor (al lado de Cliente, editable con el pedido En espera de pago). Columnas opcionales: Condición de venta (editable siempre), Origen, Punto de venta, Fecha del pedido, Dirección y Localidad de envío, Teléfono.' }
+      ]
+    },
     {
       version: 'v25.405',
       fecha: '2026-11-17',
@@ -63325,6 +63334,14 @@ document.addEventListener('DOMContentLoaded', () => {
 #pyq-wrap .pyq-chip.on{border-color:#8b5cf6;color:#e9d5ff;background:rgba(139,92,246,.2);}
 #pyq-wrap .pyq-login{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:9px;padding:10px 12px;margin-bottom:10px;font-size:12.5px;color:#fcd34d;}
 #pyq-toggle-crm{margin:0 0 10px 0;}
+#pyq-wrap .pyq-colpanel{position:absolute;top:calc(100% + 6px);left:0;z-index:30;background:#0f172a;border:1px solid rgba(139,92,246,.45);border-radius:12px;padding:12px;width:360px;max-height:70vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.55);font-size:12.5px;}
+#pyq-wrap .pyq-colrow{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:7px;cursor:grab;}
+#pyq-wrap .pyq-colrow:hover{background:rgba(255,255,255,.05);}
+#pyq-wrap .pyq-colrow label{display:flex;align-items:center;gap:6px;cursor:pointer;color:#cbd5e1;}
+#pyq-wrap .pyq-colrow.drag-over,#pyq-wrap th.drag-over{box-shadow:inset 3px 0 0 #8b5cf6;}
+#pyq-wrap .pyq-grip{color:#475569;}
+#pyq-wrap .pyq-mini[disabled]{opacity:.3;cursor:default;}
+#pyq-wrap th[draggable]{cursor:grab;}
 </style>
 <script>
 (function(){
@@ -63333,9 +63350,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const MAP_CEDI = typeof _YIQI_INV_CEDI !== 'undefined' ? _YIQI_INV_CEDI : {155:'Deposito 1 - Local',157:'Deposito Central',159:'Deposito 7 - Jorge'};
   const MAP_TIFA = typeof _YIQI_INV_TIFA !== 'undefined' ? _YIQI_INV_TIFA : {1:'A',2:'B',16:'X'};
   const MAP_PUVE = typeof _YIQI_INV_PUVE !== 'undefined' ? _YIQI_INV_PUVE : {2:'4',14:'98'};
+  const MAP_VEHA = typeof _YIQI_INV_VEHA !== 'undefined' ? _YIQI_INV_VEHA : {4:'Juan Martin Gaffuri',8:'Federico Silva',7:'Eduardo Balassanian',5:'Jorge Campagnoli',3:'Carlos Cirigliano',1:'Local',10:'Mostrador',11:'Patricia Bazan',6:'POS Factura',9:'Showroom',2:'Gregorio Samandjian'};
+  const MAP_COVE = typeof _YIQI_INV_CONDVENTA !== 'undefined' ? _YIQI_INV_CONDVENTA : {3:'Contado',9:'Cuenta Corriente',6:'Transferencia Bancaria'};
   const MAP_EXTE = {13:'WhatsApp',3:'Local',4:'Jorge (Dep 7)',6:'Gregorio (Dep 2)',10:'E. Balassanian',11:'Web',16:'Sólo Factura',2:'MercadoLibre'};
   // Campos que Yiqi deja editar siempre (también en pedidos Entregados)
-  const SIEMPRE = new Set(['PEDI_OBSERVACIONES','PEDI_ESTADO_DEL_ENVIO','PEDI_ESTADO_DE_PAGO','PEDI_ESTADO','PEDI_ESTADO_ACTUAL_DEL_PE']);
+  const SIEMPRE = new Set(['COVE_ID_COVE','PEDI_DIRECCION_DE_ENVIO','PEDI_OBSERVACIONES','PEDI_ESTADO_DEL_ENVIO','PEDI_ESTADO_DE_PAGO','PEDI_ESTADO','PEDI_ESTADO_ACTUAL_DEL_PE']);
   const COLS = [
     { k:'_acc', t:'', cls:'c-acc' },
     { k:'PEDI_NUMERO_SOLO', t:'Nro', cls:'c-nro' },
@@ -63350,11 +63369,32 @@ document.addEventListener('DOMContentLoaded', () => {
     { k:'PEDI_ESTADO', t:'Estado', ed:'text' },
     { k:'PEDI_ESTADO_ACTUAL_DEL_PE', t:'Estado actual del pedido', ed:'text' },
     { k:'PEDI_PROVINCIA_DE_ENVIO', t:'Provincia de envío', ed:'text' },
-    { k:'DESC_ESTADO', t:'Descripción de estado' }
+    { k:'DESC_ESTADO', t:'Descripción de estado' },
+    // Columnas extra (se activan desde ⚙ Columnas)
+    { k:'VEHA_ID_VEHA', t:'Vendedor', ed:'select', map:MAP_VEHA, fk:true },
+    { k:'COVE_ID_COVE', t:'Condición de venta', ed:'select', map:MAP_COVE, fk:true, extra:true },
+    { k:'EXTE_ID_EXTE', t:'Origen', map:MAP_EXTE, extra:true },
+    { k:'PUVE_ID_PUVE', t:'Punto de venta', map:MAP_PUVE, extra:true },
+    { k:'PEDI_FECHA', t:'Fecha del pedido', cls:'c-fecha', extra:true },
+    { k:'PEDI_DIRECCION_DE_ENVIO', t:'Dirección de envío', ed:'text', extra:true },
+    { k:'PEDI_LOCALIDAD_DE_ENVIO', t:'Localidad de envío', ed:'text', extra:true },
+    { k:'PEDI_TELEFONO', t:'Teléfono', ed:'text', extra:true }
   ];
+  const COL_DEF = Object.fromEntries(COLS.map(c => [c.k, c]));
+  const ORDEN_DEFAULT = COLS.map(c => c.k).filter(k => k !== 'VEHA_ID_VEHA');
+  ORDEN_DEFAULT.splice(ORDEN_DEFAULT.indexOf('CLIE_NOMBRE') + 1, 0, 'VEHA_ID_VEHA'); // Vendedor al lado de Cliente
+  const OCULTAS_DEFAULT = COLS.filter(c => c.extra).map(c => c.k);
+  function ordenCols() {
+    const o = (Array.isArray(prefs.orden) ? prefs.orden : ORDEN_DEFAULT).filter(k => COL_DEF[k]);
+    ORDEN_DEFAULT.forEach(k => { if (!o.includes(k)) o.splice(Math.min(ORDEN_DEFAULT.indexOf(k), o.length), 0, k); });
+    return o;
+  }
+  const ocultas = () => new Set(Array.isArray(prefs.ocultas) ? prefs.ocultas : OCULTAS_DEFAULT);
+  function visibles() { const h = ocultas(); return ordenCols().filter(k => !h.has(k)).map(k => COL_DEF[k]); }
   const QCOLS = ['ID','PEDI_NUMERO','PEDI_NUMERO_SOLO','AUDI_FECHA_ALTA','PEDI_FECHA','CLIE_NOMBRE','PEDI_RAZON_SOCIAL','CEDI_ID_ORIG','TIFA_ID_TIFA',
     'PEDI_TOTAL','PEDI_OBSERVACIONES','PEDI_ESTADO_DEL_ENVIO','PEDI_ESTADO_DE_PAGO','PEDI_ESTADO','PEDI_ESTADO_ACTUAL_DEL_PE',
-    'PEDI_PROVINCIA_DE_ENVIO','DESC_ESTADO','EXTE_ID_EXTE','PUVE_ID_PUVE'];
+    'PEDI_PROVINCIA_DE_ENVIO','DESC_ESTADO','EXTE_ID_EXTE','PUVE_ID_PUVE','VEHA_ID_VEHA','COVE_ID_COVE','PEDI_DIRECCION_DE_ENVIO',
+    'PEDI_LOCALIDAD_DE_ENVIO','PEDI_TELEFONO'];
   const ESTADO_COLOR = {
     'en espera de pago':['rgba(245,158,11,.18)','#fcd34d'], 'entregado':['rgba(16,185,129,.18)','#6ee7b7'],
     'staging out':['rgba(59,130,246,.18)','#93c5fd'], 'quiebre 2':['rgba(239,68,68,.18)','#fca5a5'],
@@ -63446,6 +63486,7 @@ document.addEventListener('DOMContentLoaded', () => {
       for (const v of [dia, dia + 'T00:00:00'])
         variantes.push({ cols: QCOLS, f: [{ c: 'PEDI_FECHA', op, v }] });
     variantes.push({ cols: colsMin, f: [{ c: 'PEDI_FECHA', op: '>=', v: dia }] });
+    if (_modoQuery && Array.isArray(_modoQuery.cols) && _modoQuery.cols.length) _modoQuery.cols = _modoQuery.cols.includes('CLIE_NOMBRE') ? QCOLS : colsMin;
     if (_modoQuery) variantes.unshift(_modoQuery.ultimas ? { cols: _modoQuery.cols, ultimas: true } : { cols: _modoQuery.cols, f: [{ c: 'PEDI_FECHA', op: _modoQuery.op, v: _modoQuery.conHora ? dia + 'T00:00:00' : dia }] });
     variantes.push({ cols: QCOLS, ultimas: true }, { cols: colsMin, ultimas: true }, { cols: [], ultimas: true });
     let ultimoErr, out = null;
@@ -63648,7 +63689,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return [nro(r), r.CLIE_NOMBRE, r.PEDI_OBSERVACIONES, r.PEDI_ESTADO_DEL_ENVIO, r.PEDI_ESTADO_DE_PAGO, r.PEDI_ESTADO, r.PEDI_ESTADO_ACTUAL_DEL_PE, r.PEDI_PROVINCIA_DE_ENVIO]
         .some(v => String(v || '').toLowerCase().includes(q));
     });
-    const k = prefs.sort, d = prefs.dir, col = COLS.find(c => c.k === k);
+    const k = prefs.sort, d = prefs.dir, col = COL_DEF[k];
     const val = r => col && col.map ? (col.map[r[k]] || '') : (k === 'PEDI_NUMERO_SOLO' ? Number(nro(r)) : r[k]);
     out.sort((a, b) => { const x = val(a), y = val(b);
       if (typeof x === 'number' || typeof y === 'number') return ((Number(x)||0) - (Number(y)||0)) * d;
@@ -63671,7 +63712,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const o = MAP_EXTE[r.EXTE_ID_EXTE] || (r.EXTE_ID_EXTE ? 'Origen ' + r.EXTE_ID_EXTE : '');
       const pv = MAP_PUVE[r.PUVE_ID_PUVE]; return `${esc(nro(r))}<small>${esc(o)}${pv ? ' · PV ' + esc(pv) : ''}</small>`;
     }
-    if (c.k === 'AUDI_FECHA_ALTA') return fmtFecha(v);
+    if (c.k === 'AUDI_FECHA_ALTA' || c.k === 'PEDI_FECHA') return fmtFecha(v);
     if (c.k === 'PEDI_TOTAL') return fmtMoney(v);
     if (c.k === 'DESC_ESTADO') { const [bg, fg] = ESTADO_COLOR[String(v||'').toLowerCase()] || []; return v ? `<span class="pyq-badge" style="${bg ? `background:${bg};color:${fg}` : ''}">${esc(v)}</span>` : ''; }
     const txt = c.map ? (c.map[v] || (v ? '#' + v : '')) : (v || '');
@@ -63683,10 +63724,29 @@ document.addEventListener('DOMContentLoaded', () => {
     return Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 30).map(e => e[0]);
   }
 
+  let colsAbierto = false;
+  function panelCols() {
+    const h = ocultas();
+    return `<div class="pyq-colpanel">
+      <div style="font-weight:800;color:#e2e8f0;margin-bottom:6px;">Columnas <span style="font-weight:500;color:#64748b;font-size:11px;">· tildá para mostrar · ▲▼ o arrastrá para ordenar</span></div>
+      ${ordenCols().map((k, i, arr) => { const c = COL_DEF[k]; return `<div class="pyq-colrow" draggable="true" data-colrow="${k}">
+        <span class="pyq-grip">⠿</span>
+        <label><input type="checkbox" data-colvis="${k}" ${h.has(k) ? '' : 'checked'}> ${esc(c.t || 'Botones (Copiar / Editar / Eliminar)')}${c.ed ? ' <span style="color:#a78bfa">✎</span>' : ''}</label>
+        <span style="margin-left:auto;white-space:nowrap;"><button class="pyq-mini" data-colmove="${k}" data-d="-1" ${i ? '' : 'disabled'}>▲</button><button class="pyq-mini" data-colmove="${k}" data-d="1" ${i < arr.length - 1 ? '' : 'disabled'}>▼</button></span></div>`; }).join('')}
+      <div style="display:flex;gap:8px;margin-top:8px;"><button class="pyq-btn sec" data-a="colsreset">Restablecer</button><button class="pyq-btn" data-a="cols">Listo</button></div>
+    </div>`;
+  }
+  function moverCol(k, destino) {
+    const o = ordenCols(); const i = o.indexOf(k); if (i < 0) return;
+    o.splice(i, 1); o.splice(Math.max(0, Math.min(destino, o.length)), 0, k);
+    prefs.orden = o; savePrefs(); render();
+  }
+
   function render() {
     const w = document.getElementById('pyq-wrap'); if (!w || w.style.display === 'none') return;
     if (editing) return; // no pisar una edición en curso
     const lista = filtradas();
+    const VC = visibles();
     const estados = {}; rows.forEach(r => { const e = r.DESC_ESTADO || '(sin estado)'; estados[e] = (estados[e] || 0) + 1; });
     const hace = lastTs ? Math.round((Date.now() - lastTs) / 60000) : null;
     const scrollEl = w.querySelector('.pyq-scroll'); const sTop = scrollEl ? scrollEl.scrollTop : 0, sLeft = scrollEl ? scrollEl.scrollLeft : 0;
@@ -63699,6 +63759,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </select>
         <input type="text" class="pyq-q" data-a="q" placeholder="Buscar nro, cliente, observaciones…" value="${esc(prefs.q)}">
         <label class="pyq-chk"><input type="checkbox" data-a="ml" ${prefs.ml ? 'checked' : ''}> Incluir MercadoLibre</label>
+        <span style="position:relative;display:inline-block;"><button class="pyq-btn sec" data-a="cols">⚙ Columnas</button>${colsAbierto ? panelCols() : ''}</span>
         <button class="pyq-btn sec" data-a="crm" title="Volver a la vista anterior del CRM (Gmail, calendario, etc.)">Vista anterior</button>
         <span class="pyq-info">${lista.length} de ${rows.length} pedidos${hace != null ? ` · actualizado ${hace < 1 ? 'recién' : 'hace ' + hace + ' min'}` : ''} · <span style="color:#a78bfa">✎</span> = editable (clic en la celda)</span>
       </div>
@@ -63711,16 +63772,16 @@ document.addEventListener('DOMContentLoaded', () => {
         ${Object.entries(estados).sort((a,b)=>b[1]-a[1]).map(([e,n]) => `<button class="pyq-chip ${prefs.estado===e?'on':''}" data-estado="${esc(e)}">${esc(e)} (${n})</button>`).join('')}
       </div>
       <div class="pyq-scroll"><table>
-        <thead><tr>${COLS.map(c => `<th ${c.k==='_acc'?'':`data-sort="${c.k}"`}>${esc(c.t)}${c.ed ? '<span class="pyq-ed">✎</span>' : ''}${prefs.sort===c.k ? (prefs.dir<0?' ▼':' ▲') : ''}</th>`).join('')}</tr></thead>
-        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}" class="${String(rowId(r))===String(resaltar)?'pyq-nuevo':''}">${COLS.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
-          : `<tr><td colspan="${COLS.length}" style="text-align:center;color:#64748b;padding:30px;">${loading ? 'Cargando pedidos desde Yiqi…' : 'No hay pedidos para mostrar.'}</td></tr>`}</tbody>
+        <thead><tr>${VC.map(c => `<th draggable="true" data-col="${c.k}" ${c.k==='_acc'?'':`data-sort="${c.k}"`} title="Arrastrá para mover la columna">${esc(c.t)}${c.ed ? '<span class="pyq-ed">✎</span>' : ''}${prefs.sort===c.k ? (prefs.dir<0?' ▼':' ▲') : ''}</th>`).join('')}</tr></thead>
+        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}" class="${String(rowId(r))===String(resaltar)?'pyq-nuevo':''}">${VC.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
+          : `<tr><td colspan="${VC.length}" style="text-align:center;color:#64748b;padding:30px;">${loading ? 'Cargando pedidos desde Yiqi…' : 'No hay pedidos para mostrar.'}</td></tr>`}</tbody>
       </table></div>`;
     const sc = w.querySelector('.pyq-scroll'); if (sc) { sc.scrollTop = sTop; sc.scrollLeft = sLeft; }
   }
 
   function abrirEditor(td) {
     const tr = td.closest('tr'), id = tr.dataset.id, k = td.dataset.k;
-    const r = rows.find(x => String(rowId(x)) === id), c = COLS.find(x => x.k === k);
+    const r = rows.find(x => String(rowId(x)) === id), c = COL_DEF[k];
     if (!r || !c || editing) return;
     editing = { td, id, k };
     const actual = r[k];
@@ -63774,6 +63835,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (del) return eliminarPedido(del.dataset.eliminar);
     if (cp) return copiarPedido(cp.dataset.copiar);
     if (edb) return editarEnCrm(edb.dataset.editar);
+    if (a && a.dataset.a === 'cols') { colsAbierto = !colsAbierto; return render(); }
+    if (a && a.dataset.a === 'colsreset') { delete prefs.orden; delete prefs.ocultas; savePrefs(); return render(); }
+    const mv = e.target.closest('[data-colmove]');
+    if (mv) { const o = ordenCols(); return moverCol(mv.dataset.colmove, o.indexOf(mv.dataset.colmove) + Number(mv.dataset.d)); }
+    if (e.target.closest('.pyq-colpanel')) return;
     if (a && a.dataset.a === 'refresh') return refrescar(true);
     if (a && a.dataset.a === 'crm') { localStorage.setItem(LS_VISTA, 'crm'); aplicarVista(); try { renderEnviosPanel(); } catch(_) {} return; }
     if (a && a.dataset.a === 'login') {
@@ -63790,10 +63856,34 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('change', e => {
     const w = document.getElementById('pyq-wrap'); if (!w || !w.contains(e.target)) return;
     const a = e.target.dataset.a;
+    if (e.target.dataset.colvis) {
+      const h = ocultas(), k = e.target.dataset.colvis;
+      if (e.target.checked) h.delete(k); else h.add(k);
+      if (ordenCols().filter(x => !h.has(x)).length === 0) { e.target.checked = true; return; }
+      prefs.ocultas = [...h]; savePrefs(); return render();
+    }
     if (a === 'dias') { prefs.dias = Number(e.target.value); savePrefs(); refrescar(true); }
     if (a === 'ml') { prefs.ml = e.target.checked; savePrefs(); refrescar(true); }
   });
   let qT;
+  // Arrastrar columnas (encabezado de la tabla o filas del panel ⚙ Columnas)
+  let dragCol = null;
+  document.addEventListener('dragstart', e => {
+    const el = e.target.closest && e.target.closest('#pyq-wrap th[data-col], #pyq-wrap [data-colrow]'); if (!el) return;
+    dragCol = el.dataset.col || el.dataset.colrow; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragCol); } catch(_) {}
+  });
+  document.addEventListener('dragover', e => {
+    if (!dragCol) return; const el = e.target.closest && e.target.closest('#pyq-wrap th[data-col], #pyq-wrap [data-colrow]'); if (!el) return;
+    e.preventDefault(); document.querySelectorAll('#pyq-wrap .drag-over').forEach(x => x.classList.remove('drag-over')); el.classList.add('drag-over');
+  });
+  document.addEventListener('drop', e => {
+    if (!dragCol) return; const el = e.target.closest && e.target.closest('#pyq-wrap th[data-col], #pyq-wrap [data-colrow]'); if (!el) return;
+    e.preventDefault(); const destKey = el.dataset.col || el.dataset.colrow; const k = dragCol; dragCol = null;
+    if (destKey === k) return render();
+    const o = ordenCols(); const from = o.indexOf(k), to = o.indexOf(destKey); o.splice(from, 1); const t = o.indexOf(destKey); o.splice(from < to ? t + 1 : t, 0, k);
+    prefs.orden = o; savePrefs(); render();
+  });
+  document.addEventListener('dragend', () => { dragCol = null; document.querySelectorAll('#pyq-wrap .drag-over').forEach(x => x.classList.remove('drag-over')); });
   document.addEventListener('input', e => {
     if (e.target.dataset && e.target.dataset.a === 'q' && e.target.closest('#pyq-wrap')) {
       prefs.q = e.target.value; savePrefs(); clearTimeout(qT);
