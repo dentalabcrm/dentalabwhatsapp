@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.429</title>
+<title>Dentalab Whatsapp CRM · v25.432</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -41131,7 +41131,7 @@ function pedAutocomplete(inputId, listId, hiddenId) {
   const buildAndRender = (extra) => {
     // Fuente 1: historial de pedidos (cliClientes)
     const fromHist = (typeof cliClientes !== 'undefined' ? cliClientes : [])
-      .filter(c => c.nombre && c.nombre.toLowerCase().includes(q))
+      .filter(c => c.nombre && (c.nombre.toLowerCase().includes(q) || (window._pedMatchPalabras && _pedMatchPalabras(c.nombre, q))))
       .map(c => ({ nombre: c.nombre, yiqiId: (typeof YIQI_CLI_MAP !== 'undefined' ? (YIQI_CLI_MAP[c.nombre] ?? YIQI_CLI_MAP[c.nombre.toLowerCase()]) : null) }));
 
     // Fuente 2: mapa Yiqi en memoria (clientes que no están en historial)
@@ -41139,7 +41139,7 @@ function pedAutocomplete(inputId, listId, hiddenId) {
     const fromYiqi = [];
     if (typeof YIQI_CLI_MAP !== 'undefined' && q.length >= 3) {
       for (const key of Object.keys(YIQI_CLI_MAP)) {
-        if (key.includes(q) && !histNames.has(key)) {
+        if ((key.includes(q) || (window._pedMatchPalabras && _pedMatchPalabras(key, q))) && !histNames.has(key)) {
           fromYiqi.push({ nombre: key, yiqiId: YIQI_CLI_MAP[key] });
           if (fromHist.length + fromYiqi.length >= 12) break;
         }
@@ -41192,7 +41192,7 @@ function pedAutocomplete(inputId, listId, hiddenId) {
       const res = await yiqiFetch(`${YIQI_API_BASE}/api/public/CLIENTE/query?schemaId=${YIQI_SCHEMA_ID}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page: 1, pageSize: 12, search: input.value.trim() })
+        body: JSON.stringify((() => { const _ws = input.value.trim().split(/\s+/).filter(w => w.length >= 2).slice(0, 5); return _ws.length > 1 ? { page: 1, pageSize: 12, columns: [{ field: 'CLIE_NOMBRE', title: 'Nombre' }], filters: _ws.map(w => ({ columnName: 'CLIE_NOMBRE', operator: 'LIKE', value: w })) } : { page: 1, pageSize: 12, search: input.value.trim() }; })())
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -41513,6 +41513,7 @@ async function cargarPedidoEnYiqi(btnEl) {
     const vehaId = VEHA_MAP[g('ped-vendedor')];         if (vehaId)  pedidoData.VEHA_ID_VEHA  = vehaId;
 
     const obs = g('ped-obs'); if (obs) pedidoData.PEDI_OBSERVACIONES = obs;
+    try { const _fid = window._pedCliFactIdResolver && window._pedCliFactIdResolver(); if (_fid && String(_fid) !== String(clieId)) pedidoData.CLIE_ID_FACT = _fid; } catch (_e) {}
     if (g('ped-dir-envio'))       pedidoData.PEDI_DIRECCION_DE_ENVIO  = g('ped-dir-envio');
     if (g('ped-ciudad-envio'))    pedidoData.PEDI_CIUDAD_DE_ENVIO     = g('ped-ciudad-envio');
     if (g('ped-prov-envio'))      pedidoData.PEDI_PROVINCIA_DE_ENVIO  = g('ped-prov-envio');
@@ -41678,6 +41679,7 @@ async function generarPedidoYiqiConsumidorFinal(btnEl) {
     const vehaId = VEHA_MAP[_vendedorLogueado];         if (vehaId)  pedidoData.VEHA_ID_VEHA  = vehaId;
 
     const obs = g('ped-obs'); if (obs) pedidoData.PEDI_OBSERVACIONES = obs;
+    try { const _fid = window._pedCliFactIdResolver && window._pedCliFactIdResolver(); if (_fid && String(_fid) !== String(clieId)) pedidoData.CLIE_ID_FACT = _fid; } catch (_e) {}
     if (g('ped-dir-envio'))       pedidoData.PEDI_DIRECCION_DE_ENVIO  = g('ped-dir-envio');
     if (g('ped-ciudad-envio'))    pedidoData.PEDI_CIUDAD_DE_ENVIO     = g('ped-ciudad-envio');
     if (g('ped-prov-envio'))      pedidoData.PEDI_PROVINCIA_DE_ENVIO  = g('ped-prov-envio');
@@ -45605,7 +45607,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.429';
+  const LATEST_VERSION = 'v25.432';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45618,6 +45620,34 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.432',
+      fecha: '2026-11-18',
+      titulo: 'Nuevo Pedido: datos del último pedido del cliente · Completar desde ARCA',
+      items: [
+        { tipo: 'nuevo', texto: 'En "Nuevo Pedido", al elegir un cliente que ya está en Yiqi se completan solos origen, vendedor, condición de venta, lista, punto de venta, ubicación origen, cliente de facturación y datos de envío con los de su último pedido. Lo que cambiaste a mano no se pisa; estados y observaciones no se copian.' },
+        { tipo: 'mejora', texto: 'El buscador de clientes encuentra por palabras sueltas: "Juan Gaffuri" encuentra "GAFFURI SOENGAS JUAN MARTIN".' },
+        { tipo: 'mejora', texto: 'El cliente de facturación ahora se envía a Yiqi al cargar el pedido.' },
+        { tipo: 'nuevo', texto: 'En "Nueva Empresa / Cliente", botón "Completar desde ARCA" al lado del CUIT: copia el CUIT y abre la constancia de ARCA.' }
+      ]
+    },
+    {
+      version: 'v25.431',
+      fecha: '2026-11-18',
+      titulo: 'Pedidos Web en un PDF aparte',
+      items: [
+        { tipo: 'mejora', texto: 'Los pedidos Web salen del informe de WhatsApp y tienen su propio PDF con el botón "⬇ PDF Web": portada, pedidos y facturado del mes con la evolución de 12 meses, clientes que más gastaron y que más pedidos hicieron, y la lista de pedidos Web sin concretar.' }
+      ]
+    },
+    {
+      version: 'v25.430',
+      fecha: '2026-11-18',
+      titulo: 'Informe: pedidos Web (tienda online)',
+      items: [
+        { tipo: 'nuevo', texto: 'Nueva sección "Pedidos Web" (pantalla y PDF), aparte de WhatsApp: pedidos tomados y facturado del mes contra el promedio mensual, ticket promedio, clientes del mes y nuevos, pedidos sin concretar y devoluciones, evolución de los últimos 12 meses, los clientes que más gastaron y los que más pedidos hicieron, y la lista de pedidos Web en espera de pago.' },
+        { tipo: 'mejora', texto: 'El resumen para presentar suma una frase de la tienda web y los próximos pasos incluyen contactar a los clientes Web con pedidos en espera de pago.' }
+      ]
+    },
     {
       version: 'v25.429',
       fecha: '2026-11-18',
@@ -64856,7 +64886,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="est-top">
         <div><h2>📊 Estadística WhatsApp</h2><p>Carga diaria de chats, consultas y pedidos. Tocá una celda para cargar y repartir por tipo.</p></div>
         <div class="est-month"><button data-est="prev" aria-label="Mes anterior">‹</button><span>${MONTHS[m]} ${y}</span><button data-est="next" aria-label="Mes siguiente">›</button></div>
-        <div class="est-actions"><button class="est-btn" data-est="today">Hoy</button><button class="est-btn" data-est="flt-new" title="Anotar un producto que un cliente pidió y no hay stock">＋ Faltante</button><button class="est-btn" data-est="config">⚙ Columnas y tipos</button><button class="est-btn" data-est="xlsx">⬇ Exportar Excel</button><button class="est-btn primary" data-est="pdf" title="Versión para presentar: resumen, diagnóstico, próximos pasos y los 10 principales de cada lista">⬇ PDF para presentar</button><button class="est-btn" data-est="pdf-full" title="Incluye las listas completas de clientes y pedidos">⬇ PDF completo</button></div>
+        <div class="est-actions"><button class="est-btn" data-est="today">Hoy</button><button class="est-btn" data-est="flt-new" title="Anotar un producto que un cliente pidió y no hay stock">＋ Faltante</button><button class="est-btn" data-est="config">⚙ Columnas y tipos</button><button class="est-btn" data-est="xlsx">⬇ Exportar Excel</button><button class="est-btn primary" data-est="pdf" title="Versión para presentar: resumen, diagnóstico, próximos pasos y los 10 principales de cada lista">⬇ PDF para presentar</button><button class="est-btn" data-est="pdf-full" title="Incluye las listas completas de clientes y pedidos">⬇ PDF completo</button><button class="est-btn" data-est="pdf-web" title="Informe aparte de los pedidos de la tienda online (Origen Web)">⬇ PDF Web</button></div>
       </div>`;
     h+=`<div class="est-views" role="tablist"><button class="${view==='planilla'?'on':''}" data-est="v-planilla" role="tab">📋 Planilla</button><button class="${view==='informe'?'on':''}" data-est="v-informe" role="tab">📈 Informe del mes</button><button class="${view==='anual'?'on':''}" data-est="v-anual" role="tab">📅 Comparativa anual</button></div>`;
     if(!loaded) h+=`<div class="est-notice">Cargando datos de Firebase…</div>`;
@@ -65306,6 +65336,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let rows;
     // Todos los pedidos de WhatsApp (Juan y Federico + los cargados a nombre de otros vendedores)
     rows=await todo(base);
+    // Pedidos Web (tienda online) — aparte
+    let webRows=[]; try{ webRows=await todo([['EXTE_ID_EXTE','=',11],['PEDI_FECHA','>=',iso(d0)],['PEDI_FECHA','<',iso(d1)]]); }catch(e){ console.warn('[estadística] pedidos Web:',e.message); }
     // Agregar por mes y vendedor (filtros de nuevo acá por si Yiqi ignorara alguno)
     const agg={};
     const crudos=rows.filter(r=>Number(r.EXTE_ID_EXTE)===13&&WA_VEND.some(x=>x.id===Number(r.VEHA_ID_VEHA))).map(r=>({PEDI_FECHA:r.PEDI_FECHA,AUDI_FECHA_ALTA:r.AUDI_FECHA_ALTA,PEDI_NUMERO_SOLO:r.PEDI_NUMERO_SOLO,VEHA_ID_VEHA:r.VEHA_ID_VEHA,CLIE_ID_CLIE:r.CLIE_ID_CLIE,CLIE_NOMBRE:r.CLIE_NOMBRE,PEDI_TOTAL_MD:r.PEDI_TOTAL_MD,PEDI_TOTAL:r.PEDI_TOTAL,DESC_ESTADO:r.DESC_ESTADO}));
@@ -65322,7 +65354,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const otros=rows.filter(r=>Number(r.EXTE_ID_EXTE)===13&&!OTROS_EXCLUIR.has(r.VEHA_ID_VEHA==null?-1:Number(r.VEHA_ID_VEHA))&&r.VEHA_ID_VEHA!=null).filter(r=>{const f=new Date(r.PEDI_FECHA);return !isNaN(f)&&f>=d0&&f<d1;})
       .map(r=>({PEDI_FECHA:r.PEDI_FECHA,VEHA_ID_VEHA:r.VEHA_ID_VEHA,PEDI_TOTAL_MD:r.PEDI_TOTAL_MD,PEDI_TOTAL:r.PEDI_TOTAL,DESC_ESTADO:r.DESC_ESTADO}));
-    return {agg,rows:crudos,otros,ts:Date.now()};
+    const web=webRows.filter(r=>Number(r.EXTE_ID_EXTE)===11).filter(r=>{const f=new Date(r.PEDI_FECHA);return !isNaN(f)&&f>=d0&&f<d1;})
+      .map(r=>({PEDI_FECHA:r.PEDI_FECHA,AUDI_FECHA_ALTA:r.AUDI_FECHA_ALTA,PEDI_NUMERO_SOLO:r.PEDI_NUMERO_SOLO,CLIE_ID_CLIE:r.CLIE_ID_CLIE,CLIE_NOMBRE:r.CLIE_NOMBRE,PEDI_TOTAL_MD:r.PEDI_TOTAL_MD,PEDI_TOTAL:r.PEDI_TOTAL,DESC_ESTADO:r.DESC_ESTADO}));
+    return {agg,rows:crudos,otros,web,ts:Date.now()};
   }
   function waGet(y,m){
     const k=ymKey(y,m);
@@ -65487,6 +65521,75 @@ document.addEventListener('DOMContentLoaded', () => {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:20px;align-items:start"><table class="ep-tb ep-anx"><colgroup><col style="width:42%"><col style="width:16%"><col style="width:24%"><col style="width:18%"></colgroup><thead><tr><th${L_}>Vendedor</th><th>Pedidos</th><th>Facturado</th><th>Ped./mes</th></tr></thead><tbody>${O.per.map(p=>`<tr><td${L_}>${esc(p.n)}</td><td>${fmtN(p.mesN)}</td><td>${fmt$(p.mesS)}</td><td>${fmtN(p.promN)}</td></tr>`).join('')}<tr><td${L_}><b>Total</b></td><td><b>${fmtN(O.tot.mesN)}</b></td><td><b>${fmt$(O.tot.mesS)}</b></td><td><b>${fmtN(O.tot.promN)}</b></td></tr></tbody></table>
       <div><p class="ep-axis" style="margin:0 0 4px;font-weight:700">Pedidos por mes (últimos 12)</p><svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="DM Sans, Arial, sans-serif"><line x1="0" x2="${W}" y1="150" y2="150" stroke="${PDFC.line}"/>${bars}</svg></div></div>
       <p class="ep-note">Pedidos con Origen WhatsApp cargados a nombre de otros vendedores (Juan y Federico los cargan por ellos). No se suman a los de Juan y Federico.</p>`);
+  }
+
+  /* ---------- PEDIDOS WEB (tienda online): los cargan y siguen Juan y Federico ---------- */
+  function webModel(y,m){
+    const D=waCache[ymKey(y,m)]; if(!D||D.err||!D.web) return null;
+    const hoy=new Date(), enCurso=(y===hoy.getFullYear()&&m===hoy.getMonth());
+    const monto=r=>Number(r.PEDI_TOTAL_MD!=null?r.PEDI_TOTAL_MD:r.PEDI_TOTAL)||0;
+    const mesDe=r=>{const f=new Date(r.PEDI_FECHA);return ymKey(f.getFullYear(),f.getMonth());};
+    const tom=r=>WA_ESTADOS.test(String(r.DESC_ESTADO||'').trim()), fac=r=>WA_FACT.test(String(r.DESC_ESTADO||'').trim());
+    const esCF=n=>/consumidor\s*final/i.test(String(n||''));
+    const R=D.web, kM=ymKey(y,m);
+    const mes=R.filter(r=>mesDe(r)===kM), mesF=mes.filter(fac);
+    const meses=[]; for(let i=enCurso?1:0;i<(enCurso?13:12);i++){const d=new Date(y,m-i,1);meses.push(ymKey(d.getFullYear(),d.getMonth()));}
+    const conDatos=meses.filter(k=>R.some(r=>mesDe(r)===k)), nM=conDatos.length||1;
+    const anio=R.filter(r=>conDatos.includes(mesDe(r))), anioF=anio.filter(fac);
+    const mesS=mesF.reduce((a,r)=>a+monto(r),0), anioS=anioF.reduce((a,r)=>a+monto(r),0);
+    const serie=[]; for(let i=11;i>=0;i--){const d=new Date(y,m-i,1),k=ymKey(d.getFullYear(),d.getMonth()); const rr=R.filter(r=>mesDe(r)===k); const ff=rr.filter(fac); serie.push({lbl:MONTHS[d.getMonth()].slice(0,3)+' '+String(d.getFullYear()).slice(2),n:rr.filter(tom).length,s:ff.reduce((a,r)=>a+monto(r),0),nf:ff.length});}
+    // clientes del mes
+    const C={}; mes.filter(r=>(tom(r)||fac(r))&&r.CLIE_ID_CLIE!=null&&!esCF(r.CLIE_NOMBRE)).forEach(r=>{const c=(C[r.CLIE_ID_CLIE]=C[r.CLIE_ID_CLIE]||{cliente:String(r.CLIE_NOMBRE||'').trim(),ped:0,s:0});if(tom(r))c.ped++;if(fac(r))c.s+=monto(r);});
+    const cl=Object.entries(C).map(([id,c])=>({id,...c}));
+    const antes=new Set(R.filter(r=>mesDe(r)<kM&&!/^(anulado|a anular)$/i.test(r.DESC_ESTADO||'')).map(r=>String(r.CLIE_ID_CLIE)));
+    const nuevos=cl.filter(c=>!antes.has(String(c.id))).length;
+    const conCompra=cl.filter(c=>c.s>0);
+    // sin concretar: En espera de pago hace más de 7 días (este mes y el anterior)
+    const dA=new Date(y,m-1,1), kA=ymKey(dA.getFullYear(),dA.getMonth()), lim=Date.now()-7*864e5;
+    const espera=R.filter(r=>(mesDe(r)===kM||mesDe(r)===kA)&&/^en espera de pago$/i.test(String(r.DESC_ESTADO||'').trim())&&new Date(r.AUDI_FECHA_ALTA||r.PEDI_FECHA).getTime()<lim&&!esCF(r.CLIE_NOMBRE))
+      .map(r=>({nro:r.PEDI_NUMERO_SOLO,cliente:String(r.CLIE_NOMBRE||'').trim(),monto:monto(r),dias:Math.floor((Date.now()-new Date(r.AUDI_FECHA_ALTA||r.PEDI_FECHA).getTime())/864e5)})).sort((a,b)=>b.monto-a.monto);
+    const dev=mes.filter(r=>/con devoluci/i.test(r.DESC_ESTADO||''));
+    return {enCurso,mesN:mes.filter(tom).length,mesS,mesNF:mesF.length,ticket:mesF.length?mesS/mesF.length:null,
+      promN:anio.filter(tom).length/nM,promS:anioS/nM,promT:anioF.length?anioS/anioF.length:null,nMeses:conDatos.length,serie,
+      clientes:cl.length,nuevos,promCli:conCompra.length?conCompra.reduce((a,c)=>a+c.s,0)/conCompra.length:null,
+      topS:[...conCompra].sort((a,b)=>b.s-a.s).slice(0,10),topP:[...cl].sort((a,b)=>b.ped-a.ped||b.s-a.s).slice(0,10),
+      espera,esperaS:espera.reduce((a,p)=>a+p.monto,0),devN:dev.length,devS:dev.reduce((a,r)=>a+monto(r),0)};
+  }
+  function webHTML(y,m){
+    const W=webModel(y,m); if(!W||(!W.mesN&&!W.promN)) return '';
+    const mesTit=MONTHS[m], L_=' style="text-align:left"';
+    const tile=(l,b,s,cls)=>`<div class="est-tile"><span class="l">${l}</span><span class="b ${cls||''}">${b}</span><span class="s">${s||''}</span></div>`;
+    const d=W.promS&&!W.enCurso?W.mesS/W.promS-1:null;
+    const tb=(ttl,arr)=>`<div class="est-dt"><table class="est-cmp"><thead><tr><th>#</th><th${L_}>${ttl}</th><th>Pedidos</th><th>Facturado</th></tr></thead><tbody>${arr.length?arr.map((c,i)=>`<tr><td>${i+1}</td><td${L_}><b>${esc(c.cliente)}</b></td><td>${fmtN(c.ped)}</td><td>${fmt$(c.s)}</td></tr>`).join(''):`<tr><td colspan="4">Sin datos</td></tr>`}</tbody></table></div>`;
+    return `<section class="est-sec"><p class="est-eyebrow">Tienda online · Origen Web (Yiqi)</p><h3>Pedidos Web</h3>
+      <p class="est-sub">Pedidos que entran por la tienda online. No llegan por WhatsApp, pero Juan y Federico los cargan y se comunican con cada cliente. Se muestran aparte.</p>
+      <div class="est-tiles">
+        ${tile(`Pedidos tomados en ${mesTit}`,fmtN(W.mesN),`promedio ${fmtN(W.promN)} por mes`)}
+        ${tile(`Facturado en ${mesTit}`,fmt$(W.mesS),d!=null?`${d>0?'+':''}${fmtP(d)} vs promedio mensual (${fmt$(W.promS)})`:`promedio mensual ${fmt$(W.promS)}`,'est-red')}
+        ${tile('Ticket promedio',fmt$(W.ticket),`últimos 12 meses: ${fmt$(W.promT)}`)}
+        ${tile('Clientes del mes',fmtN(W.clientes),`${fmtN(W.nuevos)} nuevos · compra promedio ${fmt$(W.promCli)}`)}
+      </div>
+      ${W.espera.length||W.devN?`<div class="est-tiles" style="margin-top:10px">${W.espera.length?tile('Sin concretar',fmt$(W.esperaS),`${W.espera.length} pedidos en espera de pago hace +7 días`):''}${W.devN?tile('Devoluciones del mes',fmt$(W.devS),`${W.devN} pedido${W.devN>1?'s':''}`):''}</div>`:''}
+      <div class="est-dt" style="margin-top:12px"><table class="est-cmp"><thead><tr><th${L_}>Mes</th>${W.serie.map(s=>`<th>${esc(s.lbl)}</th>`).join('')}</tr></thead><tbody>
+        <tr><td${L_}><b>Pedidos</b></td>${W.serie.map(s=>`<td>${fmtN(s.n)}</td>`).join('')}</tr>
+        <tr><td${L_}><b>Facturado</b></td>${W.serie.map(s=>`<td>${s.s>=1e6?'$ '+fmtN(Math.round(s.s/1e5)/10)+' M':fmt$(s.s)}</td>`).join('')}</tr></tbody></table></div>
+      <div class="est-two" style="margin-top:12px">${tb('Los que más gastaron',W.topS)}${tb('Los que más pedidos hicieron',W.topP)}</div>
+      ${W.espera.length?`<div class="est-dt" style="margin-top:12px"><table class="est-cmp"><thead><tr><th>#</th><th>N° pedido</th><th${L_}>Pedidos Web sin concretar</th><th>Monto</th><th>Días de espera</th></tr></thead><tbody>${W.espera.slice(0,15).map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.nro)}</td><td${L_}><b>${esc(p.cliente)}</b></td><td>${fmt$(p.monto)}</td><td>${p.dias}</td></tr>`).join('')}</tbody></table></div>`:''}
+      <p class="est-small">Pedidos de Yiqi con Origen Web, sin "Consumidor final" en las listas de clientes. Pedidos tomados = A reservar, Entregado, Quiebre 2 y Staging Out; facturado = Entregado y Staging Out. Promedios de los últimos ${W.nMeses} meses completos.</p></section>`;
+  }
+  function webSlides(y,m,frame,card){
+    const W=webModel(y,m); if(!W||(!W.mesN&&!W.promN)) return [];
+    const mesTit=MONTHS[m], L_=' style="text-align:left"', d=W.promS&&!W.enCurso?W.mesS/W.promS-1:null;
+    const mx=Math.max(1,...W.serie.map(s=>s.s)), Wd=1090, H=200, step=(Wd-60)/12;
+    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${Wd}" height="${H}" viewBox="0 0 ${Wd} ${H}" font-family="DM Sans, Arial, sans-serif"><line x1="40" x2="${Wd-20}" y1="160" y2="160" stroke="${PDFC.line}"/>${W.serie.map((s,i)=>{const h=s.s/mx*130,x=40+i*step;return `<rect x="${x+step*.25}" y="${160-h}" width="${step*.5}" height="${h}" rx="2" fill="${PDFC.navy}"/><text x="${x+step/2}" y="${153-h}" font-size="13" text-anchor="middle" fill="${PDFC.ink}">${s.s>=1e6?'$'+fmtN(Math.round(s.s/1e5)/10)+'M':s.s?fmt$(s.s):''}</text><text x="${x+step/2}" y="178" font-size="13" text-anchor="middle" fill="${PDFC.muted}">${esc(s.lbl)}</text><text x="${x+step/2}" y="194" font-size="12" text-anchor="middle" fill="${PDFC.muted}">${s.n} ped.</text>`;}).join('')}</svg>`;
+    const cg='<colgroup><col style="width:8%"><col style="width:52%"><col style="width:15%"><col style="width:25%"></colgroup>';
+    const tb=(ttl,arr)=>`<table class="ep-tb ep-anx">${cg}<thead><tr><th>#</th><th${L_}>${ttl}</th><th>Pedidos</th><th>Facturado</th></tr></thead><tbody>${arr.map((c,i)=>`<tr><td>${i+1}</td><td${L_}>${esc(c.cliente)}</td><td>${fmtN(c.ped)}</td><td>${fmt$(c.s)}</td></tr>`).join('')}</tbody></table>`;
+    return [
+      frame('Tienda online · Origen Web','Pedidos Web',`<div class="ep-grid4">${card(`Pedidos de ${mesTit}`,fmtN(W.mesN),`promedio ${fmtN(W.promN)} por mes`)}${card(`Facturado ${mesTit}`,fmt$(W.mesS),d!=null?`${d>0?'+':''}${fmtP(d)} vs promedio mensual`:`promedio ${fmt$(W.promS)}/mes`,'red money')}${card('Ticket promedio',fmt$(W.ticket),`12 meses: ${fmt$(W.promT)}`,'money')}${card('Clientes del mes',fmtN(W.clientes),`${fmtN(W.nuevos)} nuevos`)}</div>
+        <p class="ep-axis" style="margin:18px 0 0;font-weight:700">Facturado y pedidos por mes</p>${svg}
+        <p class="ep-note">${W.espera.length?`Sin concretar: ${W.espera.length} pedidos en espera de pago hace +7 días por ${fmt$(W.esperaS)}. `:''}${W.devN?`Devoluciones del mes: ${W.devN} (${fmt$(W.devS)}). `:''}Los cargan y siguen Juan y Federico; se muestran aparte de WhatsApp.</p>`),
+      frame('Tienda online · Origen Web',`Clientes Web de ${mesTit}`,`<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">${tb('Los que más gastaron',W.topS)}${tb('Los que más pedidos hicieron',W.topP)}</div>`)
+    ];
   }
 
   /* ---------- CLIENTES DEL MES (pedidos WhatsApp de Juan y Federico en Yiqi) ---------- */
@@ -65786,7 +65889,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { const A=pasosModel(y,m,recs); if(A.length) slides.push(frame('Para el mes que viene','Próximos pasos',`<ol class="ep-pasos">${A.map(a=>`<li><b>${esc(a.q)}</b><span>${esc(a.t)}</span></li>`).join('')}</ol>`)); }
     slides.push(...waAnexosSlides(y,m,frame));
     // Orden de presentación: resumen → ventas → clientes → atención por WhatsApp → diagnóstico y próximos pasos → anexos
-    const RANK=[['Resumen para presentar',1],['Ventas en Yiqi',2],['WhatsApp · cargados',2.5],['Clientes · Origen',3],['Resumen del mes',4],['Embudo del mes',5],['Contra otros períodos',6],['Por día de la semana',8],['Por día',7],['Entrega de pedidos',9],['Repartos',10],['Mercadería faltante',11],['Récords del mes',12],['Diagnóstico del mes',13],['Para el mes que viene',14],['Anexo',15]];
+    const RANK=[['Resumen para presentar',1],['Ventas en Yiqi',2],['WhatsApp · cargados',2.5],['Clientes · Origen',3],['Tienda online',3.5],['Resumen del mes',4],['Embudo del mes',5],['Contra otros períodos',6],['Por día de la semana',8],['Por día',7],['Entrega de pedidos',9],['Repartos',10],['Mercadería faltante',11],['Récords del mes',12],['Diagnóstico del mes',13],['Para el mes que viene',14],['Anexo',15]];
     const rk=h=>{ if(/ep-slide cover/.test(h)) return 0; const m=h.match(/<p class="ep-eye">([^<]*)<\/p>/); const e=m?m[1]:''; const r=RANK.find(([k])=>e.startsWith(k)); return r?r[1]:9.5; };
     let orden=slides.map((h,i)=>({h,i,r:rk(h)})).sort((a,b)=>a.r-b.r||a.i-b.i);
     if(!pdfCompleto) orden=orden.filter(x=>x.r!==12); // "Días récord" solo en el PDF completo
@@ -65855,6 +65958,41 @@ document.addEventListener('DOMContentLoaded', () => {
       mStats[y].forEach((st,i)=>{const v=st&&st[key].cnt?st[key].sum:null; if(v==null)return; const partial=y===Y1&&i===cutM; s+=`<circle cx="${X(i)}" cy="${Yv(v)}" r="${partial?6:4.5}" fill="${partial?'#fff':col(y)}" stroke="${col(y)}" stroke-width="2.5" ${partial?'stroke-dasharray="3 2"':''}/>`;});
     });
     return s+'</svg>';
+  }
+  // PDF propio de la tienda online (Origen Web), separado del informe de WhatsApp
+  function pdfSlidesWeb(y,m){
+    const W=webModel(y,m); if(!W) return [];
+    const mes=MONTHS[m].charAt(0).toUpperCase()+MONTHS[m].slice(1), per=`${mes} ${y}`;
+    const slides=[]; let pg=1;
+    const frame=(eyebrow,title,body)=>{ pg++; return `<div class="ep-slide"><img class="ep-logo" src="${EST_LOGO}"><p class="ep-eye">${eyebrow}</p><h2>${title}</h2>${body}<div class="ep-foot"><span>Pedidos Web · ${per}</span><span>${pg}</span></div></div>`; };
+    const card=(l,b,s,cls)=>`<div class="ep-card"><span class="l">${l}</span><span class="b ${cls||''}">${b}</span><span class="s">${s||''}</span></div>`;
+    slides.push(`<div class="ep-slide cover"><img class="ep-cover-logo" src="${EST_LOGO}"><div class="ep-dia d1"></div><div class="ep-dia d2"></div><div class="ep-dia d3"></div><div class="ep-dia d4"></div><div class="ep-dia d5"></div><p class="ep-eye">Informe mensual</p><h1>Pedidos<br>Web</h1><div class="ep-rule"></div><p class="ep-per">${per}</p><p class="ep-cap">Tienda online · pedidos que cargan y siguen Juan y Federico</p></div>`);
+    slides.push(...webSlides(y,m,frame,card));
+    if(W.espera.length){ const L_=' style="text-align:left"', cg='<colgroup><col style="width:6%"><col style="width:14%"><col style="width:50%"><col style="width:16%"><col style="width:14%"></colgroup>';
+      for(let i=0;i<W.espera.length;i+=14){ const ch=W.espera.slice(i,i+14);
+        slides.push(frame('Para hacer seguimiento',`Pedidos Web sin concretar${W.espera.length>14?` (${i+1}–${i+ch.length} de ${W.espera.length})`:''}`,`<table class="ep-tb ep-anx">${cg}<thead><tr><th>#</th><th>N° pedido</th><th${L_}>Cliente</th><th>Monto</th><th>Días de espera</th></tr></thead><tbody>${ch.map((p,j)=>`<tr><td>${i+j+1}</td><td>${esc(p.nro)}</td><td${L_}>${esc(p.cliente)}</td><td>${fmt$(p.monto)}</td><td>${p.dias}</td></tr>`).join('')}</tbody></table><p class="ep-note">"En espera de pago" hace más de 7 días (pedidos de este mes y del anterior). Total: ${fmt$(W.esperaS)}.</p>`)); } }
+    return slides;
+  }
+  async function exportPdfWeb(){
+    const {y,m}=cur, mes=MONTHS[m].charAt(0).toUpperCase()+MONTHS[m].slice(1);
+    toast('⏳ Generando PDF de pedidos Web…','ok');
+    try{
+      await waEnsure(y,m);
+      const W=webModel(y,m); if(!W||(!W.mesN&&!W.promN)){ const D=waCache[ymKey(y,m)]; toast(D&&D.err?'⚠ '+D.err:'⚠ No hay pedidos Web para '+MONTHS[m],'warn'); return; }
+      if(typeof html2canvas==='undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+      const JsPDF=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF; if(!JsPDF) throw new Error('jsPDF no está disponible');
+      const wrap=document.createElement('div'); wrap.className='ep-wrap';
+      wrap.innerHTML=`<style>${EP_CSS}</style>`+pdfSlidesWeb(y,m).join('');
+      document.body.appendChild(wrap);
+      try{ if(document.fonts&&document.fonts.ready) await document.fonts.ready; }catch(e){}
+      await Promise.all([...wrap.querySelectorAll('img')].map(im=>im.complete?1:new Promise(r=>{im.onload=im.onerror=r})));
+      const doc=new JsPDF({orientation:'landscape',unit:'pt',format:[960,540]});
+      const els=[...wrap.querySelectorAll('.ep-slide')];
+      for(let i=0;i<els.length;i++){ const cv=await html2canvas(els[i],{scale:2,backgroundColor:null,logging:false,useCORS:true,width:1280,height:720,windowWidth:1280}); if(i>0) doc.addPage([960,540],'landscape'); doc.addImage(cv.toDataURL('image/jpeg',0.9),'JPEG',0,0,960,540); }
+      wrap.remove();
+      doc.save(`Pedidos_Web_${mes}_${y}.pdf`);
+      toast('✓ PDF de pedidos Web descargado','ok');
+    }catch(e){ console.error('[Estadística] PDF Web',e); document.querySelectorAll('.ep-wrap').forEach(x=>x.remove()); toast('⚠ No se pudo generar el PDF Web: '+(e&&e.message||e),'warn'); }
   }
   function pdfSlidesAnual(){
     anualHTML(); const A=lastAnual; if(!A) return [];
@@ -66140,6 +66278,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if(a==='config'){openDrawer('config',{cfg:clone(config)});return}
       if(a==='xlsx'){exportXlsx();return}
       if(a==='pdf'){pdfCompleto=false;exportPdf();return}
+      if(a==='pdf-web'){exportPdfWeb();return}
       if(a==='pdf-full'){pdfCompleto=true;exportPdf().finally(()=>{pdfCompleto=false;});return}
       if(a==='import'){importHist();return}
       if(a==='close'){closeDrawer();return}
@@ -66185,6 +66324,231 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   window.renderEstadisticaPanel=function(){ bind(); start(); render(); };
+})();
+
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// v25.432 — Nuevo Pedido: al elegir un cliente que ya está en Yiqi, se completan sus datos
+// con su ÚLTIMO pedido (origen, vendedor, condición de venta, lista, punto de venta,
+// ubicación origen, cliente de facturación y datos de envío). Lo que se cambió a mano no
+// se pisa. Estados y observaciones no se copian (son de ese pedido viejo).
+// Nueva Empresa / Cliente: botón "Completar desde ARCA" al lado del CUIT.
+// ══════════════════════════════════════════════════════════════════════════════
+(function(){
+  'use strict';
+  const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+  const $ = id => document.getElementById(id);
+  const sinAcento = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+  // Coincidencia palabra por palabra ("juan gaffuri" ↔ "GAFFURI SOENGAS JUAN MARTIN")
+  window._pedMatchPalabras = function(nombre, q){
+    const n = sinAcento(nombre), ws = sinAcento(q).split(/\s+/).filter(Boolean);
+    return ws.length > 0 && ws.every(w => n.includes(w));
+  };
+
+  // ── Campos que se completan y los que el usuario tocó a mano ──
+  const CAMPOS = ['ped-origen', 'ped-vendedor', 'ped-condventa', 'ped-lista', 'ped-puntoventa', 'ped-ubicorig',
+    'ped-cliefac-input', 'ped-dir-envio', 'ped-ciudad-envio', 'ped-prov-envio', 'ped-pais-envio', 'ped-localidad-envio'];
+  const tocados = new Set();
+  document.addEventListener('input', e => { if (e.isTrusted && CAMPOS.includes(e.target.id)) tocados.add(e.target.id); }, true);
+  let _llenando = false;
+  document.addEventListener('change', e => { if (!_llenando && CAMPOS.includes(e.target.id)) tocados.add(e.target.id); }, true);
+  // Al vaciar el cliente se empieza de cero
+  document.addEventListener('input', e => { if (e.target.id === 'ped-cliente-input' && !e.target.value.trim()) { tocados.clear(); window._pedCliFactId = null; marca(''); } }, true);
+
+  function setSel(id, valor, etiqueta){
+    const el = $(id); if (!el || tocados.has(id)) return false;
+    if (valor == null && !etiqueta) return false;
+    const opts = Array.from(el.options || []);
+    let op = valor != null ? opts.find(o => o.value === String(valor)) : null;
+    if (!op && etiqueta) op = opts.find(o => sinAcento(o.text) === sinAcento(etiqueta) || sinAcento(o.value) === sinAcento(etiqueta));
+    if (!op) return false;
+    el.value = op.value; _llenando = true; try { el.dispatchEvent(new Event('change', { bubbles: true })); } finally { _llenando = false; }
+    return true;
+  }
+  function setTxt(id, v){
+    const el = $(id); if (!el || tocados.has(id) || v == null || v === '') return false;
+    el.value = String(v); return true;
+  }
+  function marca(html){
+    let m = $('ped-cli-autofill-msg');
+    const inp = $('ped-cliente-input');
+    if (!m && inp) {
+      m = document.createElement('div'); m.id = 'ped-cli-autofill-msg';
+      m.style.cssText = 'font-size:11px;color:#34d399;font-weight:700;margin-top:4px;';
+      (inp.closest('div') || inp.parentElement).appendChild(m);
+    }
+    if (m) m.innerHTML = html;
+  }
+
+  async function idDeCliente(nombre, H){
+    if (typeof YIQI_CLI_MAP !== 'undefined') {
+      const id = YIQI_CLI_MAP[nombre] ?? YIQI_CLI_MAP[String(nombre).toLowerCase()];
+      if (id) return id;
+    }
+    const r = await yiqiFetch(`${API}/api/public/CLIENTE/query?schemaId=${SCHEMA}`, { method: 'POST', headers: H,
+      body: JSON.stringify({ page: 1, pageSize: 5, columns: [{ field: 'CLIE_NOMBRE', title: 'Nombre' }], filters: [{ columnName: 'CLIE_NOMBRE', operator: '=', value: nombre }] }) });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const c = (j.data || []).find(x => sinAcento(x.CLIE_NOMBRE) === sinAcento(nombre)) || (j.data || [])[0];
+    return c ? (c.id || c.ID) : null;
+  }
+
+  const COLS = ['PEDI_NUMERO_SOLO', 'PEDI_FECHA', 'DESC_ESTADO', 'EXTE_ID_EXTE', 'VEHA_ID_VEHA', 'COVE_ID_COVE', 'LIDP_ID_LIDP', 'PUVE_ID_PUVE', 'CEDI_ID_ORIG',
+    'CLIE_ID_FACT', 'FACT_NOMBRE', 'PEDI_DIRECCION_DE_ENVIO', 'PEDI_CIUDAD_DE_ENVIO', 'PEDI_PROVINCIA_DE_ENVIO', 'PEDI_PAIS_DE_ENVIO', 'PEDI_LOCALIDAD_DE_ENVIO'];
+  let _seq = 0;
+  async function autocompletar(nombre){
+    const my = ++_seq;
+    if (!nombre || /consumidor final/i.test(nombre)) return;
+    let token = null;
+    try { token = await _yiqiGetTokenGlobal(); } catch (e) {}
+    if (!token) return;
+    const H = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+    marca('<span style="color:#94a3b8">Buscando su último pedido en Yiqi…</span>');
+    try {
+      const cliId = await idDeCliente(nombre, H);
+      if (my !== _seq) return;
+      if (!cliId) { marca(''); return; }
+      const r = await yiqiFetch(`${API}/api/public/PEDIDO/query?schemaId=${SCHEMA}`, { method: 'POST', headers: H,
+        body: JSON.stringify({ page: 1, pageSize: 8,
+          columns: COLS.map((f, i) => f === 'PEDI_NUMERO_SOLO' ? { field: f, title: f, order: i + 1, sortDirection: 'DESC', sortOrder: 1 } : { field: f, title: f, order: i + 1 }),
+          filters: [{ columnName: 'CLIE_ID_CLIE', operator: '=', value: Number(cliId) }] }) });
+      if (my !== _seq) return;
+      if (!r.ok) { marca(''); return; }
+      const j = await r.json();
+      const o = (j.data || []).filter(x => !/anul/i.test(x.DESC_ESTADO || ''))[0];
+      if (!o) { marca('<span style="color:#94a3b8">Sin pedidos anteriores en Yiqi</span>'); return; }
+      const inv = (m, k) => (typeof m !== 'undefined' && m) ? m[k] : null;
+      setSel('ped-origen', null, inv(window._YIQI_INV_ORIGEN || (typeof _YIQI_INV_ORIGEN !== 'undefined' ? _YIQI_INV_ORIGEN : null), o.EXTE_ID_EXTE));
+      setSel('ped-vendedor', null, inv(typeof _YIQI_INV_VEHA !== 'undefined' ? _YIQI_INV_VEHA : null, o.VEHA_ID_VEHA));
+      setSel('ped-condventa', null, inv(typeof _YIQI_INV_CONDVENTA !== 'undefined' ? _YIQI_INV_CONDVENTA : null, o.COVE_ID_COVE));
+      setSel('ped-lista', null, inv(typeof _YIQI_INV_LISTA_CLI !== 'undefined' ? _YIQI_INV_LISTA_CLI : null, o.LIDP_ID_LIDP));
+      setSel('ped-puntoventa', inv(typeof _YIQI_INV_PUVE !== 'undefined' ? _YIQI_INV_PUVE : null, o.PUVE_ID_PUVE));
+      setSel('ped-ubicorig', null, inv(typeof _YIQI_INV_CEDI !== 'undefined' ? _YIQI_INV_CEDI : null, o.CEDI_ID_ORIG));
+      if (o.CLIE_ID_FACT && String(o.CLIE_ID_FACT) !== String(cliId) && o.FACT_NOMBRE && !tocados.has('ped-cliefac-input')) {
+        setTxt('ped-cliefac-input', o.FACT_NOMBRE); const hv = $('ped-cliefac-val'); if (hv) hv.value = o.FACT_NOMBRE;
+        window._pedCliFactId = { nombre: o.FACT_NOMBRE, id: o.CLIE_ID_FACT };
+      }
+      setTxt('ped-dir-envio', o.PEDI_DIRECCION_DE_ENVIO);
+      setTxt('ped-ciudad-envio', o.PEDI_CIUDAD_DE_ENVIO);
+      setTxt('ped-prov-envio', o.PEDI_PROVINCIA_DE_ENVIO);
+      setTxt('ped-pais-envio', o.PEDI_PAIS_DE_ENVIO);
+      setTxt('ped-localidad-envio', o.PEDI_LOCALIDAD_DE_ENVIO);
+      const f = o.PEDI_FECHA ? new Date(o.PEDI_FECHA).toLocaleDateString('es-AR') : '';
+      marca(`✓ Datos completados de su último pedido N° ${o.PEDI_NUMERO_SOLO}${f ? ' (' + f + ')' : ''}`);
+      if (typeof showToast === 'function') showToast('✓ Datos del último pedido N° ' + o.PEDI_NUMERO_SOLO + ' cargados', 'ok');
+    } catch (e) { if (my === _seq) marca(''); }
+  }
+  window._pedAutocompletarCliente = autocompletar;
+
+  // Elegir un cliente de la lista → autocompletar
+  document.addEventListener('mousedown', e => {
+    const it = e.target.closest && e.target.closest('.ped-ac-item');
+    if (!it) return;
+    const list = it.closest('[id]');
+    if (list && list.id === 'ped-cliente-list') setTimeout(() => autocompletar(it.dataset.nombre), 0);
+    if (list && list.id === 'ped-cliefac-list') window._pedCliFactId = null;
+  }, true);
+
+  // ID del cliente de facturación para el POST del pedido
+  window._pedCliFactIdResolver = function(){
+    const nom = ($('ped-cliefac-val')?.value || $('ped-cliefac-input')?.value || '').trim();
+    if (!nom) return null;
+    if (window._pedCliFactId && sinAcento(window._pedCliFactId.nombre) === sinAcento(nom)) return Number(window._pedCliFactId.id);
+    if (typeof YIQI_CLI_MAP !== 'undefined') { const id = YIQI_CLI_MAP[nom] ?? YIQI_CLI_MAP[nom.toLowerCase()]; if (id) return Number(id); }
+    return null;
+  };
+
+
+  // ── Búsqueda en vivo en Yiqi para el autocompletado de clientes (palabra por palabra) ──
+  // El autocompletado del pedido sólo miraba el historial y el mapa local; ahora además consulta
+  // Yiqi (clientes nuevos o cargados en otra compu) y agrega los que falten a la lista.
+  let _liveT = null, _liveSeq = 0;
+  function liveSearch(inputId, listId, hiddenId){
+    clearTimeout(_liveT);
+    const input = $(inputId), list = $(listId), hidden = $(hiddenId);
+    if (!input || !list) return;
+    const q = input.value.trim();
+    if (q.length < 3) return;
+    if (hidden && hidden.value && hidden.value === input.value) return; // recién elegido de la lista
+    _liveT = setTimeout(async () => {
+      const my = ++_liveSeq;
+      let token = null; try { token = await _yiqiGetTokenGlobal(); } catch (e) {}
+      if (!token) return;
+      const ws = q.split(/\s+/).filter(w => w.length >= 2).slice(0, 5);
+      try {
+        const r = await yiqiFetch(`${API}/api/public/CLIENTE/query?schemaId=${SCHEMA}`, { method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ page: 1, pageSize: 12, columns: [{ field: 'CLIE_NOMBRE', title: 'Nombre' }], filters: ws.map(w => ({ columnName: 'CLIE_NOMBRE', operator: 'LIKE', value: w })) }) });
+        if (!r.ok || my !== _liveSeq || input.value.trim() !== q || (hidden && hidden.value && hidden.value === input.value)) return;
+        const rows = ((await r.json()).data || []).filter(x => x.CLIE_NOMBRE);
+        const ya = new Set(Array.from(list.querySelectorAll('.ped-ac-item')).map(e => sinAcento(e.dataset.nombre)));
+        // Si la lista está cerrada, lo que tiene adentro es de una búsqueda anterior: se reemplaza
+        if (!list.classList.contains('open')) { list.innerHTML = ''; ya.clear(); }
+        const nuevos = rows.filter(x => !ya.has(sinAcento(x.CLIE_NOMBRE)));
+        if (!nuevos.length) return;
+        nuevos.forEach(x => {
+          if (typeof YIQI_CLI_MAP !== 'undefined') { YIQI_CLI_MAP[x.CLIE_NOMBRE] = x.id; YIQI_CLI_MAP[x.CLIE_NOMBRE.toLowerCase()] = x.id; }
+          const d = document.createElement('div');
+          d.className = 'ped-ac-item'; d.dataset.nombre = x.CLIE_NOMBRE;
+          d.innerHTML = '<span style="color:#34d399;font-size:9px;margin-right:3px;" title="Encontrado en vivo en Yiqi">●</span>' +
+            x.CLIE_NOMBRE.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) +
+            '<span style="font-size:10px;opacity:.5;margin-left:5px;">#' + x.id + '</span>';
+          d.addEventListener('mousedown', e => {
+            e.preventDefault();
+            input.value = x.CLIE_NOMBRE; if (hidden) hidden.value = x.CLIE_NOMBRE;
+            list.classList.remove('open');
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+          list.appendChild(d);
+        });
+        list.classList.add('open');
+      } catch (e) {}
+    }, 400);
+  }
+  function envolverAutocomplete(){
+    const orig = window.pedAutocomplete;
+    if (typeof orig !== 'function' || orig._vivo) return;
+    const w = function(inputId, listId, hiddenId){ const r = orig.apply(this, arguments); try { liveSearch(inputId, listId, hiddenId); } catch (e) {} return r; };
+    w._vivo = true; window.pedAutocomplete = w;
+  }
+  envolverAutocomplete();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', envolverAutocomplete);
+  setTimeout(envolverAutocomplete, 2000);
+
+  // ── Nueva Empresa / Cliente: "Completar desde ARCA" ──
+  // El botón "Completar desde ARCA" de Yiqi sólo funciona en la pantalla de Yiqi (la API pública no lo
+  // expone): acá se copia el CUIT y se abre la constancia de ARCA para pegarlo.
+  const ARCA_URL = 'https://seti.afip.gob.ar/padron-puc-constancia-internet/ConsultaConstanciaAction.do';
+  function botonArca(){
+    document.querySelectorAll('#clie-cuit').forEach(inp => {
+      if (inp.dataset.arca) return;
+      inp.dataset.arca = '1';
+      const col = document.createElement('div');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;gap:6px;align-items:center;';
+      inp.parentNode.insertBefore(col, inp); col.appendChild(wrap); wrap.appendChild(inp);
+      inp.style.flex = '1';
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = 'Completar desde ARCA';
+      b.title = 'Copia el CUIT y abre la constancia de inscripción de ARCA';
+      b.style.cssText = "padding:6px 10px;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;";
+      const msg = document.createElement('div');
+      msg.style.cssText = 'font-size:11px;color:var(--text3);margin-top:4px;';
+      b.onclick = () => {
+        const cuit = String(inp.value || '').replace(/\D/g, '');
+        if (cuit.length !== 11) { msg.innerHTML = '<span style="color:#f87171">Escribí un CUIT/CUIL de 11 dígitos.</span>'; inp.focus(); return; }
+        try { navigator.clipboard.writeText(cuit).catch(() => {}); } catch (e) {}
+        window.open(ARCA_URL, '_blank', 'noopener');
+        msg.textContent = '📋 CUIT ' + cuit + ' copiado — pegalo en la constancia de ARCA y pasá razón social, condición de IVA y domicilio.';
+      };
+      wrap.appendChild(b);
+      col.appendChild(msg);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', botonArca); else botonArca();
 })();
 
 </script>
@@ -66862,7 +67226,7 @@ function resetPedidoForm() {
 
     // Fuente 1: historial de pedidos
     const fromHist = (typeof cliClientes !== 'undefined' ? cliClientes : [])
-      .filter(c => c.nombre && c.nombre.toLowerCase().includes(q))
+      .filter(c => c.nombre && (c.nombre.toLowerCase().includes(q) || (window._pedMatchPalabras && _pedMatchPalabras(c.nombre, q))))
       .map(c => {
         const id = window.YIQI_CLI_MAP_LOCAL[c.nombre.trim().toUpperCase()]
           ?? (typeof YIQI_CLI_MAP !== 'undefined' ? (YIQI_CLI_MAP[c.nombre] ?? YIQI_CLI_MAP[c.nombre.toLowerCase()]) : null);
@@ -66873,7 +67237,7 @@ function resetPedidoForm() {
     const histNames = new Set(fromHist.map(c => c.nombre.toUpperCase()));
     const fromLocal = [];
     for (const [nombre, id] of Object.entries(window.YIQI_CLI_MAP_LOCAL)) {
-      if (nombre.toLowerCase().includes(q) && !histNames.has(nombre)) {
+      if ((nombre.toLowerCase().includes(q) || (window._pedMatchPalabras && _pedMatchPalabras(nombre, q))) && !histNames.has(nombre)) {
         fromLocal.push({ nombre, yiqiId: id, src: 'yiqi' });
         if (fromHist.length + fromLocal.length >= 12) break;
       }
@@ -66884,7 +67248,7 @@ function resetPedidoForm() {
     const fromLegacy = [];
     if (typeof YIQI_CLI_MAP !== 'undefined' && q.length >= 3) {
       for (const key of Object.keys(YIQI_CLI_MAP)) {
-        if (key.toLowerCase().includes(q) && !allNames.has(key.toUpperCase())) {
+        if ((key.toLowerCase().includes(q) || (window._pedMatchPalabras && _pedMatchPalabras(key, q))) && !allNames.has(key.toUpperCase()) && (allNames.add(key.toUpperCase()), true)) {
           fromLegacy.push({ nombre: key, yiqiId: YIQI_CLI_MAP[key], src: 'legacy' });
           if (fromHist.length + fromLocal.length + fromLegacy.length >= 12) break;
         }
