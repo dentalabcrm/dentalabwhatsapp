@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.408</title>
+<title>Dentalab Whatsapp CRM · v25.409</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45588,7 +45588,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.408';
+  const LATEST_VERSION = 'v25.409';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45601,6 +45601,16 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.409',
+      fecha: '2026-11-18',
+      titulo: 'Presupuesto vinculado a pedido: más protección',
+      items: [
+        { tipo: 'fix', texto: 'Ahora se pueden sacar TODOS los productos de un pedido: si quitás el último con la ✕, el presupuesto sigue vinculado (avisa en rojo que al guardar se eliminan todos) y "Guardar cambios" los borra en Yiqi.' },
+        { tipo: 'mejora', texto: 'El vínculo con el pedido se suelta solo al apretar "🗑 Vaciar" o al abrir otro presupuesto guardado, así nunca se le borran productos a un pedido por haber cambiado de presupuesto.' },
+        { tipo: 'mejora', texto: 'Si un guardado fuera a eliminar TODOS los productos originales del pedido, pide una confirmación extra.' }
+      ]
+    },
     {
       version: 'v25.408',
       fecha: '2026-11-18',
@@ -64072,6 +64082,7 @@ document.addEventListener('DOMContentLoaded', () => {
       c.quitar.length ? '🗑 ELIMINAR del pedido:\n' + c.quitar.map(q => '   ' + (q.o.sku || 'ítem') + ' × ' + q.o.qty).join('\n') : '',
       c.envio ? '🚚 ENVÍO: ' + ({ agregar: 'agregar', quitar: 'quitar', modificar: 'modificar' })[c.envio.tipo] : ''
     ].filter(Boolean).join('\n\n');
+    if (c.quitar.length && c.quitar.length === Object.keys(link.dets).length && !confirm('⚠ ATENCIÓN: se van a ELIMINAR TODOS los productos originales del pedido N° ' + link.nro + '.\n\n¿Seguro que es lo que querés?')) return;
     if (!confirm('Guardar cambios en el pedido N° ' + link.nro + ' (' + (link.cliente || '') + ')\n\n' + resumen + '\n\n¿Confirmás?')) return;
     const orig = btn ? btn.innerHTML : ''; if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Guardando…'; }
     const errores = []; let ok = 0;
@@ -64143,14 +64154,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const cont = document.getElementById('panel-presupuestos-inner'); if (!cont) return;
     let b = document.getElementById('presu-ped-banner');
     // Si el presupuesto se vació o ya no tiene líneas del pedido, se suelta el vínculo solo
-    if (link && !(budgetItems || []).some(it => it._yiqiDet) && !(budgetItems || []).length) { link = null; saveLink(); }
+    // Si en el presupuesto ya no queda ningún producto de ESE pedido (se vació, se abrió otro presupuesto
+    // guardado, etc.), el vínculo se suelta solo: así nunca se le borran productos al pedido por error.
+    // Si se abrió OTRO presupuesto (hay productos pero ninguno es de este pedido), el vínculo se suelta solo.
+    // Si el presupuesto quedó vacío porque sacaste productos con la ✕, el vínculo SIGUE (así podés vaciar el pedido).
+    const its = (budgetItems || []).filter(it => !(it._section || it.sku === '__section__'));
+    if (link && its.length && !its.some(it => it._yiqiDet && link.dets[it._yiqiDet])) { link = null; saveLink(); }
     if (!link) { if (b) b.remove(); return; }
     if (!b) { b = document.createElement('div'); b.id = 'presu-ped-banner'; }
     if (b.parentNode !== cont || cont.firstChild !== b) cont.insertBefore(b, cont.firstChild);
     let n = 0; try { const c = calcularCambios(); n = c.agregar.length + c.modificar.length + c.quitar.length + (c.envio ? 1 : 0); } catch(e) {}
     b.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 14px;border-radius:12px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.45);font-family:DM Sans,sans-serif;font-size:13px;color:#e9d5ff;';
     b.innerHTML = `🔗 Editando el <b>pedido N° ${esc(link.nro)}</b> de Yiqi · ${esc(link.cliente || '')}
-      <span style="color:#94a3b8">· ${n ? n + ' cambio' + (n !== 1 ? 's' : '') + ' sin guardar' : 'sin cambios'}</span>
+      <span style="color:#94a3b8">· ${n ? n + ' cambio' + (n !== 1 ? 's' : '') + ' sin guardar' : 'sin cambios'}</span>${!(budgetItems||[]).length && Object.keys(link.dets).length ? '<span style="color:#fca5a5;font-weight:700">· al guardar se eliminan todos los productos del pedido</span>' : ''}
       <span style="margin-left:auto;display:flex;gap:8px;">
         <button id="presu-ped-guardar" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);border:none;border-radius:9px;padding:8px 14px;color:#fff;font-weight:800;cursor:pointer;font-family:inherit;">💾 Guardar cambios en pedido N° ${esc(link.nro)}</button>
         <button id="presu-ped-recargar" title="Volver a leer el pedido desde Yiqi (descarta cambios)" style="background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:9px;padding:8px 12px;color:#cbd5e1;font-weight:700;cursor:pointer;font-family:inherit;">↻ Recargar</button>
@@ -64168,6 +64184,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let t; document.addEventListener('input', e => { if (link && e.target.closest && e.target.closest('#panel-presupuestos-inner')) { clearTimeout(t); t = setTimeout(() => { try { banner(); } catch(_) {} }, 400); } }, true);
   document.addEventListener('change', e => { if (link && e.target.closest && e.target.closest('#panel-presupuestos-inner')) { clearTimeout(t); t = setTimeout(() => { try { banner(); } catch(_) {} }, 300); } }, true);
 
+  // "🗑 Vaciar" del presupuesto = empezar de cero → se suelta el vínculo (no borra nada en Yiqi)
+  document.addEventListener('click', e => {
+    if (!link || !e.target.closest || !e.target.closest('#btn-clear-budget')) return;
+    setTimeout(() => { if (!(budgetItems || []).length) { link = null; saveLink(); try { banner(); } catch(_) {} toast('Presupuesto vaciado y desvinculado del pedido (en Yiqi no se tocó nada)', 'info'); } }, 50);
+  }, true);
   window._presuCargarPedidoYiqi = cargar;
   window._presuPedidoLink = () => link;
 })();
