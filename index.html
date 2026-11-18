@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.412</title>
+<title>Dentalab Whatsapp CRM · v25.414</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45588,7 +45588,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.412';
+  const LATEST_VERSION = 'v25.414';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45601,6 +45601,24 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.414',
+      fecha: '2026-11-18',
+      titulo: 'Pedidos Yiqi: períodos de 3 meses a 2 años',
+      items: [
+        { tipo: 'nuevo', texto: 'Períodos "Últimos 3 meses", "6 meses", "Último año" y "Últimos 2 años". Como son miles de pedidos, al escribir en el buscador se busca directamente en Yiqi (por N°, cliente, observaciones o vendedor) en todo el período. Sin texto muestra los más recientes (hasta 2000) o los del vendedor elegido.' }
+      ]
+    },
+    {
+      version: 'v25.413',
+      fecha: '2026-11-18',
+      titulo: 'Pedidos Yiqi: filtro por vendedor y "Pendientes"',
+      items: [
+        { tipo: 'nuevo', texto: 'Selector de Vendedor en la grilla (con la cantidad de pedidos de cada uno).' },
+        { tipo: 'nuevo', texto: 'Período "Pendientes (sin entregar, 60 días)": muestra todos los pedidos no entregados/anulados de los últimos 60 días, aunque sean de antes de la última semana.' },
+        { tipo: 'fix', texto: 'El buscador ahora también encuentra por vendedor, origen, ubicación y condición de venta (antes buscar "Carlos" no traía nada). El período toma también la fecha de creación (pedidos con fecha anterior a su creación).' }
+      ]
+    },
     {
       version: 'v25.412',
       fecha: '2026-11-18',
@@ -63541,8 +63559,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   async function fetchRows() {
     const H = { 'Authorization': 'Bearer ' + await token(), 'Content-Type': 'application/json' };
-    const desde = new Date(); desde.setHours(0,0,0,0); desde.setDate(desde.getDate() - Math.max(0, prefs.dias - 1));
-    const dia = isoDia(desde);
+    if (prefs.dias > 31) return fetchLargo(H);
+    const PEND = prefs.dias === 0; // "Pendientes": cualquier fecha, sin Entregados/Anulados/Con devolución
+    const ESTADOS_CERRADOS = /^(entregado|anulado|a anular|con devoluci[oó]n)$/i;
+    const desde = new Date(); desde.setHours(0,0,0,0); desde.setDate(desde.getDate() - (PEND ? 60 : Math.max(0, prefs.dias - 1)));
+    let dia = isoDia(desde);
+    if (PEND) {
+      try {
+        const fs = [{ c: 'ESTA_CODIGO', op: 'NOT IN', v: [176, 442, 853, 933] }, { c: 'PEDI_FECHA', op: '>=', v: dia }];
+        if (!prefs.ml) fs.push({ c: 'EXTE_ID_EXTE', op: '!=', v: 2 });
+        const out = await traerTodo(H, QCOLS, fs, 20);
+        return finalizar(out, desde).filter(r => !ESTADOS_CERRADOS.test(r.DESC_ESTADO || ''));
+      } catch(e) { console.warn('[pedidosYiqi] filtro por estado no soportado, uso fecha y filtro acá:', e.message); }
+    }
     const colsMin = QCOLS.filter(c => !['CLIE_NOMBRE','DESC_ESTADO','ID','AUDI_FECHA_ALTA'].includes(c));
     // Variantes de filtro (Yiqi no documenta el formato): se recuerda la primera que funciona
     const variantes = [];
@@ -63565,9 +63594,48 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch(e) { ultimoErr = e; console.warn('[pedidosYiqi] variante falló:', va, e.message); if (e.status === 401 || e.status === 403) break; }
     }
     if (!out) { try { localStorage.removeItem('pyq_modo_query'); } catch(e) {} _modoQuery = null; throw ultimoErr || new Error('Sin respuesta de Yiqi'); }
+    const res = finalizar(out, desde);
+    return PEND ? res.filter(r => !ESTADOS_CERRADOS.test(r.DESC_ESTADO || '')) : res;
+  }
+  // ── Períodos largos (3 meses a 2 años): son miles de pedidos, así que se busca EN YIQI ──
+  // Con texto: busca por N°, cliente, observaciones y vendedor. Sin texto: trae los más recientes (hasta 2000).
+  let truncadoLargo = false;
+  async function fetchLargo(H) {
+    const desde = new Date(); desde.setHours(0,0,0,0); desde.setDate(desde.getDate() - prefs.dias);
+    const dia = isoDia(desde);
+    const base = [{ c: 'PEDI_FECHA', op: '>=', v: dia }];
+    if (!prefs.ml) base.push({ c: 'EXTE_ID_EXTE', op: '!=', v: 2 });
+    const q = String(prefs.q || '').trim();
+    truncadoLargo = false;
+    const consultas = [];
+    if (q) {
+      if (/^\d{3,}$/.test(q)) consultas.push([{ c: 'PEDI_NUMERO_SOLO', op: '=', v: Number(q) }]);
+      if (q.length >= 3) {
+        consultas.push([{ c: 'CLIE_NOMBRE', op: 'LIKE', v: q }], [{ c: 'PEDI_RAZON_SOCIAL', op: 'LIKE', v: q }], [{ c: 'PEDI_OBSERVACIONES', op: 'LIKE', v: q }]);
+        const vids = Object.entries(MAP_VEHA).filter(([, n]) => String(n).toLowerCase().includes(q.toLowerCase())).map(([k]) => Number(k));
+        if (vids.length) consultas.push([{ c: 'VEHA_ID_VEHA', op: 'IN', v: vids }]);
+      }
+      if (!consultas.length) return [];
+    } else if (prefs.vend) {
+      consultas.push([{ c: 'VEHA_ID_VEHA', op: '=', v: Number(prefs.vend) }]);
+    } else {
+      consultas.push([]);
+    }
+    let out = [], okAlguna = false, ultimoErr;
+    for (const extra of consultas) {
+      try {
+        const lote = await traerTodo(H, QCOLS, base.concat(extra), q || prefs.vend ? 5 : 10);
+        okAlguna = true; out = out.concat(lote);
+        if (!q && !prefs.vend && lote.length >= 2000) truncadoLargo = true;
+      } catch(e) { ultimoErr = e; console.warn('[pedidosYiqi] búsqueda larga falló:', extra, e.message); }
+    }
+    if (!okAlguna) throw ultimoErr || new Error('Sin respuesta de Yiqi');
+    return finalizar(out, desde);
+  }
+  function finalizar(out, desde) {
     let res = out;
     if (!prefs.ml) res = res.filter(r => Number(r.EXTE_ID_EXTE) !== 2);
-    res = res.filter(r => { const f = new Date(r.PEDI_FECHA || r.AUDI_FECHA_ALTA); return isNaN(f) || f >= desde; });
+    res = res.filter(r => { const f = new Date(r.PEDI_FECHA || r.AUDI_FECHA_ALTA); const fa = new Date(r.AUDI_FECHA_ALTA || 0); return isNaN(f) || f >= desde || fa >= desde; });
     const vistos = new Set(); res = res.filter(r => { const k = r.ID || r.id; if (vistos.has(k)) return false; vistos.add(k); return true; });
     res.forEach(r => { if (!r.CLIE_NOMBRE) r.CLIE_NOMBRE = r.PEDI_RAZON_SOCIAL || ''; if (!r.DESC_ESTADO) r.DESC_ESTADO = r.ESTA_NOMBRE || ''; if (!r.ID) r.ID = r.id; if (!r.AUDI_FECHA_ALTA) r.AUDI_FECHA_ALTA = r.PEDI_FECHA; });
     return res;
@@ -63863,8 +63931,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const q = prefs.q.trim().toLowerCase();
     let out = rows.filter(r => {
       if (prefs.estado && (r.DESC_ESTADO || '') !== prefs.estado) return false;
+      if (prefs.vend && String(r.VEHA_ID_VEHA ?? '') !== String(prefs.vend)) return false;
       if (!q) return true;
-      return [nro(r), r.CLIE_NOMBRE, r.PEDI_OBSERVACIONES, r.PEDI_ESTADO_DEL_ENVIO, r.PEDI_ESTADO_DE_PAGO, r.PEDI_ESTADO, r.PEDI_ESTADO_ACTUAL_DEL_PE, r.PEDI_PROVINCIA_DE_ENVIO]
+      return [nro(r), r.CLIE_NOMBRE, MAP_VEHA[r.VEHA_ID_VEHA], MAP_EXTE[r.EXTE_ID_EXTE], MAP_CEDI[r.CEDI_ID_ORIG], MAP_COVE[r.COVE_ID_COVE], r.PEDI_OBSERVACIONES, r.PEDI_ESTADO_DEL_ENVIO, r.PEDI_ESTADO_DE_PAGO, r.PEDI_ESTADO, r.PEDI_ESTADO_ACTUAL_DEL_PE, r.PEDI_PROVINCIA_DE_ENVIO]
         .some(v => String(v || '').toLowerCase().includes(q));
     });
     const k = prefs.sort, d = prefs.dir, col = COL_DEF[k];
@@ -63934,13 +64003,14 @@ document.addEventListener('DOMContentLoaded', () => {
         <span class="pyq-title">📋 Pedidos en Yiqi</span>
         <button class="pyq-btn" data-a="refresh">${loading ? '⏳ Actualizando…' : '🔄 Actualizar'}</button>
         <select data-a="dias" title="Período">
-          ${[[1,'Hoy'],[2,'Hoy y ayer'],[3,'Últimos 3 días'],[7,'Últimos 7 días'],[15,'Últimos 15 días'],[30,'Últimos 30 días']].map(([d,t]) => `<option value="${d}" ${prefs.dias==d?'selected':''}>${t}</option>`).join('')}
+          ${[[1,'Hoy'],[2,'Hoy y ayer'],[3,'Últimos 3 días'],[7,'Últimos 7 días'],[15,'Últimos 15 días'],[30,'Últimos 30 días'],[90,'Últimos 3 meses'],[180,'Últimos 6 meses'],[365,'Último año'],[730,'Últimos 2 años'],[0,'Pendientes (sin entregar, 60 días)']].map(([d,t]) => `<option value="${d}" ${prefs.dias==d?'selected':''}>${t}</option>`).join('')}
         </select>
+        <select data-a="vend" title="Vendedor"><option value="">Todos los vendedores</option>${Object.entries(rows.reduce((m, r) => { const k = r.VEHA_ID_VEHA; if (k != null) m[k] = (m[k] || 0) + 1; return m; }, {})).sort((a, b) => String(MAP_VEHA[a[0]] || '#' + a[0]).localeCompare(String(MAP_VEHA[b[0]] || '#' + b[0]))).map(([k, n]) => `<option value="${esc(k)}" ${String(prefs.vend) === String(k) ? 'selected' : ''}>${esc(MAP_VEHA[k] || 'Vendedor #' + k)} (${n})</option>`).join('')}</select>
         <input type="text" class="pyq-q" data-a="q" placeholder="Buscar nro, cliente, observaciones…" value="${esc(prefs.q)}">
         <label class="pyq-chk"><input type="checkbox" data-a="ml" ${prefs.ml ? 'checked' : ''}> Incluir MercadoLibre</label>
         <span style="position:relative;display:inline-block;"><button class="pyq-btn sec" data-a="cols">⚙ Columnas</button>${colsAbierto ? panelCols() : ''}</span>
         <button class="pyq-btn sec" data-a="crm" title="Volver a la vista anterior del CRM (Gmail, calendario, etc.)">Vista anterior</button>
-        <span class="pyq-info">${lista.length} de ${rows.length} pedidos${hace != null ? ` · actualizado ${hace < 1 ? 'recién' : 'hace ' + hace + ' min'}` : ''} · <span style="color:#a78bfa">✎</span> = editable (clic en la celda)</span>
+        <span class="pyq-info">${prefs.dias > 31 ? `<span style="color:#fcd34d">${prefs.q ? 'Búsqueda en Yiqi · ' : (prefs.vend ? '' : (truncadoLargo ? 'Mostrando los 2000 más recientes — escribí en el buscador para buscar en todo el período · ' : 'Escribí en el buscador para buscar en todo el período · '))}</span>` : ''}${lista.length} de ${rows.length} pedidos${hace != null ? ` · actualizado ${hace < 1 ? 'recién' : 'hace ' + hace + ' min'}` : ''} · <span style="color:#a78bfa">✎</span> = editable (clic en la celda)</span>
       </div>
       ${needLogin ? `<div class="pyq-login">🔑 Ingresá tu usuario de Yiqi para ver los pedidos:
           <input type="text" id="pyq-u" placeholder="Usuario" autocomplete="username"><input type="password" id="pyq-p" placeholder="Contraseña" autocomplete="current-password">
@@ -64049,10 +64119,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (ordenCols().filter(x => !h.has(x)).length === 0) { e.target.checked = true; return; }
       prefs.ocultas = [...h]; savePrefs(); return render();
     }
+    if (a === 'vend') { prefs.vend = e.target.value; savePrefs(); if (prefs.dias > 31) return refrescar(true); return render(); }
     if (a === 'dias') { prefs.dias = Number(e.target.value); savePrefs(); refrescar(true); }
     if (a === 'ml') { prefs.ml = e.target.checked; savePrefs(); refrescar(true); }
   });
-  let qT;
+  let qT, qLargoT;
   // Arrastrar columnas (encabezado de la tabla o filas del panel ⚙ Columnas)
   let dragCol = null;
   document.addEventListener('dragstart', e => {
@@ -64074,7 +64145,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('input', e => {
     if (e.target.dataset && e.target.dataset.a === 'q' && e.target.closest('#pyq-wrap')) {
       prefs.q = e.target.value; savePrefs(); clearTimeout(qT);
-      qT = setTimeout(() => { const pos = e.target.selectionStart; render(); const n = document.querySelector('#pyq-wrap [data-a="q"]'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }, 200);
+      qT = setTimeout(() => { const pos = e.target.selectionStart;
+        if (prefs.dias > 31) { clearTimeout(qLargoT); qLargoT = setTimeout(() => { lastTs = 0; refrescar(false).then(() => { const n = document.querySelector('#pyq-wrap [data-a="q"]'); if (n) { n.focus(); const L = n.value.length; n.setSelectionRange(L, L); } }); }, 600); }
+        render(); const n = document.querySelector('#pyq-wrap [data-a="q"]'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }, 200);
     }
   });
 
