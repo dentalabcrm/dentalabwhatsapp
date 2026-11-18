@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.400</title>
+<title>Dentalab Whatsapp CRM · v25.403</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -10207,6 +10207,56 @@ window.yiqiFetch = yiqiFetch;
 // No pide credenciales por su cuenta: si no hay nada guardado, devuelve null
 // (usado por funciones "silenciosas" como el autocomplete, que no deben interrumpir
 // al usuario con un popup de login mientras escribe).
+// ── Envío del presupuesto → servicio del pedido en Yiqi (API pública POST /DET_PED_SERV) ──
+// Antes se usaba me.yiqi.com.ar/SaveChildInstance (necesitaba la sesión del navegador y fallaba).
+// Devuelve { cargado:bool, omitido:bool, msg }.
+async function _yiqiCargarEnvioPresupuesto(pedidoId, H, logFn) {
+  const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+  const log = logFn || function(){};
+  const env = (typeof budgetEnvio !== 'undefined') ? budgetEnvio : null;
+  if (!env || !env.activo) return { omitido: true, msg: 'Sin envío' };
+  const costo = parseFloat(env.costo || 0);
+  if (env.costMode !== 'precio' || !(costo > 0)) return { omitido: true, msg: 'Envío "pago en destino" o sin monto: no se carga como servicio' };
+  const esTarjeta = env.metodoPago === 'Tarjeta';
+  const precio = parseFloat((costo * (esTarjeta ? 1.10 : 1)).toFixed(4));
+  let tipo = env.tipo || 'Estándar a domicilio';
+  if (tipo === 'domicilio') tipo = 'Estándar a domicilio';
+  if (tipo === 'sucursal')  tipo = 'Retiro en una sucursal';
+  const mapa = (typeof SEYI_SERVICIOS_MAP !== 'undefined') ? SEYI_SERVICIOS_MAP : {};
+  const seyiId = mapa[tipo] || mapa['Estándar a domicilio'] || 7;
+  log('Servicio: "' + tipo + '" (ID ' + seyiId + ') · $' + precio + (esTarjeta ? ' (incluye 10% tarjeta)' : ''), 'info');
+
+  // Evitar duplicados si se vuelve a sincronizar el mismo presupuesto
+  try {
+    const q = await yiqiFetch(API + '/api/public/DET_PED_SERV/query?schemaId=' + SCHEMA, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ page: 1, pageSize: 50, columns: [{ field: 'SEYI_ID_SEYI' }, { field: 'DEPE_PRECIO_UNITARIO_FINA' }, { field: 'PEDI_ID_PEDI' }],
+        filters: [{ columnName: 'PEDI_ID_PEDI', operator: '=', value: Number(pedidoId) }] })
+    });
+    if (q.ok) {
+      const j = await q.json();
+      const arr = (j.data || j.items || (Array.isArray(j) ? j : [])).filter(x => String(x.PEDI_ID_PEDI ?? pedidoId) === String(pedidoId));
+      const dup = arr.find(x => Number(x.SEYI_ID_SEYI) === Number(seyiId) && Math.abs(Number(x.DEPE_PRECIO_UNITARIO_FINA) - precio) < 1);
+      if (dup) { log('El pedido ya tiene este envío cargado — no se duplica', 'warn'); return { omitido: true, msg: 'El envío ya estaba cargado' }; }
+    }
+  } catch (e) { /* si no se puede chequear, se carga igual */ }
+
+  const data = { PEDI_ID_PEDI: Number(pedidoId), SEYI_ID_SEYI: seyiId, DEPE_CANTIDAD: 1, DEPE_PRECIO_UNITARIO_FINA: precio };
+  if (env.transportista) data.DEPE_TEXTO_ADICIONAL = String(env.transportista).slice(0, 200);
+  const post = async (d) => {
+    const r = await yiqiFetch(API + '/api/public/DET_PED_SERV?schemaId=' + SCHEMA, { method: 'POST', headers: H, body: JSON.stringify({ schemaId: SCHEMA, data: d }) });
+    return { ok: r.ok, status: r.status, tx: await r.text().catch(() => '') };
+  };
+  let r = await post(data);
+  if (!r.ok && data.DEPE_TEXTO_ADICIONAL && /TEXTO_ADICIONAL|no es editable/i.test(r.tx)) { delete data.DEPE_TEXTO_ADICIONAL; r = await post(data); }
+  if (!r.ok && /PRECIO_UNITARIO_FINA/i.test(r.tx)) { const d2 = Object.assign({}, data); delete d2.DEPE_PRECIO_UNITARIO_FINA; d2.DEPE_PRECIO_UNITARIO = precio; r = await post(d2); }
+  if (r.ok) { log('Envío "' + tipo + '" cargado ✓', 'ok'); return { cargado: true, msg: 'Envío cargado' }; }
+  const msg = r.status === 403 ? 'tu usuario de Yiqi no tiene permiso para cargar servicios' : ('HTTP ' + r.status + ' — ' + r.tx.slice(0, 200));
+  log('Error al cargar el envío: ' + msg, 'error');
+  return { cargado: false, msg };
+}
+window._yiqiCargarEnvioPresupuesto = _yiqiCargarEnvioPresupuesto;
+
 async function _yiqiGetTokenGlobal() {
   const LS_TOKEN = 'yiqi_api_token', LS_TOKEN_EXP = 'yiqi_api_token_exp';
   const LS_USER  = 'yiqi_api_user',  LS_PASS       = 'yiqi_api_pass';
@@ -22533,36 +22583,9 @@ async function sincronizarPresupuestoYiqi(btnEl) {
       log('Servicio: "' + seyiLabel + '" (ID ' + seyiId + ') · Precio: $' + envCostoFin, 'info');
       subtitle('Cargando servicio de envío…');
 
-      // SaveChildInstance en me.yiqi.com.ar — único endpoint que crea servicios
-      var childInstance = { TIPO_SERVICIO: seyiLabel, SEYI_ID_SEYI: seyiId, PRECIO_UNITARIO_FINA: envCostoFin };
-      if (budgetEnvio.transportista) childInstance.TEXTO_ADICIONAL = budgetEnvio.transportista;
       try {
-        var rEnv = await fetch('https://me.yiqi.com.ar/SaveChildInstance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            append: true,
-            childId: 367,
-            childInstances: [childInstance],
-            entityId: '828',
-            instanceId: String(pedidoId),
-            schemaId: YIQI_SCHEMA_ID,
-          }),
-        });
-        var envText = await rEnv.text();
-        log('SaveChildInstance: ' + rEnv.status + ' · ' + envText.substring(0,300), 'info');
-        var envText = await rEnv.text();
-        if (rEnv.ok) {
-          envioOk = true;
-          log('Envío "' + seyiLabel + '" cargado correctamente', 'ok');
-        } else if (rEnv.status === 401 || rEnv.status === 403) {
-          envioFail = true;
-          log('Sin sesión en Yiqi — abrí me.yiqi.com.ar e iniciá sesión', 'error');
-        } else {
-          envioFail = true;
-          log('Error HTTP ' + rEnv.status + ' al cargar envío: ' + envText.substring(0,200), 'error');
-        }
+        var _envRes = await _yiqiCargarEnvioPresupuesto(pedidoId, H, log);
+        if (_envRes.cargado) envioOk = true; else if (!_envRes.omitido) envioFail = true;
       } catch(eEnv) {
         envioFail = true;
         log('Error al cargar envío: ' + eEnv.message, 'error');
@@ -41717,7 +41740,13 @@ async function generarPedidoYiqiConsumidorFinal(btnEl) {
     if (!newId) throw new Error('Yiqi no devolvió ID: ' + JSON.stringify(createJson));
 
     const omitidosMsg = skusOmitidos.length ? ` (${skusOmitidos.length} SKU sin resolver)` : '';
-    showToast(`✅ Pedido #${newId} creado en Yiqi como Consumidor Final${omitidosMsg}`, 'ok');
+    let _envMsg = '';
+    try {
+      const _er = await _yiqiCargarEnvioPresupuesto(newId, authHeader, m => console.log('[envío CF]', m));
+      if (_er.cargado) _envMsg = ' + envío';
+      else if (!_er.omitido) showToast('⚠ El pedido se creó pero el envío no se cargó: ' + _er.msg, 'warn');
+    } catch (eEnv) { showToast('⚠ El pedido se creó pero el envío no se cargó: ' + eEnv.message, 'warn'); }
+    showToast(`✅ Pedido #${newId} creado en Yiqi como Consumidor Final${_envMsg}${omitidosMsg}`, 'ok');
 
   } catch(err) {
     console.error('generarPedidoYiqiConsumidorFinal error:', err);
@@ -45612,7 +45641,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.400';
+  const LATEST_VERSION = 'v25.403';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45625,6 +45654,34 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.403',
+      fecha: '2026-11-17',
+      titulo: 'Presupuestos: el envío se carga en Yiqi',
+      items: [
+        { tipo: 'fix', texto: 'El envío del presupuesto (con precio fijo) ahora se carga como servicio del pedido en Yiqi usando la API pública (POST DET_PED_SERV). Antes usaba un método que dependía de la sesión del navegador en me.yiqi.com.ar y fallaba.' },
+        { tipo: 'nuevo', texto: 'Funciona en "Agregar a pedido YIQI" y en "Generar pedido YIQI Consumidor Final". Toma el tipo de envío elegido, el monto (+10% si se paga con tarjeta) y el transportista como texto adicional. Si el pedido ya tiene ese mismo envío, no lo duplica.' }
+      ]
+    },
+    {
+      version: 'v25.402',
+      fecha: '2026-11-17',
+      titulo: 'Pedidos Yiqi: eliminar pedido',
+      items: [
+        { tipo: 'nuevo', texto: 'Botón 🗑 para eliminar un pedido en Yiqi desde la grilla. Pide escribir el número del pedido para confirmar; antes de borrar relee el pedido en Yiqi por su ID interno y verifica que número y cliente coincidan con la fila (si algo no coincide, no borra nada). Borra solo ese ID y después confirma que ya no existe.' },
+        { tipo: 'mejora', texto: 'No aparece en pedidos Entregados, Con devolución o en Staging Out; si Yiqi no permite borrar en el estado actual, muestra el motivo.' }
+      ]
+    },
+    {
+      version: 'v25.401',
+      fecha: '2026-11-17',
+      titulo: 'Pedidos Yiqi: botón Copiar pedido y Editar',
+      items: [
+        { tipo: 'nuevo', texto: 'Cada pedido de la grilla tiene "⧉ Copiar": ejecuta la acción "Copiar Pedido" del workflow de Yiqi (crea un pedido igual), busca el pedido nuevo y lo resalta en verde en la grilla.' },
+        { tipo: 'nuevo', texto: '"✏️ Editar" abre ese pedido en el formulario de pedido del CRM (Cargar datos de Yiqi) para modificar productos y datos.' },
+        { tipo: 'mejora', texto: 'La consulta a Yiqi usa el formato documentado (orden por Nro descendente desde el servidor).' }
+      ]
+    },
     {
       version: 'v25.400',
       fecha: '2026-11-17',
@@ -63274,6 +63331,12 @@ document.addEventListener('DOMContentLoaded', () => {
 #pyq-wrap th .pyq-ed{color:#a78bfa;font-size:10px;margin-left:3px;}
 #pyq-wrap td{padding:6px 9px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:top;max-width:260px;}
 #pyq-wrap tr:hover td{background:rgba(255,255,255,.03);}
+#pyq-wrap td.c-acc{white-space:nowrap;padding-right:2px;}
+#pyq-wrap .pyq-mini{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#cbd5e1;border-radius:6px;padding:3px 7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;margin-right:4px;}
+#pyq-wrap .pyq-mini.pyq-del:hover{background:rgba(239,68,68,.3);border-color:#ef4444;}
+#pyq-wrap .pyq-mini:hover{background:rgba(139,92,246,.25);border-color:#8b5cf6;color:#fff;}
+#pyq-wrap tr.pyq-nuevo td{animation:pyqNuevo 4s ease;}
+@keyframes pyqNuevo{0%,40%{background:rgba(16,185,129,.28);}100%{background:transparent;}}
 #pyq-wrap td.c-nro{font-weight:800;color:#93c5fd;white-space:nowrap;}
 #pyq-wrap td.c-nro small{display:block;font-weight:500;color:#64748b;font-size:10.5px;}
 #pyq-wrap td.c-total{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
@@ -63309,6 +63372,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Campos que Yiqi deja editar siempre (también en pedidos Entregados)
   const SIEMPRE = new Set(['PEDI_OBSERVACIONES','PEDI_ESTADO_DEL_ENVIO','PEDI_ESTADO_DE_PAGO','PEDI_ESTADO','PEDI_ESTADO_ACTUAL_DEL_PE']);
   const COLS = [
+    { k:'_acc', t:'', cls:'c-acc' },
     { k:'PEDI_NUMERO_SOLO', t:'Nro', cls:'c-nro' },
     { k:'AUDI_FECHA_ALTA', t:'Fecha de creación', cls:'c-fecha' },
     { k:'CLIE_NOMBRE', t:'Cliente' },
@@ -63336,6 +63400,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let prefs = { dias: 7, ml: false, q: '', estado: '', sort: 'PEDI_NUMERO_SOLO', dir: -1 };
   try { Object.assign(prefs, JSON.parse(localStorage.getItem(LS_PREFS) || '{}')); } catch(e) {}
+  const copiando = {}; let resaltar = null;
+  const NO_ELIMINABLE = /^(entregado|con devoluci[oó]n|staging out)$/i;
   let rows = [], lastTs = 0, loading = false, editing = null, savingN = 0, lastErr = '', needLogin = false;
   try { const c = JSON.parse(localStorage.getItem(LS_CACHE) || 'null'); if (c && Array.isArray(c.rows)) { rows = c.rows; lastTs = c.ts || 0; } } catch(e) {}
 
@@ -63368,8 +63434,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const res = await yiqiFetch(`${API}/api/public/PEDIDO/query?schemaId=${SCHEMA}`, {
       method: 'POST', headers: H,
       body: JSON.stringify({ page, pageSize: 200,
-        columns: cols.map((f, i) => ({ field: f, columnName: f, title: f, sortOrder: i + 1 })),
-        filters: filters.map(f => ({ columnName: f.c, field: f.c, operator: f.op, value: f.v })) })
+        columns: cols.map((f, i) => f === 'PEDI_NUMERO_SOLO' ? { field: f, title: f, order: i + 1, sortDirection: 'DESC', sortOrder: 1 } : { field: f, title: f, order: i + 1 }),
+        filters: filters.map(f => ({ columnName: f.c, operator: f.op, value: f.v })) })
     });
     if (!res.ok) { const tx = await res.text().catch(() => ''); const e = new Error(`HTTP ${res.status} ${tx.slice(0, 300)}`); e.status = res.status; throw e; }
     const j = await res.json();
@@ -63496,6 +63562,94 @@ document.addEventListener('DOMContentLoaded', () => {
     return { despues, aplicado };
   }
 
+  // ── Copiar pedido: misma acción del workflow de Yiqi ("Copiar Pedido" → estado "Copiando Pedido") ──
+  async function copiarPedido(id) {
+    const r = rows.find(x => String(rowId(x)) === String(id)); if (!r) return;
+    if (!confirm(`¿Copiar el pedido N° ${nro(r)} de ${r.CLIE_NOMBRE || 'cliente'}?\n\nYiqi crea un pedido nuevo igual (mismos productos y datos), en estado En espera de pago.`)) return;
+    const H = { 'Authorization': 'Bearer ' + await token(), 'Content-Type': 'application/json' };
+    const maxNro = rows.reduce((m, x) => Math.max(m, Number(nro(x)) || 0), 0);
+    const t0 = Date.now() - 60000;
+    copiando[id] = true; render();
+    try {
+      const res = await yiqiFetch(`${API}/api/public/PEDIDO/changestate?id=${encodeURIComponent(id)}&schemaId=${SCHEMA}&state=${encodeURIComponent('Copiando Pedido')}`, { method: 'POST', headers: H });
+      const tx = await res.text().catch(() => '');
+      if (!res.ok) throw new Error(msgYiqi(tx).slice(0, 250) || ('HTTP ' + res.status));
+      toast(`⏳ Yiqi está copiando el pedido ${nro(r)}…`, 'info');
+      // Buscar la copia (Yiqi la crea en segundo plano)
+      let copia = null;
+      const hoy = isoDia(new Date());
+      for (let i = 0; i < 16 && !copia; i++) {
+        await new Promise(ok => setTimeout(ok, i ? 2500 : 1500));
+        try {
+          const q = await queryPage(H, 1, QCOLS, [{ c: 'PEDI_FECHA', op: '>=', v: hoy }]);
+          copia = q.data.filter(x => Number(nro(x)) > maxNro && (x.CLIE_NOMBRE || x.PEDI_RAZON_SOCIAL || '').trim() === (r.CLIE_NOMBRE || '').trim()
+                    && (!x.AUDI_FECHA_ALTA || new Date(x.AUDI_FECHA_ALTA).getTime() >= t0 - 3 * 3600e3))
+                    .sort((a, b) => Number(nro(b)) - Number(nro(a)))[0] || null;
+        } catch(e) { console.warn('[pedidosYiqi] buscando copia:', e.message); }
+      }
+      delete copiando[id];
+      if (copia) {
+        if (!copia.CLIE_NOMBRE) copia.CLIE_NOMBRE = copia.PEDI_RAZON_SOCIAL || '';
+        if (!copia.DESC_ESTADO) copia.DESC_ESTADO = copia.ESTA_NOMBRE || '';
+        if (!copia.ID) copia.ID = copia.id;
+        resaltar = rowId(copia);
+        toast(`✓ Copia creada: pedido N° ${nro(copia)}`, 'success');
+      } else {
+        toast('✓ Yiqi aceptó la copia. Todavía no aparece el pedido nuevo: tocá 🔄 Actualizar en unos segundos.', 'info');
+      }
+      lastTs = 0; await refrescar(false);
+      setTimeout(() => { resaltar = null; }, 5000);
+    } catch(e) {
+      delete copiando[id]; render();
+      toast('⚠ Yiqi no pudo copiar el pedido: ' + e.message, 'warn');
+    }
+  }
+  // ── Eliminar: un solo pedido, verificado por id interno + número + cliente antes de borrar ──
+  async function eliminarPedido(id) {
+    const r = rows.find(x => String(rowId(x)) === String(id)); if (!r) return;
+    const numero = String(nro(r));
+    const escrito = prompt(`⚠ ELIMINAR PEDIDO EN YIQI\n\nPedido N° ${numero}\nCliente: ${r.CLIE_NOMBRE || '—'}\nTotal: ${fmtMoney(r.PEDI_TOTAL)}\nEstado: ${r.DESC_ESTADO || '—'}\n\nNo se puede deshacer. Para confirmar escribí el número del pedido (${numero}):`);
+    if (escrito == null) return;
+    if (escrito.trim() !== numero) { toast('No se eliminó: el número escrito no coincide.', 'warn'); return; }
+    const H = { 'Authorization': 'Bearer ' + await token(), 'Content-Type': 'application/json' };
+    copiando[id] = true; render();
+    try {
+      // 1) Releer el pedido por su ID interno y verificar que es exactamente el de la fila
+      const p = await getPedido(H, id);
+      const nroYiqi = String(p.PEDI_NUMERO_SOLO || String(p.PEDI_NUMERO || '').replace(/\D/g, ''));
+      const idYiqi = String(p.id || p.ID || '');
+      const cliYiqi = String(p.PEDI_RAZON_SOCIAL || '').trim().toUpperCase(), cliFila = String(r.CLIE_NOMBRE || '').trim().toUpperCase();
+      if (idYiqi !== String(id) || nroYiqi !== numero) throw new Error(`verificación fallida (Yiqi devolvió ID ${idYiqi} / N° ${nroYiqi}, se esperaba ID ${id} / N° ${numero}). No se borró nada.`);
+      if (cliYiqi && cliFila && cliYiqi !== cliFila && !cliYiqi.includes(cliFila) && !cliFila.includes(cliYiqi)) throw new Error(`el cliente no coincide (${p.PEDI_RAZON_SOCIAL}). No se borró nada.`);
+      if (p.access && p.access.canDelete === false) throw new Error(p.access.reason || 'Yiqi no permite eliminar este pedido en su estado actual.');
+      // 2) DELETE de ese único ID
+      const res = await yiqiFetch(`${API}/api/public/PEDIDO/${encodeURIComponent(id)}?schemaId=${SCHEMA}`, { method: 'DELETE', headers: H });
+      const tx = await res.text().catch(() => '');
+      if (!res.ok) throw new Error(res.status === 403 ? 'tu usuario de Yiqi no tiene permiso para eliminar pedidos.' : (msgYiqi(tx).slice(0, 250) || ('HTTP ' + res.status)));
+      // 3) Confirmar que ya no existe
+      let sigue = false;
+      try { const chk = await yiqiFetch(`${API}/api/public/PEDIDO/${encodeURIComponent(id)}?schemaId=${SCHEMA}`, { headers: H }); if (chk.ok) { const j = await chk.json().catch(() => null); sigue = !!(j && (j.id || j.PEDI_NUMERO)); } } catch(e) {}
+      delete copiando[id];
+      rows = rows.filter(x => String(rowId(x)) !== String(id)); saveCache();
+      if (sigue) toast(`⚠ Yiqi respondió OK pero el pedido ${numero} sigue apareciendo. Revisalo en Yiqi.`, 'warn');
+      else toast(`🗑 Pedido N° ${numero} eliminado de Yiqi`, 'success');
+      render();
+    } catch(e) {
+      delete copiando[id]; render();
+      toast('⚠ No se eliminó: ' + e.message, 'warn');
+    }
+  }
+  function editarEnCrm(numero) {
+    const inp = document.getElementById('ped-yiqi-edit-id');
+    const btn = document.getElementById('ped-cargar-datos-btn');
+    if (!inp || !btn) { toast('No encontré el formulario de pedido del CRM', 'warn'); return; }
+    const panel = inp.closest('.tab-panel');
+    const tab = panel && panel.id ? panel.id.replace(/^panel-/, '') : '';
+    if (tab && typeof switchTab === 'function') switchTab(tab);
+    inp.value = numero;
+    setTimeout(() => btn.click(), 150);
+  }
+
   // ── UI ──
   function ensureWrap() {
     const panel = document.getElementById('panel-envios'); if (!panel) return null;
@@ -63543,6 +63697,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function celda(c, r) {
     const v = r[c.k];
+    if (c.k === '_acc') {
+      const id = esc(rowId(r));
+      if (copiando[rowId(r)]) return '<span class="pyq-mini" style="opacity:.7">⏳ procesando…</span>';
+      return `<button class="pyq-mini" data-copiar="${id}" title="Copiar pedido (igual que 'Copiar Pedido' de Yiqi)">⧉ Copiar</button><button class="pyq-mini" data-editar="${esc(nro(r))}" title="Abrir este pedido en el formulario del CRM para modificarlo">✏️ Editar</button>${NO_ELIMINABLE.test(r.DESC_ESTADO || '') ? '' : `<button class="pyq-mini pyq-del" data-eliminar="${id}" title="Eliminar este pedido en Yiqi">🗑</button>`}`;
+    }
     if (c.k === 'PEDI_NUMERO_SOLO') {
       const o = MAP_EXTE[r.EXTE_ID_EXTE] || (r.EXTE_ID_EXTE ? 'Origen ' + r.EXTE_ID_EXTE : '');
       const pv = MAP_PUVE[r.PUVE_ID_PUVE]; return `${esc(nro(r))}<small>${esc(o)}${pv ? ' · PV ' + esc(pv) : ''}</small>`;
@@ -63587,8 +63746,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ${Object.entries(estados).sort((a,b)=>b[1]-a[1]).map(([e,n]) => `<button class="pyq-chip ${prefs.estado===e?'on':''}" data-estado="${esc(e)}">${esc(e)} (${n})</button>`).join('')}
       </div>
       <div class="pyq-scroll"><table>
-        <thead><tr>${COLS.map(c => `<th data-sort="${c.k}">${esc(c.t)}${c.ed ? '<span class="pyq-ed">✎</span>' : ''}${prefs.sort===c.k ? (prefs.dir<0?' ▼':' ▲') : ''}</th>`).join('')}</tr></thead>
-        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}">${COLS.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
+        <thead><tr>${COLS.map(c => `<th ${c.k==='_acc'?'':`data-sort="${c.k}"`}>${esc(c.t)}${c.ed ? '<span class="pyq-ed">✎</span>' : ''}${prefs.sort===c.k ? (prefs.dir<0?' ▼':' ▲') : ''}</th>`).join('')}</tr></thead>
+        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}" class="${String(rowId(r))===String(resaltar)?'pyq-nuevo':''}">${COLS.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
           : `<tr><td colspan="${COLS.length}" style="text-align:center;color:#64748b;padding:30px;">${loading ? 'Cargando pedidos desde Yiqi…' : 'No hay pedidos para mostrar.'}</td></tr>`}</tbody>
       </table></div>`;
     const sc = w.querySelector('.pyq-scroll'); if (sc) { sc.scrollTop = sTop; sc.scrollLeft = sLeft; }
@@ -63645,6 +63804,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', async e => {
     const w = document.getElementById('pyq-wrap'); if (!w || !w.contains(e.target)) return;
     const a = e.target.closest('[data-a]'), chip = e.target.closest('[data-estado]'), th = e.target.closest('th[data-sort]'), td = e.target.closest('td.ed');
+    const cp = e.target.closest('[data-copiar]'), edb = e.target.closest('[data-editar]');
+    const del = e.target.closest('[data-eliminar]');
+    if (del) return eliminarPedido(del.dataset.eliminar);
+    if (cp) return copiarPedido(cp.dataset.copiar);
+    if (edb) return editarEnCrm(edb.dataset.editar);
     if (a && a.dataset.a === 'refresh') return refrescar(true);
     if (a && a.dataset.a === 'crm') { localStorage.setItem(LS_VISTA, 'crm'); aplicarVista(); try { renderEnviosPanel(); } catch(_) {} return; }
     if (a && a.dataset.a === 'login') {
@@ -63685,7 +63849,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('visibilitychange', refrescarSiViejo);
     refrescarSiViejo();
   }
-  window._pyq = { refrescar, guardar, render, get rows() { return rows; } };
+  window._pyq = { refrescar, guardar, render, copiarPedido, eliminarPedido, get rows() { return rows; } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 </script>
