@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.406</title>
+<title>Dentalab Whatsapp CRM · v25.408</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45588,7 +45588,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.406';
+  const LATEST_VERSION = 'v25.408';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45601,6 +45601,24 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.408',
+      fecha: '2026-11-18',
+      titulo: 'Pedidos Yiqi: botón "🧾 Presupuesto" más visible',
+      items: [
+        { tipo: 'mejora', texto: 'Cada pedido tiene el botón "🧾 Presupuesto" (al lado de Copiar) para abrirlo en Presupuestos y modificarlo. El N° de pedido también queda subrayado como link.' }
+      ]
+    },
+    {
+      version: 'v25.407',
+      fecha: '2026-11-17',
+      titulo: 'Abrir un pedido de Yiqi en Presupuestos y guardar los cambios',
+      items: [
+        { tipo: 'nuevo', texto: 'En la grilla de Pedidos, clic en el N° de pedido: se carga en Presupuestos con sus productos (cantidad, precio, descuento, texto adicional), el cliente y el envío.' },
+        { tipo: 'nuevo', texto: 'Arriba del presupuesto aparece "🔗 Editando el pedido N° X" con el botón "💾 Guardar cambios en pedido N° X": manda a Yiqi solo las diferencias (agrega productos nuevos, modifica cantidades/precios/descuentos/textos, quita los que sacaste y actualiza el envío). Antes muestra el resumen y pide confirmar; verifica que el pedido siga siendo el mismo y esté En espera de pago.' },
+        { tipo: 'mejora', texto: '"↻ Recargar" vuelve a leer el pedido desde Yiqi y "Desvincular" deja el presupuesto suelto (para usarlo como presupuesto común).' }
+      ]
+    },
     {
       version: 'v25.406',
       fecha: '2026-11-17',
@@ -63312,6 +63330,9 @@ document.addEventListener('DOMContentLoaded', () => {
 #pyq-wrap tr.pyq-nuevo td{animation:pyqNuevo 4s ease;}
 @keyframes pyqNuevo{0%,40%{background:rgba(16,185,129,.28);}100%{background:transparent;}}
 #pyq-wrap td.c-nro{font-weight:800;color:#93c5fd;white-space:nowrap;}
+#pyq-wrap .pyq-nrolink{color:#93c5fd;text-decoration:underline;text-underline-offset:3px;cursor:pointer;}
+#pyq-wrap .pyq-mini.pyq-presu{border-color:rgba(139,92,246,.55);color:#e9d5ff;background:rgba(139,92,246,.18);}
+#pyq-wrap .pyq-nrolink:hover{color:#fff;border-bottom-color:#fff;}
 #pyq-wrap td.c-nro small{display:block;font-weight:500;color:#64748b;font-size:10.5px;}
 #pyq-wrap td.c-total{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
 #pyq-wrap td.c-fecha{white-space:nowrap;color:#94a3b8;}
@@ -63706,11 +63727,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (c.k === '_acc') {
       const id = esc(rowId(r));
       if (copiando[rowId(r)]) return '<span class="pyq-mini" style="opacity:.7">⏳ procesando…</span>';
-      return `<button class="pyq-mini" data-copiar="${id}" title="Copiar pedido (igual que 'Copiar Pedido' de Yiqi)">⧉ Copiar</button><button class="pyq-mini" data-editar="${esc(nro(r))}" title="Abrir este pedido en el formulario del CRM para modificarlo">✏️ Editar</button>${NO_ELIMINABLE.test(r.DESC_ESTADO || '') ? '' : `<button class="pyq-mini pyq-del" data-eliminar="${id}" title="Eliminar este pedido en Yiqi">🗑</button>`}`;
+      return `<button class="pyq-mini" data-copiar="${id}" title="Copiar pedido (igual que 'Copiar Pedido' de Yiqi)">⧉ Copiar</button><button class="pyq-mini pyq-presu" data-presu="${esc(nro(r))}" title="Abrir en Presupuestos para modificar productos y envío">🧾 Presupuesto</button><button class="pyq-mini" data-editar="${esc(nro(r))}" title="Abrir en el formulario Nuevo Pedido (datos del pedido)">✏️ Editar</button>${NO_ELIMINABLE.test(r.DESC_ESTADO || '') ? '' : `<button class="pyq-mini pyq-del" data-eliminar="${id}" title="Eliminar este pedido en Yiqi">🗑</button>`}`;
     }
     if (c.k === 'PEDI_NUMERO_SOLO') {
       const o = MAP_EXTE[r.EXTE_ID_EXTE] || (r.EXTE_ID_EXTE ? 'Origen ' + r.EXTE_ID_EXTE : '');
-      const pv = MAP_PUVE[r.PUVE_ID_PUVE]; return `${esc(nro(r))}<small>${esc(o)}${pv ? ' · PV ' + esc(pv) : ''}</small>`;
+      const pv = MAP_PUVE[r.PUVE_ID_PUVE]; return `<a class="pyq-nrolink" data-presu="${esc(nro(r))}" title="Abrir en Presupuestos para modificarlo">${esc(nro(r))}</a><small>${esc(o)}${pv ? ' · PV ' + esc(pv) : ''}</small>`;
     }
     if (c.k === 'AUDI_FECHA_ALTA' || c.k === 'PEDI_FECHA') return fmtFecha(v);
     if (c.k === 'PEDI_TOTAL') return fmtMoney(v);
@@ -63831,6 +63852,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const w = document.getElementById('pyq-wrap'); if (!w || !w.contains(e.target)) return;
     const a = e.target.closest('[data-a]'), chip = e.target.closest('[data-estado]'), th = e.target.closest('th[data-sort]'), td = e.target.closest('td.ed');
     const cp = e.target.closest('[data-copiar]'), edb = e.target.closest('[data-editar]');
+    const pl = e.target.closest('[data-presu]');
+    if (pl) { if (window._presuCargarPedidoYiqi) window._presuCargarPedidoYiqi(pl.dataset.presu); return; }
     const del = e.target.closest('[data-eliminar]');
     if (del) return eliminarPedido(del.dataset.eliminar);
     if (cp) return copiarPedido(cp.dataset.copiar);
@@ -63907,6 +63930,248 @@ document.addEventListener('DOMContentLoaded', () => {
   window._pyq = { refrescar, guardar, render, copiarPedido, eliminarPedido, get rows() { return rows; } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
+</script>
+<script>
+// ══ Pedido de Yiqi ⇄ Presupuestos (v25.407) ══
+// Clic en el N° de un pedido (grilla Pedidos en Yiqi) → se carga en Presupuestos con sus productos,
+// cliente y envío. Después "💾 Guardar cambios en pedido N° X" manda a Yiqi solo las diferencias:
+// productos nuevos (POST), modificados (PUT) y quitados (DELETE), y el envío.
+(function(){
+  const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+  const LS_LINK = 'presu_pedido_yiqi_v1';
+  let link = null; try { link = JSON.parse(localStorage.getItem(LS_LINK) || 'null'); } catch(e) {}
+  const saveLink = () => { try { if (link) localStorage.setItem(LS_LINK, JSON.stringify(link)); else localStorage.removeItem(LS_LINK); } catch(e) {} };
+  const toast = (m, t) => { try { showToast(m, t); } catch(e) { console.log(m); } };
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const r2 = v => Math.round((Number(v) || 0) * 100) / 100;
+  const SEYI_INV = () => { const m = {}; try { Object.entries(SEYI_SERVICIOS_MAP).forEach(([k, v]) => { if (!(v in m)) m[v] = k; }); } catch(e) {} return m; };
+  const LISTA_YIQI_A_CRM = { 4: 'Lista 1 - Contado', 5: 'Lista 2 - General', 2: 'Lista Reventa', 31: 'Precio Mayorista' };
+
+  async function headers() {
+    const t = await (window._yiqiGetTokenGlobal ? window._yiqiGetTokenGlobal() : null);
+    if (!t) throw new Error('No hay credenciales de Yiqi guardadas (entrá primero en la grilla de Pedidos).');
+    return { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' };
+  }
+  async function query(H, entidad, cols, filters, pageSize) {
+    const r = await yiqiFetch(`${API}/api/public/${entidad}/query?schemaId=${SCHEMA}`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ page: 1, pageSize: pageSize || 500, columns: cols.map((f, i) => ({ field: f, title: f, order: i + 1 })),
+        filters: filters.map(f => ({ columnName: f[0], operator: f[1], value: f[2] })) })
+    });
+    if (!r.ok) throw new Error(entidad + ' HTTP ' + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 200));
+    const j = await r.json(); return j.data || j.items || (Array.isArray(j) ? j : []);
+  }
+  async function leerPedido(H, id) {
+    const r = await yiqiFetch(`${API}/api/public/PEDIDO/${id}?schemaId=${SCHEMA}`, { headers: H });
+    if (!r.ok) throw new Error('No se pudo leer el pedido (' + r.status + ')');
+    return r.json();
+  }
+  async function leerLineas(H, id) {
+    let prods = [], servs = [];
+    try {
+      prods = await query(H, 'DETALLE_DE_PEDIDO', ['ID','PEDI_ID_PEDI','DEDP_SKU','MATE_ID_MATE','DEDP_CANTIDAD','DEDP_PRECIO_UNITARIO_FINA','DEDP_BONIFICACION','DEDP_TEXTO_ADICIONAL','DESC_ESTADO'], [['PEDI_ID_PEDI', '=', Number(id)]]);
+    } catch(e) {
+      prods = await query(H, 'DETALLE_DE_PEDIDO', [], [['PEDI_ID_PEDI', '=', Number(id)]]);
+    }
+    try { servs = await query(H, 'DET_PED_SERV', ['ID','PEDI_ID_PEDI','SEYI_ID_SEYI','DEPE_CANTIDAD','DEPE_PRECIO_UNITARIO_FINA','DEPE_TEXTO_ADICIONAL'], [['PEDI_ID_PEDI', '=', Number(id)]]); } catch(e) { console.warn('[presuPedido] servicios:', e.message); }
+    // Solo las líneas de ESTE pedido (por si Yiqi ignorara el filtro)
+    prods = prods.filter(x => String(x.PEDI_ID_PEDI ?? id) === String(id));
+    servs = servs.filter(x => String(x.PEDI_ID_PEDI ?? id) === String(id));
+    return { prods, servs };
+  }
+
+  // ── Cargar pedido en Presupuestos ──
+  async function cargar(valor) {
+    try {
+      if (typeof budgetItems !== 'undefined' && budgetItems.length && !confirm('El presupuesto actual tiene ' + budgetItems.length + ' ítem(s).\n¿Reemplazarlo por el pedido ' + valor + '?')) return;
+      toast('⏳ Leyendo pedido ' + valor + ' de Yiqi…', 'info');
+      const H = await headers();
+      const info = await _yiqiResolverPedidoSeguro(valor, H);
+      if (!info) { toast('⚠ No se encontró el pedido ' + valor + ' en Yiqi', 'warn'); return; }
+      const ped = await leerPedido(H, info.id);
+      const { prods, servs } = await leerLineas(H, info.id);
+      const idx = {}; (allData || []).forEach(r => { const k = String(r.SKU || '').trim().toUpperCase(); if (k) idx[k] = r; });
+      const listaKey = LISTA_YIQI_A_CRM[ped.LIDP_ID_LIDP] || 'Lista 1 - Contado';
+      const lInfo = (typeof LISTAS !== 'undefined' && (LISTAS.find(l => LISTAS_DEF.find(d => d.aliases.includes(listaKey) && d.aliases.includes(l.key))) || LISTAS[0])) || { key: listaKey, label: listaKey, cls: '' };
+      const items = [], dets = {};
+      let sinSku = 0;
+      prods.forEach(d => {
+        const detId = String(d.ID || d.id);
+        const sku = String(d.DEDP_SKU || '').trim();
+        const row = idx[sku.toUpperCase()];
+        const b = Number(d.DEDP_BONIFICACION) || 0;
+        const puf = Number(d.DEDP_PRECIO_UNITARIO_FINA) || 0;
+        const precio = b > 0 && b < 100 ? r2(puf / (1 - b / 100)) : r2(puf);
+        if (!sku) sinSku++;
+        items.push({ sku: row ? row.SKU : sku, nombre: row ? row.Nombre : (sku ? 'SKU ' + sku : 'Ítem sin SKU'), lista: lInfo.key, listaLabel: lInfo.label, listaClass: lInfo.cls || '',
+          precio, qty: Number(d.DEDP_CANTIDAD) || 1, disc: b, nota: d.DEDP_TEXTO_ADICIONAL || '', _yiqiDet: detId });
+        dets[detId] = { sku, mate: d.MATE_ID_MATE, qty: Number(d.DEDP_CANTIDAD) || 0, puf: r2(puf), disc: b, nota: d.DEDP_TEXTO_ADICIONAL || '' };
+      });
+      budgetItems = items;
+      budgetGlobalDisc = 0; budgetGlobalDiscMonto = 0;
+      budgetClientData = Object.assign({}, budgetClientData, { nombre: info.cliente || ped.PEDI_RAZON_SOCIAL || '', cuit: ped.PEDI_CUIT || '', notas: 'Pedido Yiqi N° ' + info.nro });
+      const inv = SEYI_INV();
+      const s0 = servs.find(s => Number(s.SEYI_ID_SEYI) !== 16); // 16 = Financiamiento (no es envío)
+      if (s0) {
+        budgetEnvio = Object.assign({}, budgetEnvio, { activo: true, costMode: 'precio', tipo: inv[s0.SEYI_ID_SEYI] || budgetEnvio.tipo, costo: String(r2(s0.DEPE_PRECIO_UNITARIO_FINA)), metodoPago: '',
+          transportista: s0.DEPE_TEXTO_ADICIONAL || budgetEnvio.transportista });
+      } else {
+        budgetEnvio = Object.assign({}, budgetEnvio, { activo: false });
+      }
+      link = { id: info.id, nro: info.nro, cliente: info.cliente, estado: info.estado, ts: Date.now(), dets,
+        serv: s0 ? { id: String(s0.ID || s0.id), seyi: Number(s0.SEYI_ID_SEYI), puf: r2(s0.DEPE_PRECIO_UNITARIO_FINA), texto: s0.DEPE_TEXTO_ADICIONAL || '' } : null };
+      saveLink();
+      ['cl-nombre', 'cl-cuit', 'cl-notas'].forEach((id, i) => { const el = document.getElementById(id); if (el) el.value = [budgetClientData.nombre, budgetClientData.cuit, budgetClientData.notas][i]; });
+      try { guardarPresupuestoBorrador(); } catch(e) {}
+      try { updateBudgetBadge(); } catch(e) {}
+      if (typeof switchTab === 'function') switchTab('presupuestos');
+      renderBudgetPanel();
+      const faltan = items.filter(it => !idx[String(it.sku).toUpperCase()]).length;
+      toast(`✓ Pedido N° ${info.nro} cargado en Presupuestos: ${items.length} producto(s)${s0 ? ' + envío' : ''}` + (faltan ? ` · ${faltan} SKU no está en la Lista de Precios` : ''), 'success');
+      if (!/en espera de pago/i.test(info.estado || ped.ESTA_NOMBRE || '')) toast('ℹ El pedido está "' + (info.estado || ped.ESTA_NOMBRE) + '": Yiqi solo deja cambiar productos con el pedido En espera de pago.', 'info');
+    } catch(e) { console.error(e); toast('⚠ No se pudo cargar el pedido: ' + e.message, 'warn'); }
+  }
+
+  // ── Diferencias entre el presupuesto y lo que había en Yiqi ──
+  function calcularCambios() {
+    const vistos = new Set(), agregar = [], modificar = [], quitar = [];
+    budgetItems.filter(it => !(it._section || it.sku === '__section__')).forEach(it => {
+      const qty = Number(it.qty) || 1, disc = Number(it.disc) || 0, puf = r2((Number(it.precio) || 0) * (1 - disc / 100)), nota = it.nota || '';
+      const orig = it._yiqiDet && link.dets[it._yiqiDet];
+      if (!orig) { agregar.push({ it, qty, disc, puf, nota }); return; }
+      vistos.add(it._yiqiDet);
+      const data = {};
+      if (qty !== orig.qty) data.DEDP_CANTIDAD = qty;
+      if (Math.abs(puf - orig.puf) >= 0.01) data.DEDP_PRECIO_UNITARIO_FINA = puf;
+      if (disc !== orig.disc) data.DEDP_BONIFICACION = disc;
+      if (nota.trim() !== String(orig.nota).trim()) data.DEDP_TEXTO_ADICIONAL = nota;
+      if (Object.keys(data).length) modificar.push({ it, detId: it._yiqiDet, data, orig });
+    });
+    Object.entries(link.dets).forEach(([detId, o]) => { if (!vistos.has(detId)) quitar.push({ detId, o }); });
+    // Envío
+    let envio = null;
+    const e = budgetEnvio, activo = e && e.activo && e.costMode === 'precio' && parseFloat(e.costo || 0) > 0;
+    const pufE = activo ? r2(parseFloat(e.costo) * (e.metodoPago === 'Tarjeta' ? 1.10 : 1)) : 0;
+    const seyi = activo ? (SEYI_SERVICIOS_MAP[e.tipo] || 7) : null;
+    if (link.serv && !activo) envio = { tipo: 'quitar' };
+    else if (!link.serv && activo) envio = { tipo: 'agregar' };
+    else if (link.serv && activo && (seyi !== link.serv.seyi || Math.abs(pufE - link.serv.puf) >= 0.01 || (e.transportista || '') !== link.serv.texto))
+      envio = { tipo: 'modificar', data: Object.assign({}, seyi !== link.serv.seyi ? { SEYI_ID_SEYI: seyi } : {}, Math.abs(pufE - link.serv.puf) >= 0.01 ? { DEPE_PRECIO_UNITARIO_FINA: pufE } : {}, (e.transportista || '') !== link.serv.texto ? { DEPE_TEXTO_ADICIONAL: e.transportista || '' } : {}) };
+    return { agregar, modificar, quitar, envio };
+  }
+
+  async function guardar(btn) {
+    if (!link) return;
+    const c = calcularCambios();
+    const n = c.agregar.length + c.modificar.length + c.quitar.length + (c.envio ? 1 : 0);
+    if (!n) { toast('No hay cambios para guardar en el pedido N° ' + link.nro, 'info'); return; }
+    const nom = it => (it.sku ? it.sku + ' · ' : '') + String(it.nombre || '').slice(0, 45);
+    const resumen = [
+      c.agregar.length ? '➕ AGREGAR:\n' + c.agregar.map(a => '   ' + nom(a.it) + ' × ' + a.qty).join('\n') : '',
+      c.modificar.length ? '✏️ MODIFICAR:\n' + c.modificar.map(m => '   ' + nom(m.it) + ' (' + Object.keys(m.data).map(k => ({ DEDP_CANTIDAD: 'cant ' + m.orig.qty + '→' + m.data[k], DEDP_PRECIO_UNITARIO_FINA: 'precio $' + m.orig.puf + '→$' + m.data[k], DEDP_BONIFICACION: 'desc ' + m.orig.disc + '%→' + m.data[k] + '%', DEDP_TEXTO_ADICIONAL: 'texto' })[k]).join(', ') + ')').join('\n') : '',
+      c.quitar.length ? '🗑 ELIMINAR del pedido:\n' + c.quitar.map(q => '   ' + (q.o.sku || 'ítem') + ' × ' + q.o.qty).join('\n') : '',
+      c.envio ? '🚚 ENVÍO: ' + ({ agregar: 'agregar', quitar: 'quitar', modificar: 'modificar' })[c.envio.tipo] : ''
+    ].filter(Boolean).join('\n\n');
+    if (!confirm('Guardar cambios en el pedido N° ' + link.nro + ' (' + (link.cliente || '') + ')\n\n' + resumen + '\n\n¿Confirmás?')) return;
+    const orig = btn ? btn.innerHTML : ''; if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Guardando…'; }
+    const errores = []; let ok = 0;
+    try {
+      const H = await headers();
+      // Verificar que el pedido sigue siendo el mismo y está editable
+      const ped = await leerPedido(H, link.id);
+      if (String(ped.PEDI_NUMERO_SOLO || '') !== String(link.nro)) throw new Error('El ID interno ya no corresponde al pedido N° ' + link.nro + '. No se cambió nada.');
+      if (ped.ESTA_NOMBRE && !/en espera de pago/i.test(ped.ESTA_NOMBRE)) throw new Error('El pedido está "' + ped.ESTA_NOMBRE + '". Yiqi solo deja cambiar productos En espera de pago (usá "Reiniciar pedido" en Yiqi). No se cambió nada.');
+      const req = async (method, url, body) => { const r = await yiqiFetch(url, { method, headers: H, body: body ? JSON.stringify(body) : undefined }); const tx = await r.text().catch(() => ''); if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + tx.slice(0, 160)); return tx; };
+      // 1) Quitar
+      for (const q of c.quitar) {
+        try { await req('DELETE', `${API}/api/public/DETALLE_DE_PEDIDO/${q.detId}?schemaId=${SCHEMA}`); delete link.dets[q.detId]; ok++; }
+        catch(e) { errores.push('Quitar ' + (q.o.sku || q.detId) + ': ' + e.message); }
+      }
+      // 2) Modificar
+      for (const m of c.modificar) {
+        try { await req('PUT', `${API}/api/public/DETALLE_DE_PEDIDO/${m.detId}?schemaId=${SCHEMA}`, { schemaId: SCHEMA, data: m.data });
+          Object.assign(link.dets[m.detId], { qty: m.data.DEDP_CANTIDAD ?? m.orig.qty, puf: m.data.DEDP_PRECIO_UNITARIO_FINA ?? m.orig.puf, disc: m.data.DEDP_BONIFICACION ?? m.orig.disc, nota: m.data.DEDP_TEXTO_ADICIONAL ?? m.orig.nota }); ok++; }
+        catch(e) { errores.push('Modificar ' + m.it.sku + ': ' + e.message); }
+      }
+      // 3) Agregar
+      if (c.agregar.length) {
+        const tok = H.Authorization.replace('Bearer ', '');
+        const skuMap = await yiqiGetSkuMap(tok, null, true);
+        for (const a of c.agregar) {
+          const s = String(a.it.sku || '').trim();
+          const mate = skuMap[s] !== undefined ? skuMap[s] : (/^\d+$/.test(s) ? Number(s) : null);
+          if (!mate) { errores.push('Agregar ' + s + ': no tiene ID interno en Yiqi'); continue; }
+          const data = { PEDI_ID_PEDI: Number(link.id), MATE_ID_MATE: mate, DEDP_CANTIDAD: a.qty, DEDP_PRECIO_UNITARIO_FINA: a.puf, DEDP_BONIFICACION: a.disc };
+          if (a.nota) data.DEDP_TEXTO_ADICIONAL = a.nota;
+          try { const tx = await req('POST', `${API}/api/public/DETALLE_DE_PEDIDO?schemaId=${SCHEMA}`, { schemaId: SCHEMA, data });
+            let nid = null; try { const j = JSON.parse(tx); nid = j.newId || j.id; } catch(_) {}
+            if (nid) { a.it._yiqiDet = String(nid); link.dets[String(nid)] = { sku: s, mate, qty: a.qty, puf: a.puf, disc: a.disc, nota: a.nota }; }
+            ok++; }
+          catch(e) { errores.push('Agregar ' + s + ': ' + e.message); }
+        }
+      }
+      // 4) Envío
+      if (c.envio) {
+        try {
+          if (c.envio.tipo === 'quitar') { await req('DELETE', `${API}/api/public/DET_PED_SERV/${link.serv.id}?schemaId=${SCHEMA}`); link.serv = null; }
+          else if (c.envio.tipo === 'modificar') { await req('PUT', `${API}/api/public/DET_PED_SERV/${link.serv.id}?schemaId=${SCHEMA}`, { schemaId: SCHEMA, data: c.envio.data });
+            if (c.envio.data.SEYI_ID_SEYI) link.serv.seyi = c.envio.data.SEYI_ID_SEYI; if (c.envio.data.DEPE_PRECIO_UNITARIO_FINA) link.serv.puf = c.envio.data.DEPE_PRECIO_UNITARIO_FINA; if ('DEPE_TEXTO_ADICIONAL' in c.envio.data) link.serv.texto = c.envio.data.DEPE_TEXTO_ADICIONAL; }
+          else { const er = await _yiqiCargarEnvioPresupuesto(link.id, H); if (!er.cargado && !er.omitido) throw new Error(er.msg); }
+          ok++;
+        } catch(e) { errores.push('Envío: ' + e.message); }
+      }
+      saveLink(); try { guardarPresupuestoBorrador(); } catch(e) {}
+      if (errores.length) { toast(`⚠ Pedido N° ${link.nro}: ${ok} cambio(s) OK, ${errores.length} con error. Detalle en la consola (F12).`, 'warn'); console.warn('[presuPedido] errores:', errores); alert('Algunos cambios no se guardaron:\n\n' + errores.join('\n')); }
+      else toast(`✓ Pedido N° ${link.nro} actualizado en Yiqi (${ok} cambio${ok !== 1 ? 's' : ''})`, 'success');
+      // Releer desde Yiqi para quedar sincronizado
+      if (c.agregar.length || c.envio) { const nro = link.nro; link = null; saveLink(); budgetItems = []; await cargar(nro); }
+      else renderBudgetPanel();
+      try { if (window._pyq) window._pyq.refrescar(false); } catch(e) {}
+    } catch(e) { toast('⚠ ' + e.message, 'warn'); }
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = orig; } }
+  }
+
+  function desvincular() {
+    if (!link) return;
+    budgetItems.forEach(it => { delete it._yiqiDet; });
+    link = null; saveLink(); try { guardarPresupuestoBorrador(); } catch(e) {} renderBudgetPanel();
+    toast('Presupuesto desvinculado del pedido', 'info');
+  }
+
+  // Banner en Presupuestos mientras esté vinculado a un pedido
+  function banner() {
+    const cont = document.getElementById('panel-presupuestos-inner'); if (!cont) return;
+    let b = document.getElementById('presu-ped-banner');
+    // Si el presupuesto se vació o ya no tiene líneas del pedido, se suelta el vínculo solo
+    if (link && !(budgetItems || []).some(it => it._yiqiDet) && !(budgetItems || []).length) { link = null; saveLink(); }
+    if (!link) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement('div'); b.id = 'presu-ped-banner'; }
+    if (b.parentNode !== cont || cont.firstChild !== b) cont.insertBefore(b, cont.firstChild);
+    let n = 0; try { const c = calcularCambios(); n = c.agregar.length + c.modificar.length + c.quitar.length + (c.envio ? 1 : 0); } catch(e) {}
+    b.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 14px;border-radius:12px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.45);font-family:DM Sans,sans-serif;font-size:13px;color:#e9d5ff;';
+    b.innerHTML = `🔗 Editando el <b>pedido N° ${esc(link.nro)}</b> de Yiqi · ${esc(link.cliente || '')}
+      <span style="color:#94a3b8">· ${n ? n + ' cambio' + (n !== 1 ? 's' : '') + ' sin guardar' : 'sin cambios'}</span>
+      <span style="margin-left:auto;display:flex;gap:8px;">
+        <button id="presu-ped-guardar" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);border:none;border-radius:9px;padding:8px 14px;color:#fff;font-weight:800;cursor:pointer;font-family:inherit;">💾 Guardar cambios en pedido N° ${esc(link.nro)}</button>
+        <button id="presu-ped-recargar" title="Volver a leer el pedido desde Yiqi (descarta cambios)" style="background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:9px;padding:8px 12px;color:#cbd5e1;font-weight:700;cursor:pointer;font-family:inherit;">↻ Recargar</button>
+        <button id="presu-ped-desv" title="Seguir usando el presupuesto sin vínculo con el pedido" style="background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:9px;padding:8px 12px;color:#cbd5e1;font-weight:700;cursor:pointer;font-family:inherit;">Desvincular</button>
+      </span>`;
+    b.querySelector('#presu-ped-guardar').onclick = e => guardar(e.currentTarget);
+    b.querySelector('#presu-ped-recargar').onclick = () => { const nro = link.nro; budgetItems = []; link = null; saveLink(); cargar(nro); };
+    b.querySelector('#presu-ped-desv').onclick = desvincular;
+  }
+  if (typeof renderBudgetPanel === 'function') {
+    const _orig = renderBudgetPanel;
+    window.renderBudgetPanel = function() { const r = _orig.apply(this, arguments); try { banner(); } catch(e) { console.warn(e); } return r; };
+  }
+  // Refrescar el contador de cambios cuando se edita algo en el presupuesto
+  let t; document.addEventListener('input', e => { if (link && e.target.closest && e.target.closest('#panel-presupuestos-inner')) { clearTimeout(t); t = setTimeout(() => { try { banner(); } catch(_) {} }, 400); } }, true);
+  document.addEventListener('change', e => { if (link && e.target.closest && e.target.closest('#panel-presupuestos-inner')) { clearTimeout(t); t = setTimeout(() => { try { banner(); } catch(_) {} }, 300); } }, true);
+
+  window._presuCargarPedidoYiqi = cargar;
+  window._presuPedidoLink = () => link;
+})();
+
 </script>
 <script>
 // ══════════════════════════════════════════════════════
