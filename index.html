@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.424</title>
+<title>Dentalab Whatsapp CRM · v25.426</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -35777,7 +35777,12 @@ function cliParseDate(val) {
 // ── Calcular clientes desde filas ──
 function cliComputeClientes(rows) {
   if (!rows || !rows.length) return [];
-  const headers = Object.keys(rows[0]);
+  // Las filas vienen de Excel ("Cliente - Nombre") y de Yiqi ("cliente - nombre"): se normalizan los nombres
+  // de columna a minúsculas. Antes se tomaban las columnas de la primera fila y las de Yiqi quedaban afuera.
+  rows = rows.filter(Boolean).map(r => { const o = {}; for (const k in r) { const kk = String(k).toLowerCase().trim(); if (o[kk] == null || o[kk] === '') o[kk] = r[k]; } return o; });
+  const _hs = new Set(); rows.forEach(r => Object.keys(r).forEach(k => _hs.add(k)));
+  const headers = (function(){ const a = [..._hs]; const pri = ['cliente - nombre','fecha de creación','total con descuento','vendedor - nombre','descripción de estado','nro'];
+    return a.sort((x, y) => (pri.indexOf(x) < 0 ? 99 : pri.indexOf(x)) - (pri.indexOf(y) < 0 ? 99 : pri.indexOf(y))); })();
 
   // Mapeo flexible de columnas reales
   const colNombre   = cliPickCol(headers, ['cliente - nombre','cliente','nombre']) || headers[2];
@@ -35807,7 +35812,7 @@ function cliComputeClientes(rows) {
   })();
 
   // Estados excluidos
-  const ESTADOS_EXCLUIDOS = []; // Sin restricciones — se muestran todos los estados
+  const ESTADOS_EXCLUIDOS = ['anulado', 'a anular']; // los anulados no son compras
 
   // Vendedores excluidos
   const VENDEDORES_EXCLUIDOS = ['carlos cirigliano', 'eduardo balassanian', 'gregorio samandjian', 'showroom', 'jorge campagnoli', 'local'];
@@ -35964,64 +35969,56 @@ async function syncClientesDesdeYiqi(btnEl) {
     return data.access_token;
   }
 
-  // ── Traer TODOS los pedidos paginando por mes (hasta 18 meses atrás) ──
+  // ── Traer los pedidos de los últimos 18 meses con la consulta de Yiqi (paginada, sin MercadoLibre) ──
+  // Antes se usaba /search con la fecha exacta del día 1 de cada mes: solo traía los pedidos de ese día,
+  // por eso la base quedaba vieja y casi todos los clientes figuraban "Dormidos".
   async function fetchTodosLosPedidos(token) {
-    const H = { 'Authorization': `Bearer ${token}` };
-    const seen = new Set();
-    const todos = [];
-
-    // Request base (sin filtro de fecha — trae los más recientes)
-    try {
-      const r = await yiqiFetch(`${YIQI_API_BASE}/api/public/PEDIDO/search?schemaId=${YIQI_SCHEMA_ID}`, { headers: H });
-      if (r.ok) {
-        const data = await r.json();
-        if (Array.isArray(data)) data.forEach(p => {
-          const k = String(p.id || p.DET__ID_DET_ || JSON.stringify(p)).slice(0, 40);
-          if (!seen.has(k)) { seen.add(k); todos.push(p); }
-        });
-      }
-    } catch(e) { console.warn('[syncCliYiqi] request base:', e); }
-
-    // Requests por mes — del mes actual hasta 18 meses atrás
+    const H = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const desde = new Date(); desde.setMonth(desde.getMonth() - 18); desde.setDate(1);
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const cols = ['ID','PEDI_NUMERO_SOLO','PEDI_NUMERO','CLIE_NOMBRE','PEDI_RAZON_SOCIAL','PEDI_FECHA','AUDI_FECHA_ALTA','PEDI_TOTAL_MD','PEDI_TOTAL',
+      'VEHA_ID_VEHA','EXTE_ID_EXTE','PEDI_PROVINCIA_DE_ENVIO','PEDI_OBSERVACIONES','DESC_ESTADO','PEDI_TELEFONO','TIFA_ID_TIFA','CEDI_ID_ORIG','PEDI_CANAL'];
+    const todos = [], seen = new Set();
+    const pedir = async (filters, page) => {
+      const r = await yiqiFetch(`${YIQI_API_BASE}/api/public/PEDIDO/query?schemaId=${YIQI_SCHEMA_ID}`, { method: 'POST', headers: H,
+        body: JSON.stringify({ page, pageSize: 500, columns: cols.map((f, i) => ({ field: f, title: f, order: i + 1 })), filters }) });
+      if (!r.ok) throw new Error('Yiqi HTTP ' + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 150));
+      const j = await r.json(); return { data: j.data || j.items || (Array.isArray(j) ? j : []), total: j.total || 0 };
+    };
+    // Por tramos de 3 meses para que cada consulta sea liviana
     const hoy = new Date();
-    for (let m = 0; m <= 18; m++) {
-      const d = new Date(hoy.getFullYear(), hoy.getMonth() - m, 1);
-      const fechaStr = d.toISOString().slice(0, 10);
-      setBtn(`⏳ Descargando ${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}…`, true);
-      try {
-        const r = await yiqiFetch(`${YIQI_API_BASE}/api/public/PEDIDO/search?schemaId=${YIQI_SCHEMA_ID}&PEDI_FECHA=${fechaStr}`, { headers: H });
-        if (!r.ok) continue;
-        const data = await r.json();
-        if (!Array.isArray(data)) continue;
-        data.forEach(p => {
-          const k = String(p.id || p.DET__ID_DET_ || JSON.stringify(p)).slice(0, 40);
-          if (!seen.has(k)) { seen.add(k); todos.push(p); }
-        });
-      } catch(e) { console.warn(`[syncCliYiqi] mes ${fechaStr}:`, e); }
+    for (let d0 = new Date(desde); d0 <= hoy; ) {
+      const d1 = new Date(d0.getFullYear(), d0.getMonth() + 3, 1);
+      setBtn(`⏳ Descargando ${String(d0.getMonth()+1).padStart(2,'0')}/${d0.getFullYear()}…`, true);
+      const filters = [{ columnName: 'PEDI_FECHA', operator: '>=', value: iso(d0) }, { columnName: 'PEDI_FECHA', operator: '<', value: iso(d1) }, { columnName: 'EXTE_ID_EXTE', operator: '!=', value: 2 }];
+      for (let page = 1; page <= 40; page++) {
+        const { data, total } = await pedir(filters, page);
+        data.forEach(p => { const k = String(p.ID || p.id); if (!seen.has(k)) { seen.add(k); todos.push(p); } });
+        if (data.length < 500 || (total && page * 500 >= total)) break;
+      }
+      d0 = d1;
     }
-
     console.log(`[syncCliYiqi] Total pedidos descargados de Yiqi: ${todos.length}`);
     return todos;
   }
 
   // Mapea un pedido de Yiqi al formato de fila que espera cliComputeClientes
   function yiqiPedidoToRow(p) {
-    const VEHA_NOMBRE_MAP = {
-      1: 'Local', 2: 'Gregorio Samandjian', 3: 'Carlos Cirigliano',
-      4: 'Juan Martin Gaffuri', 8: 'Federico Silva'
-    };
+    const VEHA = (typeof _YIQI_INV_VEHA !== 'undefined') ? _YIQI_INV_VEHA : { 1: 'Local', 2: 'Gregorio Samandjian', 3: 'Carlos Cirigliano', 4: 'Juan Martin Gaffuri', 8: 'Federico Silva' };
+    const TIFA = (typeof _YIQI_INV_TIFA !== 'undefined') ? _YIQI_INV_TIFA : {};
+    const CEDI = (typeof _YIQI_INV_CEDI !== 'undefined') ? _YIQI_INV_CEDI : {};
     return {
-      'nro':                    String(p.PEDI_NUMERO_SOLO || p.PEDI_NRO_PEDIDO || p.PEDI_NUMERO || p.DET__ID_DET_ || p.id || '').replace(/\D/g,''),
-      'cliente - nombre':       String(p.PEDI_RAZON_SOCIAL || '').trim(),
+      'nro':                    String(p.PEDI_NUMERO_SOLO || p.PEDI_NUMERO || p.ID || p.id || '').replace(/\D/g,''),
+      'cliente - nombre':       String(p.CLIE_NOMBRE || p.PEDI_RAZON_SOCIAL || '').trim(),
       'fecha de creación':      p.PEDI_FECHA || p.AUDI_FECHA_ALTA || '',
-      'total con descuento':    p.PEDI_TOTAL || 0,
-      'vendedor - nombre':      VEHA_NOMBRE_MAP[p.VEHA_ID_VEHA] || '',
+      'total con descuento':    Number(p.PEDI_TOTAL_MD != null ? p.PEDI_TOTAL_MD : p.PEDI_TOTAL) || 0,
+      'vendedor - nombre':      VEHA[p.VEHA_ID_VEHA] || '',
       'provincia':              p.PEDI_PROVINCIA_DE_ENVIO || '',
-      'tipo de factura':        '',
-      'ubicación origen':       '',
+      'tipo de factura':        TIFA[p.TIFA_ID_TIFA] || '',
+      'ubicación origen':       CEDI[p.CEDI_ID_ORIG] || '',
       'observaciones':          p.PEDI_OBSERVACIONES || '',
-      'estado - descripción':   p.ESTA_NOMBRE || '',
-      'cliente - te 1':         p.PEDI_TELEFONO ? p.PEDI_TELEFONO.replace(/X/g,'').trim() : '',
+      'descripción de estado':  p.DESC_ESTADO || p.ESTA_NOMBRE || '',
+      'cliente - te 1':         p.PEDI_TELEFONO ? String(p.PEDI_TELEFONO).replace(/X/g,'').trim() : '',
     };
   }
 
@@ -36064,7 +36061,8 @@ async function syncClientesDesdeYiqi(btnEl) {
     const CANALES_BLOQUEADOS  = ['mercadolibre', 'meli', 'mercado libre', 'marketplace', 'ml'];
     const rowsYiqi = pedidos
       .filter(p => {
-        if (!p.PEDI_RAZON_SOCIAL || !p.PEDI_RAZON_SOCIAL.trim()) return false;
+        if (!String(p.CLIE_NOMBRE || p.PEDI_RAZON_SOCIAL || '').trim()) return false;
+        if (Number(p.EXTE_ID_EXTE) === 2) return false; // MercadoLibre
         const canal = String(p.PEDI_CANAL || '').toLowerCase().trim();
         // Solo bloquear si el canal existe Y es claramente un canal no permitido (ML/marketplace)
         // Si el canal viene vacío o no reconocido, incluir (igual que el Excel)
@@ -36103,6 +36101,12 @@ async function syncClientesDesdeYiqi(btnEl) {
       if (src['cliente - te 1'] && !r['cliente - te 1'] && !r['Cliente - TE 1']) {
         r['cliente - te 1'] = src['cliente - te 1'];
         changed = true;
+      }
+      // Estado y fecha actualizados desde Yiqi (en cualquier variante de nombre de columna)
+      if (src['descripción de estado']) {
+        const kEst = Object.keys(r).filter(k => /estado/i.test(k));
+        if (!kEst.length) kEst.push('descripción de estado');
+        kEst.forEach(k => { if (r[k] !== src['descripción de estado']) { r[k] = src['descripción de estado']; changed = true; } });
       }
       if (src['total con descuento'] && Number(src['total con descuento']) > 0) {
         r['total con descuento'] = src['total con descuento'];
@@ -45601,7 +45605,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.424';
+  const LATEST_VERSION = 'v25.426';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45614,6 +45618,23 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.426',
+      fecha: '2026-11-18',
+      titulo: 'Clientes: sincronización con Yiqi corregida',
+      items: [
+        { tipo: 'fix', texto: 'La pestaña Clientes quedaba vieja y casi todos figuraban "Dormidos": la sincronización con Yiqi solo traía los pedidos del día 1 de cada mes, y además los pedidos que venían de Yiqi no se sumaban porque sus columnas tenían otro formato que las del Excel. Ahora trae todos los pedidos de los últimos 18 meses (sin MercadoLibre) y los suma bien.' },
+        { tipo: 'mejora', texto: 'Se actualiza también el estado de cada pedido, y los Anulados ya no cuentan como compra (facturación, cantidad de pedidos, último pedido).' }
+      ]
+    },
+    {
+      version: 'v25.425',
+      fecha: '2026-11-18',
+      titulo: 'Informe: sección Clientes',
+      items: [
+        { tipo: 'nuevo', texto: 'Nueva sección "Clientes de [mes]" (pantalla y PDF), con los pedidos de WhatsApp de Juan y Federico en Yiqi: clientes que compraron (nuevos y que ya compraban), compra promedio por cliente, pedidos por cliente, peso de los 10 que más gastaron, top 10 por facturación, top 10 por cantidad de pedidos y cómo compran en el último año (todos los meses, frecuentes, ocasionales, una sola vez). Sin "Consumidor final".' }
+      ]
+    },
     {
       version: 'v25.424',
       fecha: '2026-11-18',
@@ -65378,6 +65399,66 @@ document.addEventListener('DOMContentLoaded', () => {
 ];
   }
 
+  /* ---------- CLIENTES DEL MES (pedidos WhatsApp de Juan y Federico en Yiqi) ---------- */
+  function cliModel(y,m){
+    const D=waCache[ymKey(y,m)]; if(!D||D.err||!D.rows) return null;
+    const esCF=n=>/consumidor\s*final/i.test(String(n||''));
+    const fact=r=>WA_FACT.test(String(r.DESC_ESTADO||'').trim()), tom=r=>WA_ESTADOS.test(String(r.DESC_ESTADO||'').trim());
+    const monto=r=>Number(r.PEDI_TOTAL_MD!=null?r.PEDI_TOTAL_MD:r.PEDI_TOTAL)||0;
+    const mesDe=r=>{const f=new Date(r.PEDI_FECHA);return ymKey(f.getFullYear(),f.getMonth());};
+    const kM=ymKey(y,m), vendDe=id=>{const v=WA_VEND.find(x=>x.id===Number(id));return v?v.c:'';};
+    const R=D.rows.filter(r=>r.CLIE_ID_CLIE!=null&&!esCF(r.CLIE_NOMBRE));
+    // mes
+    const C={};
+    R.filter(r=>mesDe(r)===kM&&(tom(r)||fact(r))).forEach(r=>{const c=(C[r.CLIE_ID_CLIE]=C[r.CLIE_ID_CLIE]||{n:String(r.CLIE_NOMBRE||'').trim(),ped:0,s:0,v:{}});if(tom(r))c.ped++;if(fact(r))c.s+=monto(r);c.v[r.VEHA_ID_VEHA]=(c.v[r.VEHA_ID_VEHA]||0)+1;});
+    const lista=Object.entries(C).map(([id,c])=>({id,cliente:c.n,ped:c.ped,s:c.s,vend:vendDe(Object.entries(c.v).sort((a,b)=>b[1]-a[1])[0][0])}));
+    const conCompra=lista.filter(c=>c.s>0), totS=conCompra.reduce((a,c)=>a+c.s,0);
+    const antes=new Set(D.rows.filter(r=>mesDe(r)<kM&&!/^(anulado|a anular)$/i.test(r.DESC_ESTADO||'')).map(r=>String(r.CLIE_ID_CLIE)));
+    const nuevos=lista.filter(c=>!antes.has(String(c.id))).length;
+    const topS=[...conCompra].sort((a,b)=>b.s-a.s).slice(0,10), top10S=topS.reduce((a,c)=>a+c.s,0);
+    const topP=[...lista].sort((a,b)=>b.ped-a.ped||b.s-a.s).slice(0,10);
+    // últimos 12 meses completos (o hasta el mes del informe): frecuencia
+    const k12=[]; for(let i=0;i<12;i++){const d=new Date(y,m-i,1);k12.push(ymKey(d.getFullYear(),d.getMonth()));}
+    const H={}; R.filter(r=>k12.includes(mesDe(r))&&tom(r)).forEach(r=>{(H[r.CLIE_ID_CLIE]=H[r.CLIE_ID_CLIE]||new Set()).add(mesDe(r));});
+    const seg={todos:0,frec:0,ocas:0,una:0}; Object.values(H).forEach(sm=>{const n=sm.size; if(n>=10)seg.todos++; else if(n>=6)seg.frec++; else if(n>=2)seg.ocas++; else seg.una++;});
+    return {clientes:lista.length,conCompra:conCompra.length,nuevos,recurrentes:lista.length-nuevos,totS,prom:conCompra.length?totS/conCompra.length:null,
+      pedXc:lista.length?lista.reduce((a,c)=>a+c.ped,0)/lista.length:null,topS,topP,conc:totS?top10S/totS:null,seg,act12:Object.keys(H).length};
+  }
+  function cliHTML(y,m){
+    const K=cliModel(y,m); if(!K||!K.clientes) return '';
+    const mesTit=MONTHS[m];
+    const tile=(l,b,s,cls)=>`<div class="est-tile"><span class="l">${l}</span><span class="b ${cls||''}">${b}</span><span class="s">${s||''}</span></div>`;
+    const L_=' style="text-align:left"';
+    const segT=K.act12?`<div class="est-dt" style="margin-top:12px"><table class="est-cmp"><thead><tr><th${L_}>Cómo compran (últimos 12 meses)</th><th>Clientes</th><th>%</th></tr></thead><tbody>
+      ${[['Todos los meses (10 a 12 meses)',K.seg.todos],['Frecuentes (6 a 9 meses)',K.seg.frec],['Ocasionales (2 a 5 meses)',K.seg.ocas],['Una sola vez',K.seg.una]].map(([l,n])=>`<tr><td${L_}>${l}</td><td>${fmtN(n)}</td><td>${fmtP(n/K.act12)}</td></tr>`).join('')}
+      <tr><td${L_}><b>Clientes activos en el año</b></td><td><b>${fmtN(K.act12)}</b></td><td></td></tr></tbody></table></div>`:'';
+    return `<section class="est-sec"><p class="est-eyebrow">Clientes · Origen WhatsApp (Yiqi)</p><h3>Clientes de ${mesTit}</h3>
+      <div class="est-tiles">
+        ${tile('Clientes que compraron',fmtN(K.clientes),`${fmtN(K.nuevos)} nuevos · ${fmtN(K.recurrentes)} que ya compraban`)}
+        ${tile('Compra promedio por cliente',fmt$(K.prom),'facturado en el mes','est-red')}
+        ${tile('Pedidos por cliente',fmtN(K.pedXc),'promedio en el mes')}
+        ${tile('Peso de los 10 que más gastaron',fmtP(K.conc),'de lo facturado en el mes')}
+      </div>
+      <div class="est-two" style="margin-top:12px">
+        <div class="est-dt"><table class="est-cmp"><thead><tr><th>#</th><th${L_}>Los que más gastaron</th><th${L_}>Vendedor</th><th>Pedidos</th><th>Facturado</th></tr></thead><tbody>${K.topS.map((c,i)=>`<tr><td>${i+1}</td><td${L_}><b>${esc(c.cliente)}</b></td><td${L_}>${esc(c.vend)}</td><td>${fmtN(c.ped)}</td><td>${fmt$(c.s)}</td></tr>`).join('')}</tbody></table></div>
+        <div class="est-dt"><table class="est-cmp"><thead><tr><th>#</th><th${L_}>Los que más pedidos hicieron</th><th${L_}>Vendedor</th><th>Pedidos</th><th>Facturado</th></tr></thead><tbody>${K.topP.map((c,i)=>`<tr><td>${i+1}</td><td${L_}><b>${esc(c.cliente)}</b></td><td${L_}>${esc(c.vend)}</td><td>${fmtN(c.ped)}</td><td>${fmt$(c.s)}</td></tr>`).join('')}</tbody></table></div>
+      </div>${segT}
+      <p class="est-small">Clientes de los pedidos de WhatsApp de Juan y Federico en Yiqi (sin "Consumidor final"). Pedidos = tomados (A reservar, Entregado, Quiebre 2, Staging Out); facturado = Entregado y Staging Out.</p></section>`;
+  }
+  function cliSlides(y,m,frame,card){
+    const K=cliModel(y,m); if(!K||!K.clientes) return [];
+    const mesTit=MONTHS[m], L_=' style="text-align:left"';
+    const cg='<colgroup><col style="width:7%"><col style="width:47%"><col style="width:14%"><col style="width:12%"><col style="width:20%"></colgroup>';
+    const tb=(ttl,arr)=>`<table class="ep-tb ep-anx">${cg}<thead><tr><th>#</th><th${L_}>${ttl}</th><th${L_}>Vendedor</th><th>Pedidos</th><th>Facturado</th></tr></thead><tbody>${arr.map((c,i)=>`<tr><td>${i+1}</td><td${L_}>${esc(c.cliente)}</td><td${L_}>${esc(c.vend)}</td><td>${fmtN(c.ped)}</td><td>${fmt$(c.s)}</td></tr>`).join('')}</tbody></table>`;
+    const out=[];
+    out.push(frame('Clientes · Origen WhatsApp',`Clientes de ${mesTit}`,`<div class="ep-grid4">${card('Clientes que compraron',fmtN(K.clientes),`${fmtN(K.nuevos)} nuevos · ${fmtN(K.recurrentes)} ya compraban`)}${card('Compra promedio',fmt$(K.prom),'por cliente en el mes','red money')}${card('Pedidos por cliente',fmtN(K.pedXc),'promedio en el mes')}${card('Peso del top 10',fmtP(K.conc),'de lo facturado en el mes')}</div>
+      ${K.act12?`<table class="ep-tb" style="margin-top:22px"><thead><tr><th>Cómo compran (últimos 12 meses)</th><th>Todos los meses</th><th>Frecuentes (6–9)</th><th>Ocasionales (2–5)</th><th>Una sola vez</th><th>Activos en el año</th></tr></thead><tbody><tr><td>Clientes</td><td>${fmtN(K.seg.todos)}</td><td>${fmtN(K.seg.frec)}</td><td>${fmtN(K.seg.ocas)}</td><td>${fmtN(K.seg.una)}</td><td><b>${fmtN(K.act12)}</b></td></tr><tr><td>%</td><td>${fmtP(K.seg.todos/K.act12)}</td><td>${fmtP(K.seg.frec/K.act12)}</td><td>${fmtP(K.seg.ocas/K.act12)}</td><td>${fmtP(K.seg.una/K.act12)}</td><td></td></tr></tbody></table>`:''}
+      <p class="ep-note">Pedidos de WhatsApp de Juan y Federico en Yiqi, sin "Consumidor final". Facturado = Entregado y Staging Out.</p>`));
+    out.push(frame('Clientes · Origen WhatsApp','Los que más gastaron',tb('Cliente',K.topS)));
+    out.push(frame('Clientes · Origen WhatsApp','Los que más pedidos hicieron',tb('Cliente',K.topP)));
+    return out;
+  }
+
   /* ---------- RESUMEN EJECUTIVO Y PRÓXIMOS PASOS (para presentar) ---------- */
   let pdfCompleto=false;
   const gram=t=>String(t||'').replace(/\b([Aa]) el\b/g,'$1l').replace(/\b([Dd])e el\b/g,'$1el');
@@ -65448,6 +65529,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <p class="est-small">Se contaron ${conDatos.length} días hábiles con datos, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p></section>%%EST_RECS%%`;
     h+=waSecHTML(y,m);
+    h+=cliHTML(y,m);
     // 2. Embudo
     const fmax=Math.max(C.sum,Q.sum,P.sum,1);
     const fb=(lbl,v,cls)=>`<div class="est-fun"><span class="est-fun-l">${lbl}</span><span class="est-fun-t"><i class="${cls}" style="width:${Math.max(1.5,v/fmax*100)}%"></i><b>${fmtN(v)}</b></span></div>`;
@@ -65568,6 +65650,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // números
     slides.push(frame('Resumen del mes',`${mes} en números`,`<div class="ep-grid4">${card('Chats totales',fmtN(C.sum),C.avg!=null?fmtN(C.avg)+' por día hábil':'')}${card('Consultas',fmtN(Q.sum),Q.avg!=null?fmtN(Q.avg)+' por día hábil':'')}${card('Pedidos anotados (planilla)',fmtN(P.sum),P.avg!=null?fmtN(P.avg)+' por día hábil':'','red')}${card('Conversión',fmtP(conv),'de las consultas terminan en pedido')}</div><p class="ep-note">Se contaron ${conDatos.length} días hábiles, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p>`));
     { const ws=waSlide(y,m,frame,card); if(ws) slides.push(...ws); }
+    slides.push(...cliSlides(y,m,frame,card));
     // embudo
     const fm=Math.max(C.sum,Q.sum,P.sum,1), fb=(l,v,c,tc)=>`<div class="ep-fun"><span>${l}</span><div><i style="width:${Math.max(2,v/fm*82)}%;background:${c}"></i><b style="color:${tc||PDFC.navy}">${fmtN(v)}</b></div></div>`;
     slides.push(frame('Embudo del mes','Del chat al pedido',`<div class="ep-funnel">${fb('Chats totales',C.sum,PDFC.navy)}${fb('Consultas',Q.sum,PDFC.blue,PDFC.blue)}${fb('Pedidos',P.sum,PDFC.red,PDFC.red)}</div><div class="ep-grid3">${card('',fmtP(chQ),'de los chats son consultas','blue')}${card('',fmtP(conv),'de las consultas terminan en pedido','red')}${card('',fmtP(chP),'de los chats terminan en pedido','red')}</div>`));
