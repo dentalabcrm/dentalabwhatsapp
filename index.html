@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.440</title>
+<title>Dentalab Whatsapp CRM · v25.442</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12810,7 +12810,7 @@ const SINONIMOS_RAW = [
   ['Escáner intraoral', 'scanner intraoral', 'escaner', 'scanner', 'escáner 3D', 'intraoral'],
   ['RX Portátil', 'rayos x', 'rayos', 'radiografía', 'radiografia', 'equipo de rayos'],
   ['Sistema Radiográfico Digital', 'RVG', 'radiovisiógrafo', 'radiovisiografo', 'sensor', 'sensor RVG', 'sensor digital'],
-  ['Lámpara de Fotocurado', 'fotocurado', 'lámpara LED', 'luz de fotocurado', 'lámpara de luz'],
+  ['Lámpara de Fotocurado', 'lámpara LED', 'luz de fotocurado', 'lámpara de luz'], // sin "fotocurado" suelto: traía adhesivos/barreras al buscar "lámpara"
   ['Autoclave', 'esterilizador', 'esterilizadora', 'clase B', 'autoclave 21L'],
   ['Fisiodispenser', 'motor de implantes', 'implant motor'], // sin "implantes" suelto (traía contra ángulos "• Implantes")
   ['Micromotor Eléctrico', 'motor eléctrico', 'motor de cirugía', 'micromotor LED'],
@@ -13560,7 +13560,8 @@ function _applyFiltersBase() {
         // (para que "ocryl" encuentre "O-cryl", "acrilico" encuentre "Acrílico", etc.)
         // y probar también los sinónimos del grupo de cada término (ej: "irrigador" → "Duchador").
         const _okT = t => {
-          const candidatos = _candidatosSinonimos(t);
+          // Un sinónimo que repite otra palabra de la misma búsqueda no cuenta ("lámpara de fotocurado" traía adhesivos)
+          const candidatos = _candidatosSinonimos(t).filter(c => c === t || !(tokensNorm.includes(_sinPuntGlobal(c)) || (' ' + tokensNorm.join(' ') + ' ').includes(' ' + _sinPuntGlobal(c) + ' ')));
           return candidatos.some(c => fields.some(f => f.includes(c)) || fieldsSinPunt.some(f => f.includes(_sinPunt(c))));
         };
         let tokensOk = tokens.every(_okT);
@@ -45580,7 +45581,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.440';
+  const LATEST_VERSION = 'v25.442';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45593,6 +45594,22 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.442',
+      fecha: '2026-11-19',
+      titulo: 'Buscador: "lámpara de fotocurado" ya no trae adhesivos',
+      items: [
+        { tipo: 'corrección', texto: 'Buscar "lámpara" o "lámpara de fotocurado" trae solo lámparas: antes "lámpara" contaba como sinónimo de "fotocurado" y traía también adhesivos y barreras de fotocurado. Además, un sinónimo que repite otra palabra de la misma búsqueda ya no cuenta.' }
+      ]
+    },
+    {
+      version: 'v25.441',
+      fecha: '2026-11-19',
+      titulo: 'Nueva Empresa / Cliente: avisa si ya está cargado',
+      items: [
+        { tipo: 'nuevo', texto: 'Mientras escribís el nombre/apellido o el DNI/CUIT de un cliente nuevo, se busca en vivo en Yiqi si ya existe (por palabras sueltas en nombre y razón social, y por número en CUIT/DNI, incluido el DNI dentro de un CUIT). Si aparece, "✏️ Abrir este" carga sus datos para revisarlo o actualizarlo en vez de crear uno repetido.' }
+      ]
+    },
     {
       version: 'v25.440',
       fecha: '2026-11-18',
@@ -66725,6 +66742,85 @@ document.addEventListener('DOMContentLoaded', () => {
   new MutationObserver(muts => {
     muts.forEach(mu => mu.addedNodes.forEach(n => { if (n.nodeType === 1 && n.id === 'gcal-backdrop') autoPdf(n); }));
   }).observe(document.documentElement, { childList: true, subtree: true });
+})();
+
+// ── v25.441: Nueva Empresa / Cliente — detección de clientes ya cargados en Yiqi ──
+// Mientras se escribe el nombre/apellido o el DNI/CUIT, busca EN VIVO en Yiqi (palabra por palabra en
+// nombre y razón social; por número en CUIT/DNI, incluido el DNI dentro de un CUIT) y avisa si ya existe,
+// con un botón para abrirlo en modo edición en vez de cargarlo de nuevo.
+(function(){
+  const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const COLS = ['CLIE_NOMBRE', 'CLIE_RAZON_SOCIAL', 'CLIE_CUIT', 'CLIE_LOCALIDAD'].map((f, i) => ({ field: f, title: f, order: i + 1 }));
+  let _t = null, _seq = 0;
+  async function q(filters){
+    const tok = await _yiqiGetTokenGlobal(); if (!tok) throw new Error('sin sesión de Yiqi');
+    const r = await yiqiFetch(`${API}/api/public/CLIENTE/query?schemaId=${SCHEMA}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 1, pageSize: 8, columns: COLS, filters }) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return (await r.json()).data || [];
+  }
+  function caja(){
+    let b = $('clie-dup-box');
+    const cuit = $('clie-cuit');
+    if (!b && cuit) {
+      b = document.createElement('div'); b.id = 'clie-dup-box';
+      b.style.cssText = 'margin:6px 0 4px;font-size:12px;';
+      const fila = cuit.closest('div[style*="grid-template-columns"]') || cuit.parentElement;
+      fila.parentNode.insertBefore(b, fila.nextSibling);
+    }
+    return b;
+  }
+  async function buscar(){
+    const b = caja(); if (!b) return;
+    const nombre = ($('clie-nombre')?.value || '').trim();
+    const doc = ($('clie-cuit')?.value || '').replace(/\D/g, '');
+    const palabras = nombre.split(/\s+/).filter(w => w.length >= 3).slice(0, 4);
+    if (!palabras.length && doc.length < 6) { b.innerHTML = ''; return; }
+    const my = ++_seq;
+    b.innerHTML = '<span style="color:var(--text3)">🔎 Buscando si ya está cargado en Yiqi…</span>';
+    try {
+      const pedidos = [];
+      if (doc.length >= 6) {
+        pedidos.push(q([{ columnName: 'CLIE_CUIT', operator: 'LIKE', value: doc }]).then(r => r.map(c => Object.assign(c, { _por: 'doc' }))));
+        if (doc.length === 11) pedidos.push(q([{ columnName: 'CLIE_CUIT', operator: 'LIKE', value: doc.slice(2, 10) }]).then(r => r.map(c => Object.assign(c, { _por: 'doc' }))));
+      }
+      if (palabras.length) {
+        pedidos.push(q(palabras.map(w => ({ columnName: 'CLIE_NOMBRE', operator: 'LIKE', value: w }))).then(r => r.map(c => Object.assign(c, { _por: 'nombre' }))));
+        pedidos.push(q(palabras.map(w => ({ columnName: 'CLIE_RAZON_SOCIAL', operator: 'LIKE', value: w }))).then(r => r.map(c => Object.assign(c, { _por: 'nombre' }))).catch(() => []));
+      }
+      const todos = (await Promise.all(pedidos)).flat();
+      if (my !== _seq) return;
+      const vistos = new Map();
+      todos.forEach(c => { const k = String(c.id || c.ID); if (k === String(window._clieYiqiEditId || '')) return; const v = vistos.get(k); if (!v || c._por === 'doc') vistos.set(k, c); });
+      const lista = [...vistos.values()].sort((a, b) => (a._por === 'doc' ? 0 : 1) - (b._por === 'doc' ? 0 : 1)).slice(0, 8);
+      if (!lista.length) { b.innerHTML = '<span style="color:#34d399">✓ No hay ningún cliente en Yiqi con ese ' + (doc.length >= 6 && palabras.length ? 'nombre ni DNI/CUIT' : doc.length >= 6 ? 'DNI/CUIT' : 'nombre') + '.</span>'; return; }
+      const fuerte = lista.some(c => c._por === 'doc');
+      b.innerHTML = `<div style="border:1px solid ${fuerte ? 'rgba(239,68,68,.5)' : 'rgba(245,158,11,.45)'};background:${fuerte ? 'rgba(239,68,68,.08)' : 'rgba(245,158,11,.08)'};border-radius:8px;padding:8px 10px;">
+        <div style="font-weight:800;color:${fuerte ? '#f87171' : '#fbbf24'};margin-bottom:5px;">${fuerte ? '⚠ Ya existe un cliente con ese DNI/CUIT' : '⚠ Puede que ya esté cargado'} (${lista.length})</div>
+        ${lista.map(c => `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid rgba(148,163,184,.15);">
+          <div style="flex:1;min-width:0;"><b style="color:var(--text)">${esc(c.CLIE_NOMBRE || c.CLIE_RAZON_SOCIAL)}</b> <span style="color:var(--text3)">· ${esc(c.CLIE_CUIT || 'sin CUIT')}${c.CLIE_LOCALIDAD ? ' · ' + esc(c.CLIE_LOCALIDAD) : ''} · ID ${esc(c.id || c.ID)}</span>${c._por === 'doc' ? ' <span style="color:#f87171;font-weight:700;">mismo DNI/CUIT</span>' : ''}</div>
+          <button type="button" data-clie-usar="${esc(c.id || c.ID)}" style="padding:4px 10px;border-radius:6px;border:1px solid #10b981;background:rgba(16,185,129,.12);color:#34d399;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">✏️ Abrir este</button>
+        </div>`).join('')}
+        <div style="color:var(--text3);font-size:11px;margin-top:4px;">"Abrir este" carga sus datos para revisarlos o actualizarlos, sin crear uno nuevo.</div></div>`;
+      b.querySelectorAll('[data-clie-usar]').forEach(btn => btn.onclick = async () => {
+        const id = btn.dataset.clieUsar;
+        btn.disabled = true; btn.textContent = '⏳';
+        try { await clieCargarDatosDeYiqi(null, id); b.innerHTML = ''; const s = $('clie-yiqi-search'); const c = lista.find(x => String(x.id || x.ID) === String(id)); if (s && c) s.value = c.CLIE_NOMBRE || ''; }
+        catch (e) { btn.disabled = false; btn.textContent = '✏️ Abrir este'; }
+      });
+    } catch (e) { if (my === _seq) b.innerHTML = '<span style="color:var(--text3)">No se pudo revisar en Yiqi (' + esc(e.message || e) + ').</span>'; }
+  }
+  function programar(){ clearTimeout(_t); _t = setTimeout(buscar, 450); }
+  // El aviso viejo (sólo miraba la lista local) se reemplaza por la búsqueda en vivo
+  // (el aviso viejo se definía al cargar la página; se reemplaza también después)
+  const nuevo = function(){ if (!window._clieYiqiEditId) programar(); };
+  const pisar = () => { window.clieNombreAutocomplete = nuevo; };
+  pisar(); document.addEventListener('DOMContentLoaded', () => setTimeout(pisar, 0)); setTimeout(pisar, 3000);
+  document.addEventListener('input', e => {
+    if (e.target && (e.target.id === 'clie-cuit' || e.target.id === 'clie-nombre') && !window._clieYiqiEditId) programar();
+  }, true);
+  window._clieDupLimpiar = () => { const b = $('clie-dup-box'); if (b) b.innerHTML = ''; };
 })();
 
 </script>
