@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.436</title>
+<title>Dentalab Whatsapp CRM · v25.438</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -28660,93 +28660,60 @@ function abrirModalNuevoPedido() {
     // Debounce timer for autocomplete
     let _envBuscarTimer = null;
 
+    // v25.438: al escribir el N° de pedido se completa el nombre del cliente y se adjunta el PDF del pedido
+    // (descargado de Yiqi, formato "Generar PDF"). Si se cambia el N°, se reemplaza lo que se completó solo;
+    // lo que se escribió o adjuntó a mano no se toca.
+    let _envSeq = 0;
     async function _envBuscarPorNro(nro) {
       nro = String(nro).trim();
       if (nro.length < 4) return;
-
-      const YIQI_API_BASE = 'https://api.yiqi.com.ar';
-
-      // ── Paso 1: autocompletar cliente desde historial local (instantáneo) ──
-      let localMatch = null;
+      const my = ++_envSeq;
+      const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+      const autoNombre = () => cliIn && (!cliIn.value.trim() || cliIn.dataset.auto === '1');
+      const estado = (html) => { let e = bd.querySelector('#env-nro-estado'); if (!e && nroIn) { e = document.createElement('div'); e.id = 'env-nro-estado'; e.style.cssText = 'font-size:11px;margin-top:4px;color:var(--text3);'; nroIn.parentNode.appendChild(e); } if (e) e.innerHTML = html; };
+      // 1) Historial local (instantáneo)
       try {
-        const envios = loadEnvios();
-        localMatch = envios.find(e => String(e.nroPedido || '').trim() === nro);
-        if (localMatch && localMatch.clienteNombre && cliIn && !cliIn.value.trim()) {
-          cliIn.value = localMatch.clienteNombre;
-          cliIn.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-      } catch(e) { console.warn('envBuscar local:', e); }
-
-      // ── Paso 2: obtener token ──
-      let tok = localStorage.getItem('yiqi_api_token');
-      const exp = parseInt(localStorage.getItem('yiqi_api_token_exp')||'0',10);
-      if (!tok || Date.now() >= exp) {
-        const user = localStorage.getItem('yiqi_api_user');
-        const pass = localStorage.getItem('yiqi_api_pass');
-        if (!user || !pass) return;
-        try {
-          const r = await yiqiFetch(YIQI_API_BASE+'/token', {
-            method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-            body:'grant_type=password&username='+encodeURIComponent(user)+'&password='+encodeURIComponent(pass)
-          });
-          if (!r.ok) return;
-          const d = await r.json();
-          tok = d.access_token;
-          localStorage.setItem('yiqi_api_token', tok);
-          localStorage.setItem('yiqi_api_token_exp', String(Date.now()+(d.expires_in||86400)*1000-60000));
-        } catch(e) { console.warn('envBuscar token:', e); return; }
-      }
+        const loc = loadEnvios().find(e => String(e.nroPedido || '').trim() === nro);
+        if (loc && loc.clienteNombre && autoNombre()) { cliIn.value = loc.clienteNombre; cliIn.dataset.auto = '1'; cliIn.dispatchEvent(new Event('input', { bubbles: true })); }
+      } catch (e) {}
+      let tok = null; try { tok = await _yiqiGetTokenGlobal(); } catch (e) {}
+      if (!tok) { estado('Sin sesión de Yiqi: no se puede buscar el pedido.'); return; }
       const H = { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' };
-
-      // ── Paso 3: si el yiqiId ya está en el historial local, abrir PDF YA
-      //    y en paralelo buscar el nombre del cliente en Yiqi si falta ──
-      if (localMatch && localMatch.yiqiId) {
-        const pedidoId = String(localMatch.yiqiId);
-        // Abrir PDF inmediatamente — no esperar nada más
-        if (window._envAttachments && window._envAttachments.length === 0) {
-          _envIntentarAdjuntarPDFYiqi(pedidoId, nro, localMatch.clienteNombre || '');
-        }
-        // Si falta el nombre del cliente, buscarlo en paralelo sin bloquear
-        if (cliIn && !cliIn.value.trim()) {
-          yiqiFetch(YIQI_API_BASE+'/api/public/PEDIDO/'+pedidoId+'?schemaId=328', { headers: H })
-            .then(r => r.ok ? r.json() : null)
-            .then(p => {
-              if (!p) return;
-              const nombre = p.CLIE_RAZON_SOCIAL || p.CLIE_NOMBRE || p.cliente || '';
-              if (nombre && cliIn && !cliIn.value.trim()) {
-                cliIn.value = nombre;
-                cliIn.dispatchEvent(new Event('input', { bubbles: true }));
-              }
-            }).catch(() => {});
-        }
-        return;
-      }
-
-      // ── Paso 4: yiqiId no está en local → resolver ID y cliente en paralelo ──
+      estado('⏳ Buscando el pedido ' + nro + ' en Yiqi…');
       try {
-        const pedidoId = await _yiqiResolverPedidoId(nro, H, () => {});
-        if (!pedidoId) return;
-
-        // Abrir PDF en cuanto tenemos el ID, sin esperar el nombre del cliente
-        if (window._envAttachments && window._envAttachments.length === 0) {
-          _envIntentarAdjuntarPDFYiqi(pedidoId, nro, cliIn ? cliIn.value : '');
-        }
-
-        // Buscar nombre del cliente en paralelo (no bloquea el PDF)
-        if (cliIn && !cliIn.value.trim()) {
-          yiqiFetch(YIQI_API_BASE+'/api/public/PEDIDO/'+pedidoId+'?schemaId=328', { headers: H })
-            .then(r => r.ok ? r.json() : null)
-            .then(p => {
-              if (!p) return;
-              const nombre = p.CLIE_RAZON_SOCIAL || p.CLIE_NOMBRE || p.cliente || '';
-              if (nombre && cliIn && !cliIn.value.trim()) {
-                cliIn.value = nombre;
-                cliIn.dispatchEvent(new Event('input', { bubbles: true }));
-              }
-            }).catch(() => {});
-        }
-      } catch(e) { console.warn('envBuscar Yiqi:', e); }
+        // 2) Pedido por N° (nunca por "adivinar" el ID)
+        const r = await yiqiFetch(`${API}/api/public/PEDIDO/query?schemaId=${SCHEMA}`, { method: 'POST', headers: H,
+          body: JSON.stringify({ page: 1, pageSize: 5, columns: ['ID', 'PEDI_NUMERO_SOLO', 'CLIE_NOMBRE', 'PEDI_RAZON_SOCIAL', 'DESC_ESTADO'].map((f, i) => ({ field: f, title: f, order: i + 1 })),
+            filters: [{ columnName: 'PEDI_NUMERO_SOLO', operator: '=', value: Number(nro) }] }) });
+        if (my !== _envSeq) return;
+        const j = r.ok ? await r.json() : {};
+        const p = (j.data || []).find(x => String(x.PEDI_NUMERO_SOLO) === nro);
+        if (!p) { estado('<span style="color:#f59e0b">No se encontró el pedido ' + nro + ' en Yiqi.</span>'); return; }
+        const id = p.id || p.ID;
+        const nombre = String(p.PEDI_RAZON_SOCIAL || p.CLIE_NOMBRE || '').trim();
+        if (nombre && autoNombre() && my === _envSeq) { cliIn.value = nombre; cliIn.dataset.auto = '1'; cliIn.dispatchEvent(new Event('input', { bubbles: true })); }
+        estado('<span style="color:#34d399">✓ ' + (nombre || 'Pedido encontrado') + (p.DESC_ESTADO ? ' · ' + p.DESC_ESTADO : '') + '</span> · <a href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/' + id + '" target="_blank" style="color:var(--blue)">ver en Yiqi ↗</a>');
+        // 3) PDF del pedido → adjunto
+        const atts = window._envAttachments || (window._envAttachments = []);
+        let _quite = false;
+        for (let i = atts.length - 1; i >= 0; i--) if (atts[i]._autoPedido && atts[i]._autoPedido !== nro) { atts.splice(i, 1); _quite = true; }
+        if (_quite && window._handleEnvDrop) window._handleEnvDrop({ dataTransfer: { files: [] } });
+        if (atts.some(a => a._autoPedido === nro)) { if (window._handleEnvDrop) window._handleEnvDrop({ dataTransfer: { files: [] } }); return; }
+        estado(bd.querySelector('#env-nro-estado').innerHTML + ' · <span style="color:var(--text3)">⏳ adjuntando PDF…</span>');
+        const rp = await yiqiFetch(`${API}/api/public/PEDIDO/report?reportName=PEDIDO_v1.3&instanceId=${encodeURIComponent(id)}&schemaId=${SCHEMA}`, { headers: { 'Authorization': 'Bearer ' + tok } });
+        if (my !== _envSeq) return;
+        if (!rp.ok) throw new Error('PDF HTTP ' + rp.status);
+        const blob = await rp.blob();
+        if (!blob.size) throw new Error('Yiqi devolvió el PDF vacío');
+        const f = new File([blob], `Pedido_${nro}.pdf`, { type: 'application/pdf' });
+        f._autoPedido = nro;
+        if (window._handleEnvDrop) window._handleEnvDrop({ dataTransfer: { files: [f] } });
+        estado('<span style="color:#34d399">✓ ' + (nombre || 'Pedido ' + nro) + (p.DESC_ESTADO ? ' · ' + p.DESC_ESTADO : '') + ' · PDF adjuntado</span> · <a href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/' + id + '" target="_blank" style="color:var(--blue)">ver en Yiqi ↗</a>');
+      } catch (e) {
+        if (my === _envSeq) estado('<span style="color:#f87171">No se pudo traer el pedido/PDF de Yiqi: ' + String(e.message || e).replace(/</g, '&lt;') + '</span>');
+      }
     }
+    if (cliIn) cliIn.addEventListener('input', e => { if (e.isTrusted) cliIn.dataset.auto = ''; });
 
     let _envBuscarDone = '';
     nroIn.addEventListener('input', function() {
@@ -28763,7 +28730,7 @@ function abrirModalNuevoPedido() {
         _envBuscarTimer = setTimeout(() => {
           _envBuscarDone = val;
           _envBuscarPorNro(val);
-        }, 150);
+        }, 700);
       }
     });
     nroIn.addEventListener('blur', function() {
@@ -45610,7 +45577,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.436';
+  const LATEST_VERSION = 'v25.438';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45623,6 +45590,23 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.438',
+      fecha: '2026-11-18',
+      titulo: 'Nuevo pedido → depósito: se completa solo con el N° de pedido',
+      items: [
+        { tipo: 'nuevo', texto: 'En "Nuevo pedido → depósito", al escribir el N° de pedido se completa el nombre del cliente y se adjunta solo el PDF del pedido (descargado de Yiqi). Debajo del N° se ve el cliente, el estado y un link al pedido en Yiqi.' },
+        { tipo: 'corrección', texto: 'Ya no busca el pedido mientras todavía estás escribiendo el número (antes con 4 dígitos podía encontrar otro pedido). Si cambiás el N°, se reemplazan el nombre y el PDF que se habían completado solos; lo que escribiste o adjuntaste a mano queda.' }
+      ]
+    },
+    {
+      version: 'v25.437',
+      fecha: '2026-11-18',
+      titulo: 'Pedidos en Yiqi: el N° abre el pedido en Yiqi',
+      items: [
+        { tipo: 'mejora', texto: 'En la grilla de Pedidos en Yiqi, un clic en el N° de pedido abre ese pedido en Yiqi en una pestaña nueva. Para modificarlo en Presupuestos se usa el botón "🧾 Presupuesto" de la fila.' }
+      ]
+    },
     {
       version: 'v25.436',
       fecha: '2026-11-18',
@@ -64209,7 +64193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (c.k === 'PEDI_NUMERO_SOLO') {
       const o = MAP_EXTE[r.EXTE_ID_EXTE] || (r.EXTE_ID_EXTE ? 'Origen ' + r.EXTE_ID_EXTE : '');
       const oc = Number(r.EXTE_ID_EXTE) === 13 ? 'o-wa' : Number(r.EXTE_ID_EXTE) === 11 ? 'o-web' : 'o-otro';
-      const pv = MAP_PUVE[r.PUVE_ID_PUVE]; return `<a class="pyq-nrolink" data-presu="${esc(nro(r))}" title="Abrir en Presupuestos para modificarlo">${esc(nro(r))}</a><small><b class="pyq-org ${oc}">${esc(o)}</b>${pv ? ' · PV ' + esc(pv) : ''}</small>`;
+      const pv = MAP_PUVE[r.PUVE_ID_PUVE]; return `<a class="pyq-nrolink" href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/${esc(rowId(r))}" target="_blank" rel="noopener" data-yiqi="1" title="Abrir el pedido ${esc(nro(r))} en Yiqi">${esc(nro(r))} ↗</a><small><b class="pyq-org ${oc}">${esc(o)}</b>${pv ? ' · PV ' + esc(pv) : ''}</small>`;
     }
     if (c.k === 'AUDI_FECHA_ALTA' || c.k === 'PEDI_FECHA') return fmtFecha(v);
     if (c.k === 'PEDI_TOTAL') return fmtMoney(v);
@@ -64332,6 +64316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const w = document.getElementById('pyq-wrap'); if (!w || !w.contains(e.target)) return;
     const a = e.target.closest('[data-a]'), chip = e.target.closest('[data-estado]'), th = e.target.closest('th[data-sort]'), td = e.target.closest('td.ed');
     const cp = e.target.closest('[data-copiar]'), edb = e.target.closest('[data-editar]');
+    if (e.target.closest('a[data-yiqi]')) return; // el N° abre el pedido en Yiqi (pestaña nueva)
     const rb = e.target.closest('[data-reservar]');
     if (rb) return solicitarReserva(rb.dataset.reservar);
     const fb = e.target.closest('[data-fact]');
