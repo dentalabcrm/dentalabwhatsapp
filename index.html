@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.435</title>
+<title>Dentalab Whatsapp CRM · v25.436</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -24660,6 +24660,7 @@ async function pedCargarDatosDeYiqi(btnEl) {
     sv('ped-prov-envio',   p.PEDI_PROVINCIA_DE_ENVIO            || '');
     sv('ped-pais-envio',   p.PEDI_PAIS_DE_ENVIO                 || 'Argentina');
     sv('ped-localidad-envio', p.PEDI_LOCALIDAD_DE_ENVIO         || '');
+    sv('ped-cp-envio',        p.PEDI_CODIGO_POSTAL_DE_ENV       || '');
     sv('ped-estado-envio', p.PEDI_ESTADO_DEL_ENVIO              || '');
     sv('ped-estado-pago',  p.PEDI_ESTADO_DE_PAGO                || '');
     pedSetModoEdicion(true, pedidoId, pedNum);
@@ -41519,6 +41520,7 @@ async function cargarPedidoEnYiqi(btnEl) {
     if (g('ped-prov-envio'))      pedidoData.PEDI_PROVINCIA_DE_ENVIO  = g('ped-prov-envio');
     if (g('ped-pais-envio'))      pedidoData.PEDI_PAIS_DE_ENVIO       = g('ped-pais-envio');
     if (g('ped-localidad-envio')) pedidoData.PEDI_LOCALIDAD_DE_ENVIO  = g('ped-localidad-envio');
+    if (g('ped-cp-envio'))        pedidoData.PEDI_CODIGO_POSTAL_DE_ENV = g('ped-cp-envio');
     if (estadoEnvFinal.trim())    pedidoData.PEDI_ESTADO_DEL_ENVIO    = estadoEnvFinal.trim();
     if (g('ped-estado-pago'))     pedidoData.PEDI_ESTADO_DE_PAGO      = g('ped-estado-pago');
 
@@ -41685,6 +41687,7 @@ async function generarPedidoYiqiConsumidorFinal(btnEl) {
     if (g('ped-prov-envio'))      pedidoData.PEDI_PROVINCIA_DE_ENVIO  = g('ped-prov-envio');
     if (g('ped-pais-envio'))      pedidoData.PEDI_PAIS_DE_ENVIO       = g('ped-pais-envio');
     if (g('ped-localidad-envio')) pedidoData.PEDI_LOCALIDAD_DE_ENVIO  = g('ped-localidad-envio');
+    if (g('ped-cp-envio'))        pedidoData.PEDI_CODIGO_POSTAL_DE_ENV = g('ped-cp-envio');
     if (estadoEnvFinal.trim())    pedidoData.PEDI_ESTADO_DEL_ENVIO    = estadoEnvFinal.trim();
     if (g('ped-estado-pago'))     pedidoData.PEDI_ESTADO_DE_PAGO      = g('ped-estado-pago');
     if (skusOmitidos.length) {
@@ -45607,7 +45610,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.435';
+  const LATEST_VERSION = 'v25.436';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45620,6 +45623,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.436',
+      fecha: '2026-11-18',
+      titulo: 'Nuevo Pedido: código postal de envío',
+      items: [
+        { tipo: 'nuevo', texto: 'En "Nuevo Pedido" → Datos de envío se agregó "Código postal (CP)". Se guarda en Yiqi con el pedido, se completa solo con el CP del último pedido del cliente y también se trae al usar "Cargar datos" de un pedido existente.' }
+      ]
+    },
     {
       version: 'v25.435',
       fecha: '2026-11-18',
@@ -61959,6 +61970,11 @@ function _registrarUsoFrecuente(sku, nombre) {
           style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;">
       </div>
       <div style="display:grid;grid-template-columns:200px 1fr;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);">
+        <label style="font-size:13px;color:var(--text2);font-weight:600;">Código postal (CP)</label>
+        <input type="text" id="ped-cp-envio" placeholder="1425" inputmode="numeric"
+          style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;">
+      </div>
+      <div style="display:grid;grid-template-columns:200px 1fr;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);">
         <label style="font-size:13px;color:var(--text2);font-weight:600;">Provincia de envío</label>
         <input type="text" id="ped-prov-envio" placeholder="Buenos Aires"
           style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;">
@@ -63334,6 +63350,11 @@ function _registrarUsoFrecuente(sku, nombre) {
       <div style="display:grid;grid-template-columns:200px 1fr;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);">
         <label style="font-size:13px;color:var(--text2);font-weight:600;">Ciudad de envío</label>
         <input type="text" id="ped-ciudad-envio" placeholder="Buenos Aires"
+          style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;">
+      </div>
+      <div style="display:grid;grid-template-columns:200px 1fr;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);">
+        <label style="font-size:13px;color:var(--text2);font-weight:600;">Código postal (CP)</label>
+        <input type="text" id="ped-cp-envio" placeholder="1425" inputmode="numeric"
           style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;">
       </div>
       <div style="display:grid;grid-template-columns:200px 1fr;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);">
@@ -66406,7 +66427,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Campos que se completan y los que el usuario tocó a mano ──
   const CAMPOS = ['ped-origen', 'ped-vendedor', 'ped-condventa', 'ped-lista', 'ped-puntoventa', 'ped-ubicorig',
-    'ped-cliefac-input', 'ped-dir-envio', 'ped-ciudad-envio', 'ped-prov-envio', 'ped-pais-envio', 'ped-localidad-envio'];
+    'ped-cliefac-input', 'ped-dir-envio', 'ped-ciudad-envio', 'ped-cp-envio', 'ped-prov-envio', 'ped-pais-envio', 'ped-localidad-envio'];
   const tocados = new Set();
   document.addEventListener('input', e => { if (e.isTrusted && CAMPOS.includes(e.target.id)) tocados.add(e.target.id); }, true);
   let _llenando = false;
@@ -66453,7 +66474,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const COLS = ['PEDI_NUMERO_SOLO', 'PEDI_FECHA', 'DESC_ESTADO', 'EXTE_ID_EXTE', 'VEHA_ID_VEHA', 'COVE_ID_COVE', 'LIDP_ID_LIDP', 'PUVE_ID_PUVE', 'CEDI_ID_ORIG',
-    'CLIE_ID_FACT', 'FACT_NOMBRE', 'PEDI_DIRECCION_DE_ENVIO', 'PEDI_CIUDAD_DE_ENVIO', 'PEDI_PROVINCIA_DE_ENVIO', 'PEDI_PAIS_DE_ENVIO', 'PEDI_LOCALIDAD_DE_ENVIO'];
+    'CLIE_ID_FACT', 'FACT_NOMBRE', 'PEDI_DIRECCION_DE_ENVIO', 'PEDI_CIUDAD_DE_ENVIO', 'PEDI_PROVINCIA_DE_ENVIO', 'PEDI_PAIS_DE_ENVIO', 'PEDI_LOCALIDAD_DE_ENVIO', 'PEDI_CODIGO_POSTAL_DE_ENV'];
   let _seq = 0;
   async function autocompletar(nombre){
     const my = ++_seq;
@@ -66492,6 +66513,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setTxt('ped-prov-envio', o.PEDI_PROVINCIA_DE_ENVIO);
       setTxt('ped-pais-envio', o.PEDI_PAIS_DE_ENVIO);
       setTxt('ped-localidad-envio', o.PEDI_LOCALIDAD_DE_ENVIO);
+      setTxt('ped-cp-envio', o.PEDI_CODIGO_POSTAL_DE_ENV);
       const f = o.PEDI_FECHA ? new Date(o.PEDI_FECHA).toLocaleDateString('es-AR') : '';
       marca(`✓ Datos completados de su último pedido N° ${o.PEDI_NUMERO_SOLO}${f ? ' (' + f + ')' : ''}`);
       if (typeof showToast === 'function') showToast('✓ Datos del último pedido N° ' + o.PEDI_NUMERO_SOLO + ' cargados', 'ok');
@@ -67021,6 +67043,7 @@ function resetPedidoForm() {
   setVal('ped-cliente-val',   '');
   setVal('ped-cliefac-input', '');
   setVal('ped-cliefac-val',   '');
+  setVal('ped-cp-envio',      '');
   const cliList = s('ped-cliente-list'); if (cliList) cliList.innerHTML = '';
   const facList = s('ped-cliefac-list'); if (facList) facList.innerHTML = '';
 
