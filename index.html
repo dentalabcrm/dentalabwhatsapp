@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.438</title>
+<title>Dentalab Whatsapp CRM · v25.440</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -28661,7 +28661,7 @@ function abrirModalNuevoPedido() {
     let _envBuscarTimer = null;
 
     // v25.438: al escribir el N° de pedido se completa el nombre del cliente y se adjunta el PDF del pedido
-    // (descargado de Yiqi, formato "Generar PDF"). Si se cambia el N°, se reemplaza lo que se completó solo;
+    // (descargado de Yiqi, formato "Presupuesto"). Si se cambia el N°, se reemplaza lo que se completó solo;
     // lo que se escribió o adjuntó a mano no se toca.
     let _envSeq = 0;
     async function _envBuscarPorNro(nro) {
@@ -28700,15 +28700,18 @@ function abrirModalNuevoPedido() {
         if (_quite && window._handleEnvDrop) window._handleEnvDrop({ dataTransfer: { files: [] } });
         if (atts.some(a => a._autoPedido === nro)) { if (window._handleEnvDrop) window._handleEnvDrop({ dataTransfer: { files: [] } }); return; }
         estado(bd.querySelector('#env-nro-estado').innerHTML + ' · <span style="color:var(--text3)">⏳ adjuntando PDF…</span>');
-        const rp = await yiqiFetch(`${API}/api/public/PEDIDO/report?reportName=PEDIDO_v1.3&instanceId=${encodeURIComponent(id)}&schemaId=${SCHEMA}`, { headers: { 'Authorization': 'Bearer ' + tok } });
-        if (my !== _envSeq) return;
-        if (!rp.ok) throw new Error('PDF HTTP ' + rp.status);
-        const blob = await rp.blob();
-        if (!blob.size) throw new Error('Yiqi devolvió el PDF vacío');
-        const f = new File([blob], `Pedido_${nro}.pdf`, { type: 'application/pdf' });
+        // Formato "Presupuesto" de Yiqi (si no estuviera, el de "Generar PDF")
+        let blob = null, esPresu = true;
+        for (const fmt of ['PRESUPUESTO_v1', 'PEDIDO_v1.3']) {
+          const rp = await yiqiFetch(`${API}/api/public/PEDIDO/report?reportName=${fmt}&instanceId=${encodeURIComponent(id)}&schemaId=${SCHEMA}`, { headers: { 'Authorization': 'Bearer ' + tok } });
+          if (my !== _envSeq) return;
+          if (rp.ok) { const b = await rp.blob(); if (b.size) { blob = b; esPresu = fmt === 'PRESUPUESTO_v1'; break; } }
+        }
+        if (!blob) throw new Error('Yiqi no devolvió el PDF');
+        const f = new File([blob], `${esPresu ? 'Presupuesto' : 'Pedido'}_${nro}.pdf`, { type: 'application/pdf' });
         f._autoPedido = nro;
         if (window._handleEnvDrop) window._handleEnvDrop({ dataTransfer: { files: [f] } });
-        estado('<span style="color:#34d399">✓ ' + (nombre || 'Pedido ' + nro) + (p.DESC_ESTADO ? ' · ' + p.DESC_ESTADO : '') + ' · PDF adjuntado</span> · <a href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/' + id + '" target="_blank" style="color:var(--blue)">ver en Yiqi ↗</a>');
+        estado('<span style="color:#34d399">✓ ' + (nombre || 'Pedido ' + nro) + (p.DESC_ESTADO ? ' · ' + p.DESC_ESTADO : '') + ' · PDF del presupuesto adjuntado</span> · <a href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/' + id + '" target="_blank" style="color:var(--blue)">ver en Yiqi ↗</a>');
       } catch (e) {
         if (my === _envSeq) estado('<span style="color:#f87171">No se pudo traer el pedido/PDF de Yiqi: ' + String(e.message || e).replace(/</g, '&lt;') + '</span>');
       }
@@ -32377,7 +32380,7 @@ function openGCalModal(pedido) {
   });
 
   // ── Botón método anterior (abrir en nueva pestaña) ──
-  backdrop.querySelector('#gcal-confirm').addEventListener('click', () => {
+  backdrop.querySelector('#gcal-confirm')?.addEventListener('click', () => {
     const { titulo, fechaVal, horarioVal, fullDesc } = _getGcalFormData();
     if (!fechaVal) { showToast('⚠ Ingresá una fecha', 'warn'); return; }
     const dateStr = fechaVal.replace(/-/g, '');
@@ -45577,7 +45580,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.438';
+  const LATEST_VERSION = 'v25.440';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45590,6 +45593,22 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.440',
+      fecha: '2026-11-18',
+      titulo: 'Nuevo pedido → depósito: se adjunta el PDF del Presupuesto',
+      items: [
+        { tipo: 'mejora', texto: 'El PDF que se adjunta solo en "Nuevo pedido → depósito" ahora es el de "Presupuesto" de Yiqi (Presupuesto_N°.pdf), no el de "Generar PDF". Los paneles de Google Calendar ya usaban el de Presupuesto.' }
+      ]
+    },
+    {
+      version: 'v25.439',
+      fecha: '2026-11-18',
+      titulo: 'Google Calendar: el PDF del pedido se carga solo',
+      items: [
+        { tipo: 'nuevo', texto: 'En los dos paneles "Enviar a Google Calendar", al abrirlos se trae solo de Yiqi el PDF del pedido (por su N°) y se completan dirección, transporte, cobro, vendedor y teléfono, igual que cuando se arrastraba el PDF. Si hace falta, se puede seguir arrastrando otro a mano.' }
+      ]
+    },
     {
       version: 'v25.438',
       fecha: '2026-11-18',
@@ -66655,6 +66674,57 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', envolver); else envolver();
   setTimeout(envolver, 2500);
+})();
+
+// ── v25.439: "Enviar a Google Calendar" (los dos paneles): el PDF del pedido se carga solo ──
+// Al abrir el panel, si el evento tiene N° de pedido, se baja de Yiqi el PDF del pedido (formato
+// "Presupuesto", el mismo que antes se arrastraba) y se procesa igual que si se hubiera soltado:
+// completa dirección, transporte, cobro, vendedor y teléfono. Igual se puede arrastrar otro a mano.
+(function(){
+  const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+  async function autoPdf(bd){
+    if (!bd || bd.dataset.autoPdf) return;
+    bd.dataset.autoPdf = '1';
+    await new Promise(r => setTimeout(r, 250)); // que el panel termine de armarse
+    const tit = bd.querySelector('#gcal-titulo');
+    const m = String(tit && tit.value || '').match(/N°\s*(\d{3,8})\b/);
+    if (!m) return;
+    const nro = m[1];
+    const inp = bd.querySelector('#gcal-pdf-input');
+    const handler = /gcalPdfFile2/.test(inp && inp.getAttribute('onchange') || '') ? window.gcalPdfFile2 : window.gcalPdfFile1;
+    if (typeof handler !== 'function') return;
+    const texto = bd.querySelector('#gcal-pdf-drop-texto');
+    const poner = t => { if (texto && document.body.contains(bd)) texto.textContent = t; };
+    const textoOrig = texto ? texto.textContent : '';
+    let tok = null; try { tok = await _yiqiGetTokenGlobal(); } catch (e) {}
+    if (!tok) return;
+    poner('⏳ Trayendo de Yiqi el PDF del pedido N° ' + nro + '…');
+    try {
+      const H = { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' };
+      const r = await yiqiFetch(`${API}/api/public/PEDIDO/query?schemaId=${SCHEMA}`, { method: 'POST', headers: H,
+        body: JSON.stringify({ page: 1, pageSize: 5, columns: ['ID', 'PEDI_NUMERO_SOLO'].map((f, i) => ({ field: f, title: f, order: i + 1 })), filters: [{ columnName: 'PEDI_NUMERO_SOLO', operator: '=', value: Number(nro) }] }) });
+      const j = r.ok ? await r.json() : {};
+      const p = (j.data || []).find(x => String(x.PEDI_NUMERO_SOLO) === nro);
+      if (!p) throw new Error('no se encontró el pedido ' + nro + ' en Yiqi');
+      let blob = null;
+      for (const fmt of ['PRESUPUESTO_v1', 'PEDIDO_v1.3']) {
+        try {
+          const rp = await yiqiFetch(`${API}/api/public/PEDIDO/report?reportName=${fmt}&instanceId=${encodeURIComponent(p.id || p.ID)}&schemaId=${SCHEMA}`, { headers: { 'Authorization': 'Bearer ' + tok } });
+          if (rp.ok) { const b = await rp.blob(); if (b.size) { blob = b; break; } }
+        } catch (e) {}
+      }
+      if (!blob) throw new Error('Yiqi no devolvió el PDF');
+      if (!document.body.contains(bd)) return;
+      poner(textoOrig);
+      await handler(new File([blob], `Pedido_${nro}.pdf`, { type: 'application/pdf' }));
+      setTimeout(() => poner('✓ Datos completados con el PDF del pedido N° ' + nro + ' (Yiqi) · podés arrastrar otro PDF si hace falta'), 2700);
+    } catch (e) {
+      poner('⚠ No se pudo traer el PDF del pedido ' + nro + ' (' + (e.message || e) + '). Podés arrastrarlo a mano.');
+    }
+  }
+  new MutationObserver(muts => {
+    muts.forEach(mu => mu.addedNodes.forEach(n => { if (n.nodeType === 1 && n.id === 'gcal-backdrop') autoPdf(n); }));
+  }).observe(document.documentElement, { childList: true, subtree: true });
 })();
 
 </script>
