@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.431</title>
+<title>Dentalab Whatsapp CRM · v25.441</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -24660,6 +24660,7 @@ async function pedCargarDatosDeYiqi(btnEl) {
     sv('ped-prov-envio',   p.PEDI_PROVINCIA_DE_ENVIO            || '');
     sv('ped-pais-envio',   p.PEDI_PAIS_DE_ENVIO                 || 'Argentina');
     sv('ped-localidad-envio', p.PEDI_LOCALIDAD_DE_ENVIO         || '');
+    sv('ped-cp-envio',        p.PEDI_CODIGO_POSTAL_DE_ENV       || '');
     sv('ped-estado-envio', p.PEDI_ESTADO_DEL_ENVIO              || '');
     sv('ped-estado-pago',  p.PEDI_ESTADO_DE_PAGO                || '');
     pedSetModoEdicion(true, pedidoId, pedNum);
@@ -28659,93 +28660,63 @@ function abrirModalNuevoPedido() {
     // Debounce timer for autocomplete
     let _envBuscarTimer = null;
 
+    // v25.438: al escribir el N° de pedido se completa el nombre del cliente y se adjunta el PDF del pedido
+    // (descargado de Yiqi, formato "Presupuesto"). Si se cambia el N°, se reemplaza lo que se completó solo;
+    // lo que se escribió o adjuntó a mano no se toca.
+    let _envSeq = 0;
     async function _envBuscarPorNro(nro) {
       nro = String(nro).trim();
       if (nro.length < 4) return;
-
-      const YIQI_API_BASE = 'https://api.yiqi.com.ar';
-
-      // ── Paso 1: autocompletar cliente desde historial local (instantáneo) ──
-      let localMatch = null;
+      const my = ++_envSeq;
+      const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+      const autoNombre = () => cliIn && (!cliIn.value.trim() || cliIn.dataset.auto === '1');
+      const estado = (html) => { let e = bd.querySelector('#env-nro-estado'); if (!e && nroIn) { e = document.createElement('div'); e.id = 'env-nro-estado'; e.style.cssText = 'font-size:11px;margin-top:4px;color:var(--text3);'; nroIn.parentNode.appendChild(e); } if (e) e.innerHTML = html; };
+      // 1) Historial local (instantáneo)
       try {
-        const envios = loadEnvios();
-        localMatch = envios.find(e => String(e.nroPedido || '').trim() === nro);
-        if (localMatch && localMatch.clienteNombre && cliIn && !cliIn.value.trim()) {
-          cliIn.value = localMatch.clienteNombre;
-          cliIn.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-      } catch(e) { console.warn('envBuscar local:', e); }
-
-      // ── Paso 2: obtener token ──
-      let tok = localStorage.getItem('yiqi_api_token');
-      const exp = parseInt(localStorage.getItem('yiqi_api_token_exp')||'0',10);
-      if (!tok || Date.now() >= exp) {
-        const user = localStorage.getItem('yiqi_api_user');
-        const pass = localStorage.getItem('yiqi_api_pass');
-        if (!user || !pass) return;
-        try {
-          const r = await yiqiFetch(YIQI_API_BASE+'/token', {
-            method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-            body:'grant_type=password&username='+encodeURIComponent(user)+'&password='+encodeURIComponent(pass)
-          });
-          if (!r.ok) return;
-          const d = await r.json();
-          tok = d.access_token;
-          localStorage.setItem('yiqi_api_token', tok);
-          localStorage.setItem('yiqi_api_token_exp', String(Date.now()+(d.expires_in||86400)*1000-60000));
-        } catch(e) { console.warn('envBuscar token:', e); return; }
-      }
+        const loc = loadEnvios().find(e => String(e.nroPedido || '').trim() === nro);
+        if (loc && loc.clienteNombre && autoNombre()) { cliIn.value = loc.clienteNombre; cliIn.dataset.auto = '1'; cliIn.dispatchEvent(new Event('input', { bubbles: true })); }
+      } catch (e) {}
+      let tok = null; try { tok = await _yiqiGetTokenGlobal(); } catch (e) {}
+      if (!tok) { estado('Sin sesión de Yiqi: no se puede buscar el pedido.'); return; }
       const H = { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' };
-
-      // ── Paso 3: si el yiqiId ya está en el historial local, abrir PDF YA
-      //    y en paralelo buscar el nombre del cliente en Yiqi si falta ──
-      if (localMatch && localMatch.yiqiId) {
-        const pedidoId = String(localMatch.yiqiId);
-        // Abrir PDF inmediatamente — no esperar nada más
-        if (window._envAttachments && window._envAttachments.length === 0) {
-          _envIntentarAdjuntarPDFYiqi(pedidoId, nro, localMatch.clienteNombre || '');
-        }
-        // Si falta el nombre del cliente, buscarlo en paralelo sin bloquear
-        if (cliIn && !cliIn.value.trim()) {
-          yiqiFetch(YIQI_API_BASE+'/api/public/PEDIDO/'+pedidoId+'?schemaId=328', { headers: H })
-            .then(r => r.ok ? r.json() : null)
-            .then(p => {
-              if (!p) return;
-              const nombre = p.CLIE_RAZON_SOCIAL || p.CLIE_NOMBRE || p.cliente || '';
-              if (nombre && cliIn && !cliIn.value.trim()) {
-                cliIn.value = nombre;
-                cliIn.dispatchEvent(new Event('input', { bubbles: true }));
-              }
-            }).catch(() => {});
-        }
-        return;
-      }
-
-      // ── Paso 4: yiqiId no está en local → resolver ID y cliente en paralelo ──
+      estado('⏳ Buscando el pedido ' + nro + ' en Yiqi…');
       try {
-        const pedidoId = await _yiqiResolverPedidoId(nro, H, () => {});
-        if (!pedidoId) return;
-
-        // Abrir PDF en cuanto tenemos el ID, sin esperar el nombre del cliente
-        if (window._envAttachments && window._envAttachments.length === 0) {
-          _envIntentarAdjuntarPDFYiqi(pedidoId, nro, cliIn ? cliIn.value : '');
+        // 2) Pedido por N° (nunca por "adivinar" el ID)
+        const r = await yiqiFetch(`${API}/api/public/PEDIDO/query?schemaId=${SCHEMA}`, { method: 'POST', headers: H,
+          body: JSON.stringify({ page: 1, pageSize: 5, columns: ['ID', 'PEDI_NUMERO_SOLO', 'CLIE_NOMBRE', 'PEDI_RAZON_SOCIAL', 'DESC_ESTADO'].map((f, i) => ({ field: f, title: f, order: i + 1 })),
+            filters: [{ columnName: 'PEDI_NUMERO_SOLO', operator: '=', value: Number(nro) }] }) });
+        if (my !== _envSeq) return;
+        const j = r.ok ? await r.json() : {};
+        const p = (j.data || []).find(x => String(x.PEDI_NUMERO_SOLO) === nro);
+        if (!p) { estado('<span style="color:#f59e0b">No se encontró el pedido ' + nro + ' en Yiqi.</span>'); return; }
+        const id = p.id || p.ID;
+        const nombre = String(p.PEDI_RAZON_SOCIAL || p.CLIE_NOMBRE || '').trim();
+        if (nombre && autoNombre() && my === _envSeq) { cliIn.value = nombre; cliIn.dataset.auto = '1'; cliIn.dispatchEvent(new Event('input', { bubbles: true })); }
+        estado('<span style="color:#34d399">✓ ' + (nombre || 'Pedido encontrado') + (p.DESC_ESTADO ? ' · ' + p.DESC_ESTADO : '') + '</span> · <a href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/' + id + '" target="_blank" style="color:var(--blue)">ver en Yiqi ↗</a>');
+        // 3) PDF del pedido → adjunto
+        const atts = window._envAttachments || (window._envAttachments = []);
+        let _quite = false;
+        for (let i = atts.length - 1; i >= 0; i--) if (atts[i]._autoPedido && atts[i]._autoPedido !== nro) { atts.splice(i, 1); _quite = true; }
+        if (_quite && window._handleEnvDrop) window._handleEnvDrop({ dataTransfer: { files: [] } });
+        if (atts.some(a => a._autoPedido === nro)) { if (window._handleEnvDrop) window._handleEnvDrop({ dataTransfer: { files: [] } }); return; }
+        estado(bd.querySelector('#env-nro-estado').innerHTML + ' · <span style="color:var(--text3)">⏳ adjuntando PDF…</span>');
+        // Formato "Presupuesto" de Yiqi (si no estuviera, el de "Generar PDF")
+        let blob = null, esPresu = true;
+        for (const fmt of ['PRESUPUESTO_v1', 'PEDIDO_v1.3']) {
+          const rp = await yiqiFetch(`${API}/api/public/PEDIDO/report?reportName=${fmt}&instanceId=${encodeURIComponent(id)}&schemaId=${SCHEMA}`, { headers: { 'Authorization': 'Bearer ' + tok } });
+          if (my !== _envSeq) return;
+          if (rp.ok) { const b = await rp.blob(); if (b.size) { blob = b; esPresu = fmt === 'PRESUPUESTO_v1'; break; } }
         }
-
-        // Buscar nombre del cliente en paralelo (no bloquea el PDF)
-        if (cliIn && !cliIn.value.trim()) {
-          yiqiFetch(YIQI_API_BASE+'/api/public/PEDIDO/'+pedidoId+'?schemaId=328', { headers: H })
-            .then(r => r.ok ? r.json() : null)
-            .then(p => {
-              if (!p) return;
-              const nombre = p.CLIE_RAZON_SOCIAL || p.CLIE_NOMBRE || p.cliente || '';
-              if (nombre && cliIn && !cliIn.value.trim()) {
-                cliIn.value = nombre;
-                cliIn.dispatchEvent(new Event('input', { bubbles: true }));
-              }
-            }).catch(() => {});
-        }
-      } catch(e) { console.warn('envBuscar Yiqi:', e); }
+        if (!blob) throw new Error('Yiqi no devolvió el PDF');
+        const f = new File([blob], `${esPresu ? 'Presupuesto' : 'Pedido'}_${nro}.pdf`, { type: 'application/pdf' });
+        f._autoPedido = nro;
+        if (window._handleEnvDrop) window._handleEnvDrop({ dataTransfer: { files: [f] } });
+        estado('<span style="color:#34d399">✓ ' + (nombre || 'Pedido ' + nro) + (p.DESC_ESTADO ? ' · ' + p.DESC_ESTADO : '') + ' · PDF del presupuesto adjuntado</span> · <a href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/' + id + '" target="_blank" style="color:var(--blue)">ver en Yiqi ↗</a>');
+      } catch (e) {
+        if (my === _envSeq) estado('<span style="color:#f87171">No se pudo traer el pedido/PDF de Yiqi: ' + String(e.message || e).replace(/</g, '&lt;') + '</span>');
+      }
     }
+    if (cliIn) cliIn.addEventListener('input', e => { if (e.isTrusted) cliIn.dataset.auto = ''; });
 
     let _envBuscarDone = '';
     nroIn.addEventListener('input', function() {
@@ -28762,7 +28733,7 @@ function abrirModalNuevoPedido() {
         _envBuscarTimer = setTimeout(() => {
           _envBuscarDone = val;
           _envBuscarPorNro(val);
-        }, 150);
+        }, 700);
       }
     });
     nroIn.addEventListener('blur', function() {
@@ -32409,7 +32380,7 @@ function openGCalModal(pedido) {
   });
 
   // ── Botón método anterior (abrir en nueva pestaña) ──
-  backdrop.querySelector('#gcal-confirm').addEventListener('click', () => {
+  backdrop.querySelector('#gcal-confirm')?.addEventListener('click', () => {
     const { titulo, fechaVal, horarioVal, fullDesc } = _getGcalFormData();
     if (!fechaVal) { showToast('⚠ Ingresá una fecha', 'warn'); return; }
     const dateStr = fechaVal.replace(/-/g, '');
@@ -41131,7 +41102,7 @@ function pedAutocomplete(inputId, listId, hiddenId) {
   const buildAndRender = (extra) => {
     // Fuente 1: historial de pedidos (cliClientes)
     const fromHist = (typeof cliClientes !== 'undefined' ? cliClientes : [])
-      .filter(c => c.nombre && c.nombre.toLowerCase().includes(q))
+      .filter(c => c.nombre && (c.nombre.toLowerCase().includes(q) || (window._pedMatchPalabras && _pedMatchPalabras(c.nombre, q))))
       .map(c => ({ nombre: c.nombre, yiqiId: (typeof YIQI_CLI_MAP !== 'undefined' ? (YIQI_CLI_MAP[c.nombre] ?? YIQI_CLI_MAP[c.nombre.toLowerCase()]) : null) }));
 
     // Fuente 2: mapa Yiqi en memoria (clientes que no están en historial)
@@ -41139,7 +41110,7 @@ function pedAutocomplete(inputId, listId, hiddenId) {
     const fromYiqi = [];
     if (typeof YIQI_CLI_MAP !== 'undefined' && q.length >= 3) {
       for (const key of Object.keys(YIQI_CLI_MAP)) {
-        if (key.includes(q) && !histNames.has(key)) {
+        if ((key.includes(q) || (window._pedMatchPalabras && _pedMatchPalabras(key, q))) && !histNames.has(key)) {
           fromYiqi.push({ nombre: key, yiqiId: YIQI_CLI_MAP[key] });
           if (fromHist.length + fromYiqi.length >= 12) break;
         }
@@ -41192,7 +41163,7 @@ function pedAutocomplete(inputId, listId, hiddenId) {
       const res = await yiqiFetch(`${YIQI_API_BASE}/api/public/CLIENTE/query?schemaId=${YIQI_SCHEMA_ID}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page: 1, pageSize: 12, search: input.value.trim() })
+        body: JSON.stringify((() => { const _ws = input.value.trim().split(/\s+/).filter(w => w.length >= 2).slice(0, 5); return _ws.length > 1 ? { page: 1, pageSize: 12, columns: [{ field: 'CLIE_NOMBRE', title: 'Nombre' }], filters: _ws.map(w => ({ columnName: 'CLIE_NOMBRE', operator: 'LIKE', value: w })) } : { page: 1, pageSize: 12, search: input.value.trim() }; })())
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -41513,11 +41484,13 @@ async function cargarPedidoEnYiqi(btnEl) {
     const vehaId = VEHA_MAP[g('ped-vendedor')];         if (vehaId)  pedidoData.VEHA_ID_VEHA  = vehaId;
 
     const obs = g('ped-obs'); if (obs) pedidoData.PEDI_OBSERVACIONES = obs;
+    try { const _fid = window._pedCliFactIdResolver && window._pedCliFactIdResolver(); if (_fid && String(_fid) !== String(clieId)) pedidoData.CLIE_ID_FACT = _fid; } catch (_e) {}
     if (g('ped-dir-envio'))       pedidoData.PEDI_DIRECCION_DE_ENVIO  = g('ped-dir-envio');
     if (g('ped-ciudad-envio'))    pedidoData.PEDI_CIUDAD_DE_ENVIO     = g('ped-ciudad-envio');
     if (g('ped-prov-envio'))      pedidoData.PEDI_PROVINCIA_DE_ENVIO  = g('ped-prov-envio');
     if (g('ped-pais-envio'))      pedidoData.PEDI_PAIS_DE_ENVIO       = g('ped-pais-envio');
     if (g('ped-localidad-envio')) pedidoData.PEDI_LOCALIDAD_DE_ENVIO  = g('ped-localidad-envio');
+    if (g('ped-cp-envio'))        pedidoData.PEDI_CODIGO_POSTAL_DE_ENV = g('ped-cp-envio');
     if (estadoEnvFinal.trim())    pedidoData.PEDI_ESTADO_DEL_ENVIO    = estadoEnvFinal.trim();
     if (g('ped-estado-pago'))     pedidoData.PEDI_ESTADO_DE_PAGO      = g('ped-estado-pago');
 
@@ -41678,11 +41651,13 @@ async function generarPedidoYiqiConsumidorFinal(btnEl) {
     const vehaId = VEHA_MAP[_vendedorLogueado];         if (vehaId)  pedidoData.VEHA_ID_VEHA  = vehaId;
 
     const obs = g('ped-obs'); if (obs) pedidoData.PEDI_OBSERVACIONES = obs;
+    try { const _fid = window._pedCliFactIdResolver && window._pedCliFactIdResolver(); if (_fid && String(_fid) !== String(clieId)) pedidoData.CLIE_ID_FACT = _fid; } catch (_e) {}
     if (g('ped-dir-envio'))       pedidoData.PEDI_DIRECCION_DE_ENVIO  = g('ped-dir-envio');
     if (g('ped-ciudad-envio'))    pedidoData.PEDI_CIUDAD_DE_ENVIO     = g('ped-ciudad-envio');
     if (g('ped-prov-envio'))      pedidoData.PEDI_PROVINCIA_DE_ENVIO  = g('ped-prov-envio');
     if (g('ped-pais-envio'))      pedidoData.PEDI_PAIS_DE_ENVIO       = g('ped-pais-envio');
     if (g('ped-localidad-envio')) pedidoData.PEDI_LOCALIDAD_DE_ENVIO  = g('ped-localidad-envio');
+    if (g('ped-cp-envio'))        pedidoData.PEDI_CODIGO_POSTAL_DE_ENV = g('ped-cp-envio');
     if (estadoEnvFinal.trim())    pedidoData.PEDI_ESTADO_DEL_ENVIO    = estadoEnvFinal.trim();
     if (g('ped-estado-pago'))     pedidoData.PEDI_ESTADO_DE_PAGO      = g('ped-estado-pago');
     if (skusOmitidos.length) {
@@ -45605,7 +45580,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.431';
+  const LATEST_VERSION = 'v25.441';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45618,6 +45593,92 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.441',
+      fecha: '2026-11-19',
+      titulo: 'Nueva Empresa / Cliente: avisa si ya está cargado',
+      items: [
+        { tipo: 'nuevo', texto: 'Mientras escribís el nombre/apellido o el DNI/CUIT de un cliente nuevo, se busca en vivo en Yiqi si ya existe (por palabras sueltas en nombre y razón social, y por número en CUIT/DNI, incluido el DNI dentro de un CUIT). Si aparece, "✏️ Abrir este" carga sus datos para revisarlo o actualizarlo en vez de crear uno repetido.' }
+      ]
+    },
+    {
+      version: 'v25.440',
+      fecha: '2026-11-18',
+      titulo: 'Nuevo pedido → depósito: se adjunta el PDF del Presupuesto',
+      items: [
+        { tipo: 'mejora', texto: 'El PDF que se adjunta solo en "Nuevo pedido → depósito" ahora es el de "Presupuesto" de Yiqi (Presupuesto_N°.pdf), no el de "Generar PDF". Los paneles de Google Calendar ya usaban el de Presupuesto.' }
+      ]
+    },
+    {
+      version: 'v25.439',
+      fecha: '2026-11-18',
+      titulo: 'Google Calendar: el PDF del pedido se carga solo',
+      items: [
+        { tipo: 'nuevo', texto: 'En los dos paneles "Enviar a Google Calendar", al abrirlos se trae solo de Yiqi el PDF del pedido (por su N°) y se completan dirección, transporte, cobro, vendedor y teléfono, igual que cuando se arrastraba el PDF. Si hace falta, se puede seguir arrastrando otro a mano.' }
+      ]
+    },
+    {
+      version: 'v25.438',
+      fecha: '2026-11-18',
+      titulo: 'Nuevo pedido → depósito: se completa solo con el N° de pedido',
+      items: [
+        { tipo: 'nuevo', texto: 'En "Nuevo pedido → depósito", al escribir el N° de pedido se completa el nombre del cliente y se adjunta solo el PDF del pedido (descargado de Yiqi). Debajo del N° se ve el cliente, el estado y un link al pedido en Yiqi.' },
+        { tipo: 'corrección', texto: 'Ya no busca el pedido mientras todavía estás escribiendo el número (antes con 4 dígitos podía encontrar otro pedido). Si cambiás el N°, se reemplazan el nombre y el PDF que se habían completado solos; lo que escribiste o adjuntaste a mano queda.' }
+      ]
+    },
+    {
+      version: 'v25.437',
+      fecha: '2026-11-18',
+      titulo: 'Pedidos en Yiqi: el N° abre el pedido en Yiqi',
+      items: [
+        { tipo: 'mejora', texto: 'En la grilla de Pedidos en Yiqi, un clic en el N° de pedido abre ese pedido en Yiqi en una pestaña nueva. Para modificarlo en Presupuestos se usa el botón "🧾 Presupuesto" de la fila.' }
+      ]
+    },
+    {
+      version: 'v25.436',
+      fecha: '2026-11-18',
+      titulo: 'Nuevo Pedido: código postal de envío',
+      items: [
+        { tipo: 'nuevo', texto: 'En "Nuevo Pedido" → Datos de envío se agregó "Código postal (CP)". Se guarda en Yiqi con el pedido, se completa solo con el CP del último pedido del cliente y también se trae al usar "Cargar datos" de un pedido existente.' }
+      ]
+    },
+    {
+      version: 'v25.435',
+      fecha: '2026-11-18',
+      titulo: 'Nuevo Pedido: todos los transportes',
+      items: [
+        { tipo: 'mejora', texto: 'En "Nuevo Pedido", los desplegables de transporte (Datos adicionales y Estado del envío) muestran todos los transportes: la lista de "+ Nuevo envío", la de pedidos y los que se usan en Yiqi (Expreso Mar del Plata, Demonte, Gorgone, Beraldi, Landaburu, Balut, Heral, Plusmar, etc.). Primero los más usados y después en orden alfabético.' },
+        { tipo: 'mejora', texto: 'El tipo de entrega suma "Depósito" y "Terminal" además de Domicilio y Sucursal.' }
+      ]
+    },
+    {
+      version: 'v25.434',
+      fecha: '2026-11-18',
+      titulo: 'Pedidos en Yiqi: ordenados por fecha de creación',
+      items: [
+        { tipo: 'mejora', texto: 'La grilla de Pedidos en Yiqi se ordena por fecha de creación, del más reciente (arriba) al más antiguo (abajo). Igual podés tocar cualquier encabezado para ordenar por esa columna.' }
+      ]
+    },
+    {
+      version: 'v25.433',
+      fecha: '2026-11-18',
+      titulo: 'Pedidos en Yiqi: origen con color y columnas marcadas',
+      items: [
+        { tipo: 'mejora', texto: 'Debajo del N° de pedido el origen sale con color: WhatsApp en verde, Web en azul y Local y el resto de los orígenes en blanco.' },
+        { tipo: 'nuevo', texto: 'En ⚙ Columnas se puede marcar cada columna con un color (amarillo, verde, azul, rosa, violeta o naranja) para encontrar más rápido las que más mirás.' }
+      ]
+    },
+    {
+      version: 'v25.432',
+      fecha: '2026-11-18',
+      titulo: 'Nuevo Pedido: datos del último pedido del cliente · Completar desde ARCA',
+      items: [
+        { tipo: 'nuevo', texto: 'En "Nuevo Pedido", al elegir un cliente que ya está en Yiqi se completan solos origen, vendedor, condición de venta, lista, punto de venta, ubicación origen, cliente de facturación y datos de envío con los de su último pedido. Lo que cambiaste a mano no se pisa; estados y observaciones no se copian.' },
+        { tipo: 'mejora', texto: 'El buscador de clientes encuentra por palabras sueltas: "Juan Gaffuri" encuentra "GAFFURI SOENGAS JUAN MARTIN".' },
+        { tipo: 'mejora', texto: 'El cliente de facturación ahora se envía a Yiqi al cargar el pedido.' },
+        { tipo: 'nuevo', texto: 'En "Nueva Empresa / Cliente", botón "Completar desde ARCA" al lado del CUIT: copia el CUIT y abre la constancia de ARCA.' }
+      ]
+    },
     {
       version: 'v25.431',
       fecha: '2026-11-18',
@@ -61920,6 +61981,11 @@ function _registrarUsoFrecuente(sku, nombre) {
           style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;">
       </div>
       <div style="display:grid;grid-template-columns:200px 1fr;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);">
+        <label style="font-size:13px;color:var(--text2);font-weight:600;">Código postal (CP)</label>
+        <input type="text" id="ped-cp-envio" placeholder="1425" inputmode="numeric"
+          style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;">
+      </div>
+      <div style="display:grid;grid-template-columns:200px 1fr;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);">
         <label style="font-size:13px;color:var(--text2);font-weight:600;">Provincia de envío</label>
         <input type="text" id="ped-prov-envio" placeholder="Buenos Aires"
           style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;">
@@ -63298,6 +63364,11 @@ function _registrarUsoFrecuente(sku, nombre) {
           style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;">
       </div>
       <div style="display:grid;grid-template-columns:200px 1fr;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);">
+        <label style="font-size:13px;color:var(--text2);font-weight:600;">Código postal (CP)</label>
+        <input type="text" id="ped-cp-envio" placeholder="1425" inputmode="numeric"
+          style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;">
+      </div>
+      <div style="display:grid;grid-template-columns:200px 1fr;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);">
         <label style="font-size:13px;color:var(--text2);font-weight:600;">Provincia de envío</label>
         <input type="text" id="ped-prov-envio" placeholder="Buenos Aires"
           style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;">
@@ -63578,7 +63649,7 @@ document.addEventListener('DOMContentLoaded', () => {
 #pyq-wrap .pyq-chip.on{border-color:#8b5cf6;color:#e9d5ff;background:rgba(139,92,246,.2);}
 #pyq-wrap .pyq-login{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:9px;padding:10px 12px;margin-bottom:10px;font-size:12.5px;color:#fcd34d;}
 #pyq-toggle-crm{margin:0 0 10px 0;}
-#pyq-wrap .pyq-colpanel{position:absolute;top:calc(100% + 6px);left:0;z-index:30;background:#0f172a;border:1px solid rgba(139,92,246,.45);border-radius:12px;padding:12px;width:360px;max-height:70vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.55);font-size:12.5px;}
+#pyq-wrap .pyq-colpanel{position:absolute;top:calc(100% + 6px);left:auto;right:0;z-index:30;background:#0f172a;border:1px solid rgba(139,92,246,.45);border-radius:12px;padding:12px;width:480px;max-height:70vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.55);font-size:12.5px;}
 #pyq-wrap .pyq-colrow{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:7px;cursor:grab;}
 #pyq-wrap .pyq-colrow:hover{background:rgba(255,255,255,.05);}
 #pyq-wrap .pyq-colrow label{display:flex;align-items:center;gap:6px;cursor:pointer;color:#cbd5e1;}
@@ -63586,6 +63657,22 @@ document.addEventListener('DOMContentLoaded', () => {
 #pyq-wrap .pyq-grip{color:#475569;}
 #pyq-wrap .pyq-mini[disabled]{opacity:.3;cursor:default;}
 #pyq-wrap th[draggable]{cursor:grab;}
+#pyq-wrap .pyq-org{font-weight:800;}
+#pyq-wrap .pyq-org.o-wa{color:#4ade80;}
+#pyq-wrap .pyq-org.o-web{color:#60a5fa;}
+#pyq-wrap .pyq-org.o-otro{color:#f1f5f9;}
+#pyq-wrap .pyq-colrow label{flex:1;min-width:0;}
+#pyq-wrap .pyq-sw{display:inline-flex;gap:3px;margin-left:8px;flex:none;}
+#pyq-wrap .pyq-swb{width:15px;height:15px;border-radius:50%;border:1px solid rgba(255,255,255,.25);cursor:pointer;padding:0;}
+#pyq-wrap .pyq-swb.sin{background:#0f172a;background-image:linear-gradient(135deg,transparent 45%,#ef4444 45%,#ef4444 55%,transparent 55%);}
+#pyq-wrap .pyq-swb.on{outline:2px solid #a78bfa;outline-offset:1px;}
+#pyq-wrap .pc-amarillo{--pc:rgba(250,204,21,.09);--pch:rgba(250,204,21,.26);--pcs:#facc15;} #pyq-wrap .pc-verde{--pc:rgba(34,197,94,.09);--pch:rgba(34,197,94,.26);--pcs:#22c55e;}
+#pyq-wrap .pc-azul{--pc:rgba(59,130,246,.10);--pch:rgba(59,130,246,.28);--pcs:#3b82f6;} #pyq-wrap .pc-rosa{--pc:rgba(236,72,153,.09);--pch:rgba(236,72,153,.26);--pcs:#ec4899;}
+#pyq-wrap .pc-violeta{--pc:rgba(139,92,246,.10);--pch:rgba(139,92,246,.28);--pcs:#8b5cf6;} #pyq-wrap .pc-naranja{--pc:rgba(249,115,22,.09);--pch:rgba(249,115,22,.26);--pcs:#f97316;}
+#pyq-wrap .pyq-swb[class*="pc-"]{background:var(--pcs);}
+#pyq-wrap table thead tr th.pc{background:linear-gradient(var(--pch),var(--pch)),#1e293b;color:#f1f5f9;}
+#pyq-wrap table tbody tr td.pc{background:var(--pc);}
+#pyq-wrap table tbody tr:hover td.pc{background:var(--pch);}
 </style>
 <script>
 (function(){
@@ -63626,6 +63713,10 @@ document.addEventListener('DOMContentLoaded', () => {
     { k:'PEDI_FACTURAS', t:'Facturas', extra:true }
   ];
   const COL_DEF = Object.fromEntries(COLS.map(c => [c.k, c]));
+  // Colores para marcar las columnas que más se miran (se guardan en este navegador)
+  const PALETA = { amarillo: 'Amarillo', verde: 'Verde', azul: 'Azul', rosa: 'Rosa', violeta: 'Violeta', naranja: 'Naranja' };
+  const colorDe = k => (prefs.colores && PALETA[prefs.colores[k]]) ? prefs.colores[k] : '';
+  const pc = k => colorDe(k) ? ' pc pc-' + colorDe(k) : '';
   const ORDEN_DEFAULT = COLS.map(c => c.k).filter(k => k !== 'VEHA_ID_VEHA');
   ORDEN_DEFAULT.splice(ORDEN_DEFAULT.indexOf('CLIE_NOMBRE') + 1, 0, 'VEHA_ID_VEHA'); // Vendedor al lado de Cliente
   const OCULTAS_DEFAULT = COLS.filter(c => c.extra).map(c => c.k);
@@ -63648,8 +63739,10 @@ document.addEventListener('DOMContentLoaded', () => {
     'esperando 2da validación':['rgba(14,165,233,.18)','#7dd3fc']
   };
 
-  let prefs = { dias: 7, ml: false, q: '', estado: '', sort: 'PEDI_NUMERO_SOLO', dir: -1 };
+  let prefs = { dias: 7, ml: false, q: '', estado: '', sort: 'AUDI_FECHA_ALTA', dir: -1 };
   try { Object.assign(prefs, JSON.parse(localStorage.getItem(LS_PREFS) || '{}')); } catch(e) {}
+  // Orden por defecto: fecha de creación, del más reciente al más antiguo (se aplica una vez a lo guardado)
+  if (!prefs.ordenFechaV1) { prefs.sort = 'AUDI_FECHA_ALTA'; prefs.dir = -1; prefs.ordenFechaV1 = true; try { localStorage.setItem(LS_PREFS, JSON.stringify(prefs)); } catch(e) {} }
   const copiando = {}; let resaltar = null;
   const NO_ELIMINABLE = /^(entregado|con devoluci[oó]n|staging out)$/i;
   let rows = [], lastTs = 0, loading = false, editing = null, savingN = 0, lastErr = '', needLogin = false;
@@ -64100,10 +64193,15 @@ document.addEventListener('DOMContentLoaded', () => {
         .some(v => String(v || '').toLowerCase().includes(q));
     });
     const k = prefs.sort, d = prefs.dir, col = COL_DEF[k];
-    const val = r => col && col.map ? (col.map[r[k]] || '') : (k === 'PEDI_NUMERO_SOLO' ? Number(nro(r)) : r[k]);
-    out.sort((a, b) => { const x = val(a), y = val(b);
-      if (typeof x === 'number' || typeof y === 'number') return ((Number(x)||0) - (Number(y)||0)) * d;
-      return String(x || '').localeCompare(String(y || ''), 'es') * d; });
+    const esFecha = k === 'AUDI_FECHA_ALTA' || k === 'PEDI_FECHA';
+    const ts = v => { const t = new Date(v).getTime(); return isNaN(t) ? 0 : t; };
+    const val = r => col && col.map ? (col.map[r[k]] || '') : esFecha ? ts(r[k] || r.PEDI_FECHA || r.AUDI_FECHA_ALTA)
+      : (k === 'PEDI_NUMERO_SOLO' ? Number(nro(r)) : k === 'PEDI_TOTAL' ? Number(r[k]) || 0 : r[k]);
+    // Desempate: N° de pedido, del más nuevo al más viejo
+    out.sort((a, b) => { const x = val(a), y = val(b); let c;
+      if (typeof x === 'number' || typeof y === 'number') c = ((Number(x)||0) - (Number(y)||0)) * d;
+      else c = String(x || '').localeCompare(String(y || ''), 'es') * d;
+      return c || (Number(nro(b)) - Number(nro(a))); });
     return out;
   }
   function puedeEditar(c, r) {
@@ -64121,7 +64219,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (c.k === 'PEDI_NUMERO_SOLO') {
       const o = MAP_EXTE[r.EXTE_ID_EXTE] || (r.EXTE_ID_EXTE ? 'Origen ' + r.EXTE_ID_EXTE : '');
-      const pv = MAP_PUVE[r.PUVE_ID_PUVE]; return `<a class="pyq-nrolink" data-presu="${esc(nro(r))}" title="Abrir en Presupuestos para modificarlo">${esc(nro(r))}</a><small>${esc(o)}${pv ? ' · PV ' + esc(pv) : ''}</small>`;
+      const oc = Number(r.EXTE_ID_EXTE) === 13 ? 'o-wa' : Number(r.EXTE_ID_EXTE) === 11 ? 'o-web' : 'o-otro';
+      const pv = MAP_PUVE[r.PUVE_ID_PUVE]; return `<a class="pyq-nrolink" href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/${esc(rowId(r))}" target="_blank" rel="noopener" data-yiqi="1" title="Abrir el pedido ${esc(nro(r))} en Yiqi">${esc(nro(r))} ↗</a><small><b class="pyq-org ${oc}">${esc(o)}</b>${pv ? ' · PV ' + esc(pv) : ''}</small>`;
     }
     if (c.k === 'AUDI_FECHA_ALTA' || c.k === 'PEDI_FECHA') return fmtFecha(v);
     if (c.k === 'PEDI_TOTAL') return fmtMoney(v);
@@ -64139,11 +64238,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function panelCols() {
     const h = ocultas();
     return `<div class="pyq-colpanel">
-      <div style="font-weight:800;color:#e2e8f0;margin-bottom:6px;">Columnas <span style="font-weight:500;color:#64748b;font-size:11px;">· tildá para mostrar · ▲▼ o arrastrá para ordenar</span></div>
+      <div style="font-weight:800;color:#e2e8f0;margin-bottom:6px;">Columnas <span style="font-weight:500;color:#64748b;font-size:11px;">· tildá para mostrar · ▲▼ o arrastrá para ordenar · elegí un color para marcar las que más mirás</span></div>
       ${ordenCols().map((k, i, arr) => { const c = COL_DEF[k]; return `<div class="pyq-colrow" draggable="true" data-colrow="${k}">
         <span class="pyq-grip">⠿</span>
         <label><input type="checkbox" data-colvis="${k}" ${h.has(k) ? '' : 'checked'}> ${esc(c.t || 'Botones (Copiar / Editar / Eliminar)')}${c.ed ? ' <span style="color:#a78bfa">✎</span>' : ''}</label>
-        <span style="margin-left:auto;white-space:nowrap;"><button class="pyq-mini" data-colmove="${k}" data-d="-1" ${i ? '' : 'disabled'}>▲</button><button class="pyq-mini" data-colmove="${k}" data-d="1" ${i < arr.length - 1 ? '' : 'disabled'}>▼</button></span></div>`; }).join('')}
+        <span class="pyq-sw">${[''].concat(Object.keys(PALETA)).map(col => `<button class="pyq-swb ${col ? 'pc-' + col : 'sin'} ${colorDe(k) === col ? 'on' : ''}" data-colcolor="${k}" data-c="${col}" title="${col ? 'Marcar en ' + PALETA[col] : 'Sin color'}"></button>`).join('')}</span>
+        <span style="white-space:nowrap;"><button class="pyq-mini" data-colmove="${k}" data-d="-1" ${i ? '' : 'disabled'}>▲</button><button class="pyq-mini" data-colmove="${k}" data-d="1" ${i < arr.length - 1 ? '' : 'disabled'}>▼</button></span></div>`; }).join('')}
       <div style="display:flex;gap:8px;margin-top:8px;"><button class="pyq-btn sec" data-a="colsreset">Restablecer</button><button class="pyq-btn" data-a="cols">Listo</button></div>
     </div>`;
   }
@@ -64184,8 +64284,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ${Object.entries(estados).sort((a,b)=>b[1]-a[1]).map(([e,n]) => `<button class="pyq-chip ${prefs.estado===e?'on':''}" data-estado="${esc(e)}">${esc(e)} (${n})</button>`).join('')}
       </div>
       <div class="pyq-scroll"><table>
-        <thead><tr>${VC.map(c => `<th draggable="true" data-col="${c.k}" ${c.k==='_acc'?'':`data-sort="${c.k}"`} title="Arrastrá para mover la columna">${esc(c.t)}${c.ed ? '<span class="pyq-ed">✎</span>' : ''}${prefs.sort===c.k ? (prefs.dir<0?' ▼':' ▲') : ''}</th>`).join('')}</tr></thead>
-        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}" class="${String(rowId(r))===String(resaltar)?'pyq-nuevo':''}">${VC.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
+        <thead><tr>${VC.map(c => `<th draggable="true" data-col="${c.k}" class="${pc(c.k)}" ${c.k==='_acc'?'':`data-sort="${c.k}"`} title="Arrastrá para mover la columna">${esc(c.t)}${c.ed ? '<span class="pyq-ed">✎</span>' : ''}${prefs.sort===c.k ? (prefs.dir<0?' ▼':' ▲') : ''}</th>`).join('')}</tr></thead>
+        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}" class="${String(rowId(r))===String(resaltar)?'pyq-nuevo':''}">${VC.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}${pc(c.k)}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
           : `<tr><td colspan="${VC.length}" style="text-align:center;color:#64748b;padding:30px;">${loading ? 'Cargando pedidos desde Yiqi…' : 'No hay pedidos para mostrar.'}</td></tr>`}</tbody>
       </table></div>`;
     const sc = w.querySelector('.pyq-scroll'); if (sc) { sc.scrollTop = sTop; sc.scrollLeft = sLeft; }
@@ -64243,6 +64343,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const w = document.getElementById('pyq-wrap'); if (!w || !w.contains(e.target)) return;
     const a = e.target.closest('[data-a]'), chip = e.target.closest('[data-estado]'), th = e.target.closest('th[data-sort]'), td = e.target.closest('td.ed');
     const cp = e.target.closest('[data-copiar]'), edb = e.target.closest('[data-editar]');
+    if (e.target.closest('a[data-yiqi]')) return; // el N° abre el pedido en Yiqi (pestaña nueva)
     const rb = e.target.closest('[data-reservar]');
     if (rb) return solicitarReserva(rb.dataset.reservar);
     const fb = e.target.closest('[data-fact]');
@@ -64256,7 +64357,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cp) return copiarPedido(cp.dataset.copiar);
     if (edb) return editarEnCrm(edb.dataset.editar);
     if (a && a.dataset.a === 'cols') { colsAbierto = !colsAbierto; return render(); }
-    if (a && a.dataset.a === 'colsreset') { delete prefs.orden; delete prefs.ocultas; savePrefs(); return render(); }
+    if (a && a.dataset.a === 'colsreset') { delete prefs.orden; delete prefs.ocultas; delete prefs.colores; savePrefs(); return render(); }
+    const cc = e.target.closest('[data-colcolor]');
+    if (cc) { prefs.colores = Object.assign({}, prefs.colores); if (cc.dataset.c) prefs.colores[cc.dataset.colcolor] = cc.dataset.c; else delete prefs.colores[cc.dataset.colcolor]; savePrefs(); return render(); }
     const mv = e.target.closest('[data-colmove]');
     if (mv) { const o = ordenCols(); return moverCol(mv.dataset.colmove, o.indexOf(mv.dataset.colmove) + Number(mv.dataset.d)); }
     if (e.target.closest('.pyq-colpanel')) return;
@@ -66314,6 +66417,404 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 
 </script>
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// v25.432 — Nuevo Pedido: al elegir un cliente que ya está en Yiqi, se completan sus datos
+// con su ÚLTIMO pedido (origen, vendedor, condición de venta, lista, punto de venta,
+// ubicación origen, cliente de facturación y datos de envío). Lo que se cambió a mano no
+// se pisa. Estados y observaciones no se copian (son de ese pedido viejo).
+// Nueva Empresa / Cliente: botón "Completar desde ARCA" al lado del CUIT.
+// ══════════════════════════════════════════════════════════════════════════════
+(function(){
+  'use strict';
+  const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+  const $ = id => document.getElementById(id);
+  const sinAcento = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+  // Coincidencia palabra por palabra ("juan gaffuri" ↔ "GAFFURI SOENGAS JUAN MARTIN")
+  window._pedMatchPalabras = function(nombre, q){
+    const n = sinAcento(nombre), ws = sinAcento(q).split(/\s+/).filter(Boolean);
+    return ws.length > 0 && ws.every(w => n.includes(w));
+  };
+
+  // ── Campos que se completan y los que el usuario tocó a mano ──
+  const CAMPOS = ['ped-origen', 'ped-vendedor', 'ped-condventa', 'ped-lista', 'ped-puntoventa', 'ped-ubicorig',
+    'ped-cliefac-input', 'ped-dir-envio', 'ped-ciudad-envio', 'ped-cp-envio', 'ped-prov-envio', 'ped-pais-envio', 'ped-localidad-envio'];
+  const tocados = new Set();
+  document.addEventListener('input', e => { if (e.isTrusted && CAMPOS.includes(e.target.id)) tocados.add(e.target.id); }, true);
+  let _llenando = false;
+  document.addEventListener('change', e => { if (!_llenando && CAMPOS.includes(e.target.id)) tocados.add(e.target.id); }, true);
+  // Al vaciar el cliente se empieza de cero
+  document.addEventListener('input', e => { if (e.target.id === 'ped-cliente-input' && !e.target.value.trim()) { tocados.clear(); window._pedCliFactId = null; marca(''); } }, true);
+
+  function setSel(id, valor, etiqueta){
+    const el = $(id); if (!el || tocados.has(id)) return false;
+    if (valor == null && !etiqueta) return false;
+    const opts = Array.from(el.options || []);
+    let op = valor != null ? opts.find(o => o.value === String(valor)) : null;
+    if (!op && etiqueta) op = opts.find(o => sinAcento(o.text) === sinAcento(etiqueta) || sinAcento(o.value) === sinAcento(etiqueta));
+    if (!op) return false;
+    el.value = op.value; _llenando = true; try { el.dispatchEvent(new Event('change', { bubbles: true })); } finally { _llenando = false; }
+    return true;
+  }
+  function setTxt(id, v){
+    const el = $(id); if (!el || tocados.has(id) || v == null || v === '') return false;
+    el.value = String(v); return true;
+  }
+  function marca(html){
+    let m = $('ped-cli-autofill-msg');
+    const inp = $('ped-cliente-input');
+    if (!m && inp) {
+      m = document.createElement('div'); m.id = 'ped-cli-autofill-msg';
+      m.style.cssText = 'font-size:11px;color:#34d399;font-weight:700;margin-top:4px;';
+      (inp.closest('div') || inp.parentElement).appendChild(m);
+    }
+    if (m) m.innerHTML = html;
+  }
+
+  async function idDeCliente(nombre, H){
+    if (typeof YIQI_CLI_MAP !== 'undefined') {
+      const id = YIQI_CLI_MAP[nombre] ?? YIQI_CLI_MAP[String(nombre).toLowerCase()];
+      if (id) return id;
+    }
+    const r = await yiqiFetch(`${API}/api/public/CLIENTE/query?schemaId=${SCHEMA}`, { method: 'POST', headers: H,
+      body: JSON.stringify({ page: 1, pageSize: 5, columns: [{ field: 'CLIE_NOMBRE', title: 'Nombre' }], filters: [{ columnName: 'CLIE_NOMBRE', operator: '=', value: nombre }] }) });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const c = (j.data || []).find(x => sinAcento(x.CLIE_NOMBRE) === sinAcento(nombre)) || (j.data || [])[0];
+    return c ? (c.id || c.ID) : null;
+  }
+
+  const COLS = ['PEDI_NUMERO_SOLO', 'PEDI_FECHA', 'DESC_ESTADO', 'EXTE_ID_EXTE', 'VEHA_ID_VEHA', 'COVE_ID_COVE', 'LIDP_ID_LIDP', 'PUVE_ID_PUVE', 'CEDI_ID_ORIG',
+    'CLIE_ID_FACT', 'FACT_NOMBRE', 'PEDI_DIRECCION_DE_ENVIO', 'PEDI_CIUDAD_DE_ENVIO', 'PEDI_PROVINCIA_DE_ENVIO', 'PEDI_PAIS_DE_ENVIO', 'PEDI_LOCALIDAD_DE_ENVIO', 'PEDI_CODIGO_POSTAL_DE_ENV'];
+  let _seq = 0;
+  async function autocompletar(nombre){
+    const my = ++_seq;
+    if (!nombre || /consumidor final/i.test(nombre)) return;
+    let token = null;
+    try { token = await _yiqiGetTokenGlobal(); } catch (e) {}
+    if (!token) return;
+    const H = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+    marca('<span style="color:#94a3b8">Buscando su último pedido en Yiqi…</span>');
+    try {
+      const cliId = await idDeCliente(nombre, H);
+      if (my !== _seq) return;
+      if (!cliId) { marca(''); return; }
+      const r = await yiqiFetch(`${API}/api/public/PEDIDO/query?schemaId=${SCHEMA}`, { method: 'POST', headers: H,
+        body: JSON.stringify({ page: 1, pageSize: 8,
+          columns: COLS.map((f, i) => f === 'PEDI_NUMERO_SOLO' ? { field: f, title: f, order: i + 1, sortDirection: 'DESC', sortOrder: 1 } : { field: f, title: f, order: i + 1 }),
+          filters: [{ columnName: 'CLIE_ID_CLIE', operator: '=', value: Number(cliId) }] }) });
+      if (my !== _seq) return;
+      if (!r.ok) { marca(''); return; }
+      const j = await r.json();
+      const o = (j.data || []).filter(x => !/anul/i.test(x.DESC_ESTADO || ''))[0];
+      if (!o) { marca('<span style="color:#94a3b8">Sin pedidos anteriores en Yiqi</span>'); return; }
+      const inv = (m, k) => (typeof m !== 'undefined' && m) ? m[k] : null;
+      setSel('ped-origen', null, inv(window._YIQI_INV_ORIGEN || (typeof _YIQI_INV_ORIGEN !== 'undefined' ? _YIQI_INV_ORIGEN : null), o.EXTE_ID_EXTE));
+      setSel('ped-vendedor', null, inv(typeof _YIQI_INV_VEHA !== 'undefined' ? _YIQI_INV_VEHA : null, o.VEHA_ID_VEHA));
+      setSel('ped-condventa', null, inv(typeof _YIQI_INV_CONDVENTA !== 'undefined' ? _YIQI_INV_CONDVENTA : null, o.COVE_ID_COVE));
+      setSel('ped-lista', null, inv(typeof _YIQI_INV_LISTA_CLI !== 'undefined' ? _YIQI_INV_LISTA_CLI : null, o.LIDP_ID_LIDP));
+      setSel('ped-puntoventa', inv(typeof _YIQI_INV_PUVE !== 'undefined' ? _YIQI_INV_PUVE : null, o.PUVE_ID_PUVE));
+      setSel('ped-ubicorig', null, inv(typeof _YIQI_INV_CEDI !== 'undefined' ? _YIQI_INV_CEDI : null, o.CEDI_ID_ORIG));
+      if (o.CLIE_ID_FACT && String(o.CLIE_ID_FACT) !== String(cliId) && o.FACT_NOMBRE && !tocados.has('ped-cliefac-input')) {
+        setTxt('ped-cliefac-input', o.FACT_NOMBRE); const hv = $('ped-cliefac-val'); if (hv) hv.value = o.FACT_NOMBRE;
+        window._pedCliFactId = { nombre: o.FACT_NOMBRE, id: o.CLIE_ID_FACT };
+      }
+      setTxt('ped-dir-envio', o.PEDI_DIRECCION_DE_ENVIO);
+      setTxt('ped-ciudad-envio', o.PEDI_CIUDAD_DE_ENVIO);
+      setTxt('ped-prov-envio', o.PEDI_PROVINCIA_DE_ENVIO);
+      setTxt('ped-pais-envio', o.PEDI_PAIS_DE_ENVIO);
+      setTxt('ped-localidad-envio', o.PEDI_LOCALIDAD_DE_ENVIO);
+      setTxt('ped-cp-envio', o.PEDI_CODIGO_POSTAL_DE_ENV);
+      const f = o.PEDI_FECHA ? new Date(o.PEDI_FECHA).toLocaleDateString('es-AR') : '';
+      marca(`✓ Datos completados de su último pedido N° ${o.PEDI_NUMERO_SOLO}${f ? ' (' + f + ')' : ''}`);
+      if (typeof showToast === 'function') showToast('✓ Datos del último pedido N° ' + o.PEDI_NUMERO_SOLO + ' cargados', 'ok');
+    } catch (e) { if (my === _seq) marca(''); }
+  }
+  window._pedAutocompletarCliente = autocompletar;
+
+  // Elegir un cliente de la lista → autocompletar
+  document.addEventListener('mousedown', e => {
+    const it = e.target.closest && e.target.closest('.ped-ac-item');
+    if (!it) return;
+    const list = it.closest('[id]');
+    if (list && list.id === 'ped-cliente-list') setTimeout(() => autocompletar(it.dataset.nombre), 0);
+    if (list && list.id === 'ped-cliefac-list') window._pedCliFactId = null;
+  }, true);
+
+  // ID del cliente de facturación para el POST del pedido
+  window._pedCliFactIdResolver = function(){
+    const nom = ($('ped-cliefac-val')?.value || $('ped-cliefac-input')?.value || '').trim();
+    if (!nom) return null;
+    if (window._pedCliFactId && sinAcento(window._pedCliFactId.nombre) === sinAcento(nom)) return Number(window._pedCliFactId.id);
+    if (typeof YIQI_CLI_MAP !== 'undefined') { const id = YIQI_CLI_MAP[nom] ?? YIQI_CLI_MAP[nom.toLowerCase()]; if (id) return Number(id); }
+    return null;
+  };
+
+
+  // ── Búsqueda en vivo en Yiqi para el autocompletado de clientes (palabra por palabra) ──
+  // El autocompletado del pedido sólo miraba el historial y el mapa local; ahora además consulta
+  // Yiqi (clientes nuevos o cargados en otra compu) y agrega los que falten a la lista.
+  let _liveT = null, _liveSeq = 0;
+  function liveSearch(inputId, listId, hiddenId){
+    clearTimeout(_liveT);
+    const input = $(inputId), list = $(listId), hidden = $(hiddenId);
+    if (!input || !list) return;
+    const q = input.value.trim();
+    if (q.length < 3) return;
+    if (hidden && hidden.value && hidden.value === input.value) return; // recién elegido de la lista
+    _liveT = setTimeout(async () => {
+      const my = ++_liveSeq;
+      let token = null; try { token = await _yiqiGetTokenGlobal(); } catch (e) {}
+      if (!token) return;
+      const ws = q.split(/\s+/).filter(w => w.length >= 2).slice(0, 5);
+      try {
+        const r = await yiqiFetch(`${API}/api/public/CLIENTE/query?schemaId=${SCHEMA}`, { method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ page: 1, pageSize: 12, columns: [{ field: 'CLIE_NOMBRE', title: 'Nombre' }], filters: ws.map(w => ({ columnName: 'CLIE_NOMBRE', operator: 'LIKE', value: w })) }) });
+        if (!r.ok || my !== _liveSeq || input.value.trim() !== q || (hidden && hidden.value && hidden.value === input.value)) return;
+        const rows = ((await r.json()).data || []).filter(x => x.CLIE_NOMBRE);
+        const ya = new Set(Array.from(list.querySelectorAll('.ped-ac-item')).map(e => sinAcento(e.dataset.nombre)));
+        // Si la lista está cerrada, lo que tiene adentro es de una búsqueda anterior: se reemplaza
+        if (!list.classList.contains('open')) { list.innerHTML = ''; ya.clear(); }
+        const nuevos = rows.filter(x => !ya.has(sinAcento(x.CLIE_NOMBRE)));
+        if (!nuevos.length) return;
+        nuevos.forEach(x => {
+          if (typeof YIQI_CLI_MAP !== 'undefined') { YIQI_CLI_MAP[x.CLIE_NOMBRE] = x.id; YIQI_CLI_MAP[x.CLIE_NOMBRE.toLowerCase()] = x.id; }
+          const d = document.createElement('div');
+          d.className = 'ped-ac-item'; d.dataset.nombre = x.CLIE_NOMBRE;
+          d.innerHTML = '<span style="color:#34d399;font-size:9px;margin-right:3px;" title="Encontrado en vivo en Yiqi">●</span>' +
+            x.CLIE_NOMBRE.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) +
+            '<span style="font-size:10px;opacity:.5;margin-left:5px;">#' + x.id + '</span>';
+          d.addEventListener('mousedown', e => {
+            e.preventDefault();
+            input.value = x.CLIE_NOMBRE; if (hidden) hidden.value = x.CLIE_NOMBRE;
+            list.classList.remove('open');
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+          list.appendChild(d);
+        });
+        list.classList.add('open');
+      } catch (e) {}
+    }, 400);
+  }
+  function envolverAutocomplete(){
+    const orig = window.pedAutocomplete;
+    if (typeof orig !== 'function' || orig._vivo) return;
+    const w = function(inputId, listId, hiddenId){ const r = orig.apply(this, arguments); try { liveSearch(inputId, listId, hiddenId); } catch (e) {} return r; };
+    w._vivo = true; window.pedAutocomplete = w;
+  }
+  envolverAutocomplete();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', envolverAutocomplete);
+  setTimeout(envolverAutocomplete, 2000);
+
+  // ── Nueva Empresa / Cliente: "Completar desde ARCA" ──
+  // El botón "Completar desde ARCA" de Yiqi sólo funciona en la pantalla de Yiqi (la API pública no lo
+  // expone): acá se copia el CUIT y se abre la constancia de ARCA para pegarlo.
+  const ARCA_URL = 'https://seti.afip.gob.ar/padron-puc-constancia-internet/ConsultaConstanciaAction.do';
+  function botonArca(){
+    document.querySelectorAll('#clie-cuit').forEach(inp => {
+      if (inp.dataset.arca) return;
+      inp.dataset.arca = '1';
+      const col = document.createElement('div');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;gap:6px;align-items:center;';
+      inp.parentNode.insertBefore(col, inp); col.appendChild(wrap); wrap.appendChild(inp);
+      inp.style.flex = '1';
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = 'Completar desde ARCA';
+      b.title = 'Copia el CUIT y abre la constancia de inscripción de ARCA';
+      b.style.cssText = "padding:6px 10px;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;";
+      const msg = document.createElement('div');
+      msg.style.cssText = 'font-size:11px;color:var(--text3);margin-top:4px;';
+      b.onclick = () => {
+        const cuit = String(inp.value || '').replace(/\D/g, '');
+        if (cuit.length !== 11) { msg.innerHTML = '<span style="color:#f87171">Escribí un CUIT/CUIL de 11 dígitos.</span>'; inp.focus(); return; }
+        try { navigator.clipboard.writeText(cuit).catch(() => {}); } catch (e) {}
+        window.open(ARCA_URL, '_blank', 'noopener');
+        msg.textContent = '📋 CUIT ' + cuit + ' copiado — pegalo en la constancia de ARCA y pasá razón social, condición de IVA y domicilio.';
+      };
+      wrap.appendChild(b);
+      col.appendChild(msg);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', botonArca); else botonArca();
+})();
+
+// ── v25.435: todos los transportes en los desplegables de Nuevo Pedido ──
+// Antes "Datos adicionales" usaba una lista corta (dentalab/transportistas) y "Estado del envío" la de
+// "+ Nuevo envío" (dentalab/ed_transportes). Ahora las dos muestran la lista completa: las dos listas
+// compartidas juntas + los transportes que aparecen en los pedidos de Yiqi.
+(function(){
+  const EXTRA = ['Envíos Dentalab','OCA','Andreani','Correo Argentino','Via Cargo','Expreso Imagina','Expreso Garmendia','Expreso Frontera',
+    'Expreso Punta Alta','Expreso Alfa','Expreso Lobruno','Expreso La Veloz del Norte','Plusmar','Pulky','Balut Encomienda','Expreso Heral',
+    'Crucero Express','Tascar S.r.l','Expreso Mar del Plata','Expreso Demonte','Expreso Lider','Expreso Landaburu','Transporte Nicolas Gorgone S.R.L',
+    'Tomas Beraldi','Rodriguez Hnos','Tres Hermanos','Transporte El Padrino','Transporte Orion','Central Argentino','Buspack','Micro'];
+  const PRIMERO = ['Envíos Dentalab','OCA','Andreani','Correo Argentino','Via Cargo'];
+  const k = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  function unir(...listas){
+    const vistos = new Map();
+    listas.flat().forEach(t => { t = String(t || '').trim(); if (t && !vistos.has(k(t))) vistos.set(k(t), t); });
+    const arr = [...vistos.values()];
+    const pos = t => { const i = PRIMERO.findIndex(p => k(p) === k(t)); return i < 0 ? 99 : i; };
+    return arr.sort((a, b) => pos(a) - pos(b) || a.localeCompare(b, 'es'));
+  }
+  const lsLista = key => { try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+  window._transportesTodos = () => unir(
+    (typeof _edTransportes !== 'undefined' && Array.isArray(_edTransportes)) ? _edTransportes : [],
+    typeof GCAL_TRANSPORT_DEFAULT !== 'undefined' ? GCAL_TRANSPORT_DEFAULT : [],
+    lsLista('dentalab_transp'), lsLista('dentalab_ed_transportes'), EXTRA);
+  function envolver(){
+    if (typeof window.gcalLoadTransportes === 'function' && !window.gcalLoadTransportes._todos) {
+      const o = window.gcalLoadTransportes;
+      const w = function(){ return unir(o.apply(this, arguments) || [], window._transportesTodos()); }; w._todos = true; window.gcalLoadTransportes = w;
+    }
+    if (typeof window.pedTranspLoadList === 'function' && !window.pedTranspLoadList._todos) {
+      const o = window.pedTranspLoadList;
+      const w = async function(){ let a = []; try { a = await o.apply(this, arguments); } catch (e) {} return unir(a || [], window._transportesTodos()); }; w._todos = true; window.pedTranspLoadList = w;
+      try { if (typeof pedTranspLoad === 'function') pedTranspLoad(); } catch (e) {}
+    }
+    // Tipo de entrega: además de Domicilio / Sucursal, Depósito y Terminal (como se usan con los expresos)
+    ['ped-tipo-envio-select', 'ped-obs-tipo-envio'].forEach(id => document.querySelectorAll('#' + id).forEach(sel => {
+      ['Depósito', 'Terminal'].forEach(t => { if (!Array.from(sel.options).some(o => o.value === t)) sel.add(new Option(t, t)); });
+    }));
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', envolver); else envolver();
+  setTimeout(envolver, 2500);
+})();
+
+// ── v25.439: "Enviar a Google Calendar" (los dos paneles): el PDF del pedido se carga solo ──
+// Al abrir el panel, si el evento tiene N° de pedido, se baja de Yiqi el PDF del pedido (formato
+// "Presupuesto", el mismo que antes se arrastraba) y se procesa igual que si se hubiera soltado:
+// completa dirección, transporte, cobro, vendedor y teléfono. Igual se puede arrastrar otro a mano.
+(function(){
+  const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+  async function autoPdf(bd){
+    if (!bd || bd.dataset.autoPdf) return;
+    bd.dataset.autoPdf = '1';
+    await new Promise(r => setTimeout(r, 250)); // que el panel termine de armarse
+    const tit = bd.querySelector('#gcal-titulo');
+    const m = String(tit && tit.value || '').match(/N°\s*(\d{3,8})\b/);
+    if (!m) return;
+    const nro = m[1];
+    const inp = bd.querySelector('#gcal-pdf-input');
+    const handler = /gcalPdfFile2/.test(inp && inp.getAttribute('onchange') || '') ? window.gcalPdfFile2 : window.gcalPdfFile1;
+    if (typeof handler !== 'function') return;
+    const texto = bd.querySelector('#gcal-pdf-drop-texto');
+    const poner = t => { if (texto && document.body.contains(bd)) texto.textContent = t; };
+    const textoOrig = texto ? texto.textContent : '';
+    let tok = null; try { tok = await _yiqiGetTokenGlobal(); } catch (e) {}
+    if (!tok) return;
+    poner('⏳ Trayendo de Yiqi el PDF del pedido N° ' + nro + '…');
+    try {
+      const H = { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' };
+      const r = await yiqiFetch(`${API}/api/public/PEDIDO/query?schemaId=${SCHEMA}`, { method: 'POST', headers: H,
+        body: JSON.stringify({ page: 1, pageSize: 5, columns: ['ID', 'PEDI_NUMERO_SOLO'].map((f, i) => ({ field: f, title: f, order: i + 1 })), filters: [{ columnName: 'PEDI_NUMERO_SOLO', operator: '=', value: Number(nro) }] }) });
+      const j = r.ok ? await r.json() : {};
+      const p = (j.data || []).find(x => String(x.PEDI_NUMERO_SOLO) === nro);
+      if (!p) throw new Error('no se encontró el pedido ' + nro + ' en Yiqi');
+      let blob = null;
+      for (const fmt of ['PRESUPUESTO_v1', 'PEDIDO_v1.3']) {
+        try {
+          const rp = await yiqiFetch(`${API}/api/public/PEDIDO/report?reportName=${fmt}&instanceId=${encodeURIComponent(p.id || p.ID)}&schemaId=${SCHEMA}`, { headers: { 'Authorization': 'Bearer ' + tok } });
+          if (rp.ok) { const b = await rp.blob(); if (b.size) { blob = b; break; } }
+        } catch (e) {}
+      }
+      if (!blob) throw new Error('Yiqi no devolvió el PDF');
+      if (!document.body.contains(bd)) return;
+      poner(textoOrig);
+      await handler(new File([blob], `Pedido_${nro}.pdf`, { type: 'application/pdf' }));
+      setTimeout(() => poner('✓ Datos completados con el PDF del pedido N° ' + nro + ' (Yiqi) · podés arrastrar otro PDF si hace falta'), 2700);
+    } catch (e) {
+      poner('⚠ No se pudo traer el PDF del pedido ' + nro + ' (' + (e.message || e) + '). Podés arrastrarlo a mano.');
+    }
+  }
+  new MutationObserver(muts => {
+    muts.forEach(mu => mu.addedNodes.forEach(n => { if (n.nodeType === 1 && n.id === 'gcal-backdrop') autoPdf(n); }));
+  }).observe(document.documentElement, { childList: true, subtree: true });
+})();
+
+// ── v25.441: Nueva Empresa / Cliente — detección de clientes ya cargados en Yiqi ──
+// Mientras se escribe el nombre/apellido o el DNI/CUIT, busca EN VIVO en Yiqi (palabra por palabra en
+// nombre y razón social; por número en CUIT/DNI, incluido el DNI dentro de un CUIT) y avisa si ya existe,
+// con un botón para abrirlo en modo edición en vez de cargarlo de nuevo.
+(function(){
+  const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const COLS = ['CLIE_NOMBRE', 'CLIE_RAZON_SOCIAL', 'CLIE_CUIT', 'CLIE_LOCALIDAD'].map((f, i) => ({ field: f, title: f, order: i + 1 }));
+  let _t = null, _seq = 0;
+  async function q(filters){
+    const tok = await _yiqiGetTokenGlobal(); if (!tok) throw new Error('sin sesión de Yiqi');
+    const r = await yiqiFetch(`${API}/api/public/CLIENTE/query?schemaId=${SCHEMA}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 1, pageSize: 8, columns: COLS, filters }) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return (await r.json()).data || [];
+  }
+  function caja(){
+    let b = $('clie-dup-box');
+    const cuit = $('clie-cuit');
+    if (!b && cuit) {
+      b = document.createElement('div'); b.id = 'clie-dup-box';
+      b.style.cssText = 'margin:6px 0 4px;font-size:12px;';
+      const fila = cuit.closest('div[style*="grid-template-columns"]') || cuit.parentElement;
+      fila.parentNode.insertBefore(b, fila.nextSibling);
+    }
+    return b;
+  }
+  async function buscar(){
+    const b = caja(); if (!b) return;
+    const nombre = ($('clie-nombre')?.value || '').trim();
+    const doc = ($('clie-cuit')?.value || '').replace(/\D/g, '');
+    const palabras = nombre.split(/\s+/).filter(w => w.length >= 3).slice(0, 4);
+    if (!palabras.length && doc.length < 6) { b.innerHTML = ''; return; }
+    const my = ++_seq;
+    b.innerHTML = '<span style="color:var(--text3)">🔎 Buscando si ya está cargado en Yiqi…</span>';
+    try {
+      const pedidos = [];
+      if (doc.length >= 6) {
+        pedidos.push(q([{ columnName: 'CLIE_CUIT', operator: 'LIKE', value: doc }]).then(r => r.map(c => Object.assign(c, { _por: 'doc' }))));
+        if (doc.length === 11) pedidos.push(q([{ columnName: 'CLIE_CUIT', operator: 'LIKE', value: doc.slice(2, 10) }]).then(r => r.map(c => Object.assign(c, { _por: 'doc' }))));
+      }
+      if (palabras.length) {
+        pedidos.push(q(palabras.map(w => ({ columnName: 'CLIE_NOMBRE', operator: 'LIKE', value: w }))).then(r => r.map(c => Object.assign(c, { _por: 'nombre' }))));
+        pedidos.push(q(palabras.map(w => ({ columnName: 'CLIE_RAZON_SOCIAL', operator: 'LIKE', value: w }))).then(r => r.map(c => Object.assign(c, { _por: 'nombre' }))).catch(() => []));
+      }
+      const todos = (await Promise.all(pedidos)).flat();
+      if (my !== _seq) return;
+      const vistos = new Map();
+      todos.forEach(c => { const k = String(c.id || c.ID); if (k === String(window._clieYiqiEditId || '')) return; const v = vistos.get(k); if (!v || c._por === 'doc') vistos.set(k, c); });
+      const lista = [...vistos.values()].sort((a, b) => (a._por === 'doc' ? 0 : 1) - (b._por === 'doc' ? 0 : 1)).slice(0, 8);
+      if (!lista.length) { b.innerHTML = '<span style="color:#34d399">✓ No hay ningún cliente en Yiqi con ese ' + (doc.length >= 6 && palabras.length ? 'nombre ni DNI/CUIT' : doc.length >= 6 ? 'DNI/CUIT' : 'nombre') + '.</span>'; return; }
+      const fuerte = lista.some(c => c._por === 'doc');
+      b.innerHTML = `<div style="border:1px solid ${fuerte ? 'rgba(239,68,68,.5)' : 'rgba(245,158,11,.45)'};background:${fuerte ? 'rgba(239,68,68,.08)' : 'rgba(245,158,11,.08)'};border-radius:8px;padding:8px 10px;">
+        <div style="font-weight:800;color:${fuerte ? '#f87171' : '#fbbf24'};margin-bottom:5px;">${fuerte ? '⚠ Ya existe un cliente con ese DNI/CUIT' : '⚠ Puede que ya esté cargado'} (${lista.length})</div>
+        ${lista.map(c => `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid rgba(148,163,184,.15);">
+          <div style="flex:1;min-width:0;"><b style="color:var(--text)">${esc(c.CLIE_NOMBRE || c.CLIE_RAZON_SOCIAL)}</b> <span style="color:var(--text3)">· ${esc(c.CLIE_CUIT || 'sin CUIT')}${c.CLIE_LOCALIDAD ? ' · ' + esc(c.CLIE_LOCALIDAD) : ''} · ID ${esc(c.id || c.ID)}</span>${c._por === 'doc' ? ' <span style="color:#f87171;font-weight:700;">mismo DNI/CUIT</span>' : ''}</div>
+          <button type="button" data-clie-usar="${esc(c.id || c.ID)}" style="padding:4px 10px;border-radius:6px;border:1px solid #10b981;background:rgba(16,185,129,.12);color:#34d399;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">✏️ Abrir este</button>
+        </div>`).join('')}
+        <div style="color:var(--text3);font-size:11px;margin-top:4px;">"Abrir este" carga sus datos para revisarlos o actualizarlos, sin crear uno nuevo.</div></div>`;
+      b.querySelectorAll('[data-clie-usar]').forEach(btn => btn.onclick = async () => {
+        const id = btn.dataset.clieUsar;
+        btn.disabled = true; btn.textContent = '⏳';
+        try { await clieCargarDatosDeYiqi(null, id); b.innerHTML = ''; const s = $('clie-yiqi-search'); const c = lista.find(x => String(x.id || x.ID) === String(id)); if (s && c) s.value = c.CLIE_NOMBRE || ''; }
+        catch (e) { btn.disabled = false; btn.textContent = '✏️ Abrir este'; }
+      });
+    } catch (e) { if (my === _seq) b.innerHTML = '<span style="color:var(--text3)">No se pudo revisar en Yiqi (' + esc(e.message || e) + ').</span>'; }
+  }
+  function programar(){ clearTimeout(_t); _t = setTimeout(buscar, 450); }
+  // El aviso viejo (sólo miraba la lista local) se reemplaza por la búsqueda en vivo
+  // (el aviso viejo se definía al cargar la página; se reemplaza también después)
+  const nuevo = function(){ if (!window._clieYiqiEditId) programar(); };
+  const pisar = () => { window.clieNombreAutocomplete = nuevo; };
+  pisar(); document.addEventListener('DOMContentLoaded', () => setTimeout(pisar, 0)); setTimeout(pisar, 3000);
+  document.addEventListener('input', e => {
+    if (e.target && (e.target.id === 'clie-cuit' || e.target.id === 'clie-nombre') && !window._clieYiqiEditId) programar();
+  }, true);
+  window._clieDupLimpiar = () => { const b = $('clie-dup-box'); if (b) b.innerHTML = ''; };
+})();
+
+</script>
 </body>
 
 <script>
@@ -66684,6 +67185,7 @@ function resetPedidoForm() {
   setVal('ped-cliente-val',   '');
   setVal('ped-cliefac-input', '');
   setVal('ped-cliefac-val',   '');
+  setVal('ped-cp-envio',      '');
   const cliList = s('ped-cliente-list'); if (cliList) cliList.innerHTML = '';
   const facList = s('ped-cliefac-list'); if (facList) facList.innerHTML = '';
 
@@ -66988,7 +67490,7 @@ function resetPedidoForm() {
 
     // Fuente 1: historial de pedidos
     const fromHist = (typeof cliClientes !== 'undefined' ? cliClientes : [])
-      .filter(c => c.nombre && c.nombre.toLowerCase().includes(q))
+      .filter(c => c.nombre && (c.nombre.toLowerCase().includes(q) || (window._pedMatchPalabras && _pedMatchPalabras(c.nombre, q))))
       .map(c => {
         const id = window.YIQI_CLI_MAP_LOCAL[c.nombre.trim().toUpperCase()]
           ?? (typeof YIQI_CLI_MAP !== 'undefined' ? (YIQI_CLI_MAP[c.nombre] ?? YIQI_CLI_MAP[c.nombre.toLowerCase()]) : null);
@@ -66999,7 +67501,7 @@ function resetPedidoForm() {
     const histNames = new Set(fromHist.map(c => c.nombre.toUpperCase()));
     const fromLocal = [];
     for (const [nombre, id] of Object.entries(window.YIQI_CLI_MAP_LOCAL)) {
-      if (nombre.toLowerCase().includes(q) && !histNames.has(nombre)) {
+      if ((nombre.toLowerCase().includes(q) || (window._pedMatchPalabras && _pedMatchPalabras(nombre, q))) && !histNames.has(nombre)) {
         fromLocal.push({ nombre, yiqiId: id, src: 'yiqi' });
         if (fromHist.length + fromLocal.length >= 12) break;
       }
@@ -67010,7 +67512,7 @@ function resetPedidoForm() {
     const fromLegacy = [];
     if (typeof YIQI_CLI_MAP !== 'undefined' && q.length >= 3) {
       for (const key of Object.keys(YIQI_CLI_MAP)) {
-        if (key.toLowerCase().includes(q) && !allNames.has(key.toUpperCase())) {
+        if ((key.toLowerCase().includes(q) || (window._pedMatchPalabras && _pedMatchPalabras(key, q))) && !allNames.has(key.toUpperCase()) && (allNames.add(key.toUpperCase()), true)) {
           fromLegacy.push({ nombre: key, yiqiId: YIQI_CLI_MAP[key], src: 'legacy' });
           if (fromHist.length + fromLocal.length + fromLegacy.length >= 12) break;
         }
