@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.433</title>
+<title>Dentalab Whatsapp CRM · v25.435</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -45607,7 +45607,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.433';
+  const LATEST_VERSION = 'v25.435';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45620,6 +45620,23 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.435',
+      fecha: '2026-11-18',
+      titulo: 'Nuevo Pedido: todos los transportes',
+      items: [
+        { tipo: 'mejora', texto: 'En "Nuevo Pedido", los desplegables de transporte (Datos adicionales y Estado del envío) muestran todos los transportes: la lista de "+ Nuevo envío", la de pedidos y los que se usan en Yiqi (Expreso Mar del Plata, Demonte, Gorgone, Beraldi, Landaburu, Balut, Heral, Plusmar, etc.). Primero los más usados y después en orden alfabético.' },
+        { tipo: 'mejora', texto: 'El tipo de entrega suma "Depósito" y "Terminal" además de Domicilio y Sucursal.' }
+      ]
+    },
+    {
+      version: 'v25.434',
+      fecha: '2026-11-18',
+      titulo: 'Pedidos en Yiqi: ordenados por fecha de creación',
+      items: [
+        { tipo: 'mejora', texto: 'La grilla de Pedidos en Yiqi se ordena por fecha de creación, del más reciente (arriba) al más antiguo (abajo). Igual podés tocar cualquier encabezado para ordenar por esa columna.' }
+      ]
+    },
     {
       version: 'v25.433',
       fecha: '2026-11-18',
@@ -63690,8 +63707,10 @@ document.addEventListener('DOMContentLoaded', () => {
     'esperando 2da validación':['rgba(14,165,233,.18)','#7dd3fc']
   };
 
-  let prefs = { dias: 7, ml: false, q: '', estado: '', sort: 'PEDI_NUMERO_SOLO', dir: -1 };
+  let prefs = { dias: 7, ml: false, q: '', estado: '', sort: 'AUDI_FECHA_ALTA', dir: -1 };
   try { Object.assign(prefs, JSON.parse(localStorage.getItem(LS_PREFS) || '{}')); } catch(e) {}
+  // Orden por defecto: fecha de creación, del más reciente al más antiguo (se aplica una vez a lo guardado)
+  if (!prefs.ordenFechaV1) { prefs.sort = 'AUDI_FECHA_ALTA'; prefs.dir = -1; prefs.ordenFechaV1 = true; try { localStorage.setItem(LS_PREFS, JSON.stringify(prefs)); } catch(e) {} }
   const copiando = {}; let resaltar = null;
   const NO_ELIMINABLE = /^(entregado|con devoluci[oó]n|staging out)$/i;
   let rows = [], lastTs = 0, loading = false, editing = null, savingN = 0, lastErr = '', needLogin = false;
@@ -64142,10 +64161,15 @@ document.addEventListener('DOMContentLoaded', () => {
         .some(v => String(v || '').toLowerCase().includes(q));
     });
     const k = prefs.sort, d = prefs.dir, col = COL_DEF[k];
-    const val = r => col && col.map ? (col.map[r[k]] || '') : (k === 'PEDI_NUMERO_SOLO' ? Number(nro(r)) : r[k]);
-    out.sort((a, b) => { const x = val(a), y = val(b);
-      if (typeof x === 'number' || typeof y === 'number') return ((Number(x)||0) - (Number(y)||0)) * d;
-      return String(x || '').localeCompare(String(y || ''), 'es') * d; });
+    const esFecha = k === 'AUDI_FECHA_ALTA' || k === 'PEDI_FECHA';
+    const ts = v => { const t = new Date(v).getTime(); return isNaN(t) ? 0 : t; };
+    const val = r => col && col.map ? (col.map[r[k]] || '') : esFecha ? ts(r[k] || r.PEDI_FECHA || r.AUDI_FECHA_ALTA)
+      : (k === 'PEDI_NUMERO_SOLO' ? Number(nro(r)) : k === 'PEDI_TOTAL' ? Number(r[k]) || 0 : r[k]);
+    // Desempate: N° de pedido, del más nuevo al más viejo
+    out.sort((a, b) => { const x = val(a), y = val(b); let c;
+      if (typeof x === 'number' || typeof y === 'number') c = ((Number(x)||0) - (Number(y)||0)) * d;
+      else c = String(x || '').localeCompare(String(y || ''), 'es') * d;
+      return c || (Number(nro(b)) - Number(nro(a))); });
     return out;
   }
   function puedeEditar(c, r) {
@@ -66582,6 +66606,48 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', botonArca); else botonArca();
+})();
+
+// ── v25.435: todos los transportes en los desplegables de Nuevo Pedido ──
+// Antes "Datos adicionales" usaba una lista corta (dentalab/transportistas) y "Estado del envío" la de
+// "+ Nuevo envío" (dentalab/ed_transportes). Ahora las dos muestran la lista completa: las dos listas
+// compartidas juntas + los transportes que aparecen en los pedidos de Yiqi.
+(function(){
+  const EXTRA = ['Envíos Dentalab','OCA','Andreani','Correo Argentino','Via Cargo','Expreso Imagina','Expreso Garmendia','Expreso Frontera',
+    'Expreso Punta Alta','Expreso Alfa','Expreso Lobruno','Expreso La Veloz del Norte','Plusmar','Pulky','Balut Encomienda','Expreso Heral',
+    'Crucero Express','Tascar S.r.l','Expreso Mar del Plata','Expreso Demonte','Expreso Lider','Expreso Landaburu','Transporte Nicolas Gorgone S.R.L',
+    'Tomas Beraldi','Rodriguez Hnos','Tres Hermanos','Transporte El Padrino','Transporte Orion','Central Argentino','Buspack','Micro'];
+  const PRIMERO = ['Envíos Dentalab','OCA','Andreani','Correo Argentino','Via Cargo'];
+  const k = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  function unir(...listas){
+    const vistos = new Map();
+    listas.flat().forEach(t => { t = String(t || '').trim(); if (t && !vistos.has(k(t))) vistos.set(k(t), t); });
+    const arr = [...vistos.values()];
+    const pos = t => { const i = PRIMERO.findIndex(p => k(p) === k(t)); return i < 0 ? 99 : i; };
+    return arr.sort((a, b) => pos(a) - pos(b) || a.localeCompare(b, 'es'));
+  }
+  const lsLista = key => { try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+  window._transportesTodos = () => unir(
+    (typeof _edTransportes !== 'undefined' && Array.isArray(_edTransportes)) ? _edTransportes : [],
+    typeof GCAL_TRANSPORT_DEFAULT !== 'undefined' ? GCAL_TRANSPORT_DEFAULT : [],
+    lsLista('dentalab_transp'), lsLista('dentalab_ed_transportes'), EXTRA);
+  function envolver(){
+    if (typeof window.gcalLoadTransportes === 'function' && !window.gcalLoadTransportes._todos) {
+      const o = window.gcalLoadTransportes;
+      const w = function(){ return unir(o.apply(this, arguments) || [], window._transportesTodos()); }; w._todos = true; window.gcalLoadTransportes = w;
+    }
+    if (typeof window.pedTranspLoadList === 'function' && !window.pedTranspLoadList._todos) {
+      const o = window.pedTranspLoadList;
+      const w = async function(){ let a = []; try { a = await o.apply(this, arguments); } catch (e) {} return unir(a || [], window._transportesTodos()); }; w._todos = true; window.pedTranspLoadList = w;
+      try { if (typeof pedTranspLoad === 'function') pedTranspLoad(); } catch (e) {}
+    }
+    // Tipo de entrega: además de Domicilio / Sucursal, Depósito y Terminal (como se usan con los expresos)
+    ['ped-tipo-envio-select', 'ped-obs-tipo-envio'].forEach(id => document.querySelectorAll('#' + id).forEach(sel => {
+      ['Depósito', 'Terminal'].forEach(t => { if (!Array.from(sel.options).some(o => o.value === t)) sel.add(new Option(t, t)); });
+    }));
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', envolver); else envolver();
+  setTimeout(envolver, 2500);
 })();
 
 </script>
