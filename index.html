@@ -65686,7 +65686,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return [
       frame('Tienda online · Origen Web','Pedidos Web',`<div class="ep-grid4">${card(`Pedidos de ${mesTit}`,fmtN(W.mesN),`promedio ${fmtN(W.promN)} por mes`)}${card(`Facturado ${mesTit}`,fmt$(W.mesS),d!=null?`${d>0?'+':''}${fmtP(d)} vs promedio mensual`:`promedio ${fmt$(W.promS)}/mes`,'red money')}${card('Ticket promedio',fmt$(W.ticket),`12 meses: ${fmt$(W.promT)}`,'money')}${card('Clientes del mes',fmtN(W.clientes),`${fmtN(W.nuevos)} nuevos`)}</div>
         <p class="ep-axis" style="margin:18px 0 0;font-weight:700">Facturado y pedidos por mes</p>${svg}
-        <p class="ep-note">${W.espera.length?`Sin concretar: ${W.espera.length} pedidos en espera de pago hace +7 días por ${fmt$(W.esperaS)}. `:''}${W.devN?`Devoluciones del mes: ${W.devN} (${fmt$(W.devS)}). `:''}Los cargan y siguen Juan y Federico; se muestran aparte de WhatsApp.</p>`),
+        <p class="ep-note">${W.devN?`Devoluciones del mes: ${W.devN} (${fmt$(W.devS)}). `:''}Los cargan y siguen Juan y Federico; se muestran aparte de WhatsApp.</p>`),
       frame('Tienda online · Origen Web',`Clientes Web de ${mesTit}`,`<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">${tb('Los que más gastaron',W.topS)}${tb('Los que más pedidos hicieron',W.topP)}</div>`)
     ];
   }
@@ -66067,9 +66067,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const card=(l,b,s,cls)=>`<div class="ep-card"><span class="l">${l}</span><span class="b ${cls||''}">${b}</span><span class="s">${s||''}</span></div>`;
     slides.push(`<div class="ep-slide cover"><img class="ep-cover-logo" src="${EST_LOGO}"><div class="ep-dia d1"></div><div class="ep-dia d2"></div><div class="ep-dia d3"></div><div class="ep-dia d4"></div><div class="ep-dia d5"></div><p class="ep-eye">Informe mensual</p><h1>Pedidos<br>Web</h1><div class="ep-rule"></div><p class="ep-per">${per}</p><p class="ep-cap">Tienda online · pedidos que cargan y siguen Juan y Federico</p></div>`);
     slides.push(...webSlides(y,m,frame,card));
-    if(W.espera.length){ const L_=' style="text-align:left"', cg='<colgroup><col style="width:6%"><col style="width:14%"><col style="width:50%"><col style="width:16%"><col style="width:14%"></colgroup>';
-      for(let i=0;i<W.espera.length;i+=14){ const ch=W.espera.slice(i,i+14);
-        slides.push(frame('Para hacer seguimiento',`Pedidos Web sin concretar${W.espera.length>14?` (${i+1}–${i+ch.length} de ${W.espera.length})`:''}`,`<table class="ep-tb ep-anx">${cg}<thead><tr><th>#</th><th>N° pedido</th><th${L_}>Cliente</th><th>Monto</th><th>Días de espera</th></tr></thead><tbody>${ch.map((p,j)=>`<tr><td>${i+j+1}</td><td>${esc(p.nro)}</td><td${L_}>${esc(p.cliente)}</td><td>${fmt$(p.monto)}</td><td>${p.dias}</td></tr>`).join('')}</tbody></table><p class="ep-note">"En espera de pago" hace más de 7 días (pedidos de este mes y del anterior). Total: ${fmt$(W.esperaS)}.</p>`)); } }
     return slides;
   }
   async function exportPdfWeb(){
