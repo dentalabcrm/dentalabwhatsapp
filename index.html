@@ -66832,7 +66832,7 @@ body.pp-on #pyq-wrap{padding-right:calc(var(--ppw,min(560px,48vw)) + 8px);box-si
 
   // ── Campos que se completan y los que el usuario tocó a mano ──
   const CAMPOS = ['ped-origen', 'ped-vendedor', 'ped-condventa', 'ped-lista', 'ped-puntoventa', 'ped-ubicorig',
-    'ped-cliefac-input', 'ped-dir-envio', 'ped-ciudad-envio', 'ped-cp-envio', 'ped-prov-envio', 'ped-pais-envio', 'ped-localidad-envio', 'ped-obs'];
+    'ped-cliefac-input', 'ped-dir-envio', 'ped-ciudad-envio', 'ped-cp-envio', 'ped-prov-envio', 'ped-pais-envio', 'ped-localidad-envio', 'ped-obs', 'ped-estado-envio', 'ped-estado-pago', 'ped-transporte-select', 'ped-tipo-envio-select'];
   const tocados = new Set();
   document.addEventListener('input', e => { if (e.isTrusted && CAMPOS.includes(e.target.id)) tocados.add(e.target.id); }, true);
   let _llenando = false;
@@ -66879,7 +66879,7 @@ body.pp-on #pyq-wrap{padding-right:calc(var(--ppw,min(560px,48vw)) + 8px);box-si
   }
 
   const COLS = ['PEDI_NUMERO_SOLO', 'PEDI_FECHA', 'DESC_ESTADO', 'EXTE_ID_EXTE', 'VEHA_ID_VEHA', 'COVE_ID_COVE', 'LIDP_ID_LIDP', 'PUVE_ID_PUVE', 'CEDI_ID_ORIG',
-    'CLIE_ID_FACT', 'FACT_NOMBRE', 'PEDI_DIRECCION_DE_ENVIO', 'PEDI_CIUDAD_DE_ENVIO', 'PEDI_PROVINCIA_DE_ENVIO', 'PEDI_PAIS_DE_ENVIO', 'PEDI_LOCALIDAD_DE_ENVIO', 'PEDI_CODIGO_POSTAL_DE_ENV', 'PEDI_OBSERVACIONES'];
+    'CLIE_ID_FACT', 'FACT_NOMBRE', 'PEDI_DIRECCION_DE_ENVIO', 'PEDI_CIUDAD_DE_ENVIO', 'PEDI_PROVINCIA_DE_ENVIO', 'PEDI_PAIS_DE_ENVIO', 'PEDI_LOCALIDAD_DE_ENVIO', 'PEDI_CODIGO_POSTAL_DE_ENV', 'PEDI_OBSERVACIONES', 'PEDI_ESTADO_DEL_ENVIO', 'PEDI_ESTADO_DE_PAGO'];
   let _seq = 0;
   async function autocompletar(nombre){
     const my = ++_seq;
@@ -66922,6 +66922,18 @@ body.pp-on #pyq-wrap{padding-right:calc(var(--ppw,min(560px,48vw)) + 8px);box-si
       // Notas internas (Observaciones en Yiqi): solo si están vacías y no las escribiste a mano
       const obsTa = $('ped-obs');
       if (obsTa && !obsTa.value.trim()) setTxt('ped-obs', String(o.PEDI_OBSERVACIONES || '').trim());
+      // Estados (envío y pago): solo si están sin especificar y no los cambiaste a mano
+      const ee = String(o.PEDI_ESTADO_DEL_ENVIO || '').trim(), selEnv = $('ped-estado-envio');
+      if (ee && selEnv && !selEnv.value) {
+        const m = ee.split('\n')[0].trim().match(/^ENVIAR(?:\s*-\s*(.*?))?(?:\s*\(([^)]*)\))?\s*$/i);
+        if (/^RETIRA/i.test(ee)) setSel('ped-estado-envio', 'RETIRA');
+        else if (m && setSel('ped-estado-envio', 'ENVIAR')) {
+          const ponerOpc = (id, v) => { const sl = $(id); if (!sl || !v || tocados.has(id)) return; if (!Array.from(sl.options).some(x => x.value === v)) sl.add(new Option(v, v)); sl.value = v; };
+          ponerOpc('ped-transporte-select', (m[1] || '').trim()); ponerOpc('ped-tipo-envio-select', (m[2] || '').trim());
+        }
+      }
+      const selPago = $('ped-estado-pago');
+      if (o.PEDI_ESTADO_DE_PAGO && selPago && !selPago.value) setSel('ped-estado-pago', String(o.PEDI_ESTADO_DE_PAGO).trim());
       const f = o.PEDI_FECHA ? new Date(o.PEDI_FECHA).toLocaleDateString('es-AR') : '';
       marca(`✓ Datos completados de su último pedido N° ${o.PEDI_NUMERO_SOLO}${f ? ' (' + f + ')' : ''}`);
       if (typeof showToast === 'function') showToast('✓ Datos del último pedido N° ' + o.PEDI_NUMERO_SOLO + ' cargados', 'ok');
