@@ -63820,6 +63820,58 @@ body.light-mode #pyq-wrap .pc-rosa{--pc:#fdeef6;--pch:#fbcfe8;} body.light-mode 
 body.light-mode #pyq-wrap table thead tr th.pc{background:var(--pch);color:#212529;}
 body.light-mode #pyq-wrap table tbody tr td.pc{background:var(--pc);}
 body.light-mode #pyq-wrap table tbody tr:hover td.pc{background:var(--pch);}
+/* ── Vista previa del pedido (panel a la derecha) ── */
+#pyq-prev{position:fixed;top:0;right:0;bottom:0;width:var(--ppw,min(560px,48vw));max-width:100vw;z-index:9500;display:flex;flex-direction:column;font-family:'DM Sans',sans-serif;}
+#pyq-prev .pp-drag{position:absolute;left:-4px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:3;}
+#pyq-prev .pp-drag:hover,body.pp-arrastrando #pyq-prev .pp-drag{background:rgba(26,115,232,.35);}
+body.pp-arrastrando{cursor:col-resize!important;user-select:none!important;}
+body.pp-arrastrando #pyq-prev .pp-b{pointer-events:none;}
+#pyq-prev .pp-h{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;}
+#pyq-prev .pp-t{flex:1;min-width:0;font-size:15px;}
+#pyq-prev .pp-t b{margin-right:8px;}
+#pyq-prev .pp-badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap;vertical-align:2px;}
+#pyq-prev .pp-s{font-size:12.5px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#pyq-prev .pp-x{border-radius:4px;cursor:pointer;padding:3px 9px;font-size:13px;font-family:inherit;}
+#pyq-prev .pp-bar{display:flex;gap:6px;align-items:center;padding:7px 12px;flex-wrap:wrap;}
+#pyq-prev .pp-bar select,#pyq-prev .pp-bar button,#pyq-prev .pp-bar a{font:inherit;font-size:12px;padding:4px 8px;border-radius:4px;cursor:pointer;text-decoration:none;}
+#pyq-prev .pp-zoom{display:inline-flex;}
+#pyq-prev .pp-zoom button{border-radius:0;margin-left:-1px;min-width:30px;font-weight:700;}
+#pyq-prev .pp-zoom button:first-child{border-radius:4px 0 0 4px;margin-left:0;}
+#pyq-prev .pp-zoom button:last-child{border-radius:0 4px 4px 0;}
+#pyq-prev .pp-zoom .pp-zl{min-width:52px;font-weight:600;}
+#pyq-prev .pp-k{margin-left:auto;font-size:11px;white-space:nowrap;}
+#pyq-prev .pp-b{flex:1;min-height:0;overflow:auto;display:flex;background:#525659;}
+#pyq-prev .pp-b iframe{flex:1;border:0;width:100%;height:100%;}
+#pyq-prev .pp-pages{min-width:100%;width:max-content;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:12px;}
+#pyq-prev .pp-pages canvas{background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);display:block;flex:none;}
+#pyq-prev .pp-load{margin:auto;color:#fff;font-size:13px;padding:20px;text-align:center;}
+#pyq-prev .pp-load.err{color:#fecaca;}
+#pyq-wrap tbody td:not(.c-acc):not(.ed){cursor:pointer;}
+#pyq-prev{background:#0f172a;border-left:1px solid rgba(255,255,255,.12);box-shadow:-10px 0 30px rgba(0,0,0,.5);color:#e2e8f0;}
+#pyq-prev .pp-h,#pyq-prev .pp-bar{border-bottom:1px solid rgba(255,255,255,.08);}
+#pyq-prev .pp-t b{color:#93c5fd;}
+#pyq-prev .pp-badge{background:rgba(148,163,184,.15);color:#cbd5e1;border-radius:999px;padding:1px 8px;}
+#pyq-prev .pp-s{color:#94a3b8;}
+#pyq-prev .pp-x,#pyq-prev .pp-bar select,#pyq-prev .pp-bar button,#pyq-prev .pp-bar a{border:1px solid rgba(255,255,255,.14);background:#1e293b;color:#cbd5e1;}
+#pyq-prev .pp-x:hover{background:rgba(239,68,68,.3);border-color:#ef4444;color:#fff;}
+#pyq-prev .pp-bar button:hover,#pyq-prev .pp-bar a:hover{background:rgba(139,92,246,.25);border-color:#8b5cf6;color:#fff;position:relative;}
+#pyq-prev .pp-k{color:#64748b;}
+#pyq-prev .pp-b{background:#1e293b;}
+#pyq-wrap table tbody tr.pyq-sel td{background:rgba(250,204,21,.16)!important;box-shadow:inset 0 1px 0 #facc15,inset 0 -1px 0 #facc15;}
+body.light-mode #pyq-prev{background:#fff;border-left:1px solid #dee2e6;box-shadow:-8px 0 24px rgba(0,0,0,.14);color:#212529;}
+body.light-mode #pyq-prev .pp-h,body.light-mode #pyq-prev .pp-bar{border-bottom:1px solid #e9ecef;}
+body.light-mode #pyq-prev .pp-t b{color:#1a73e8;}
+body.light-mode #pyq-prev .pp-badge{border-radius:3px;padding:1px 6px;}
+body.light-mode #pyq-prev .pp-s{color:#495057;}
+body.light-mode #pyq-prev .pp-x,body.light-mode #pyq-prev .pp-bar select,body.light-mode #pyq-prev .pp-bar button,body.light-mode #pyq-prev .pp-bar a{border:1px solid #ced4da;background:#fff;color:#495057;}
+body.light-mode #pyq-prev .pp-x:hover{background:#fdecea;border-color:#dc3545;color:#dc3545;}
+body.light-mode #pyq-prev .pp-bar button:hover,body.light-mode #pyq-prev .pp-bar a:hover{background:#e8f0fe;border-color:#1a73e8;color:#1a73e8;}
+body.light-mode #pyq-prev .pp-k{color:#adb5bd;}
+body.light-mode #pyq-prev .pp-b{background:#525659;}
+body.light-mode #pyq-wrap table tbody tr.pyq-sel td{background:#fff3c4!important;box-shadow:inset 0 1px 0 #f6c445,inset 0 -1px 0 #f6c445;}
+body.pp-on #pyq-wrap{padding-right:calc(var(--ppw,min(560px,48vw)) + 8px);box-sizing:border-box;}
+#pyq-prev{z-index:9990;}
+@media (max-width:760px){#pyq-prev{width:100vw;}body.pp-on #pyq-wrap{padding-right:0;}#pyq-prev .pp-k{display:none;}#pyq-prev .pp-drag{display:none;}}
 /* Modo compacto automático para pantalla dividida / ventana angosta */
 @media (max-width:1300px){
 #pyq-wrap .pyq-bar{gap:5px;margin-bottom:6px;}
@@ -64356,6 +64408,7 @@ body.light-mode #pyq-wrap table tbody tr:hover td.pc{background:var(--pch);}
     const inner = document.getElementById('panel-envios-inner');
     const y = vista() === 'yiqi';
     w.style.display = y ? '' : 'none';
+    if (!y) cerrarPreview();
     if (inner) inner.style.display = y ? 'none' : '';
     document.getElementById('pyq-toggle-crm').style.display = y ? 'none' : '';
     if (y) render();
@@ -64451,7 +64504,7 @@ body.light-mode #pyq-wrap table tbody tr:hover td.pc{background:var(--pch);}
         <label class="pyq-chk"><input type="checkbox" data-a="ml" ${prefs.ml ? 'checked' : ''}> Incluir MercadoLibre</label>
         <span style="position:relative;display:inline-block;"><button class="pyq-btn sec" data-a="cols">⚙ Columnas</button>${colsAbierto ? panelCols() : ''}</span>
         <button class="pyq-btn sec" data-a="crm" title="Volver a la vista anterior del CRM (Gmail, calendario, etc.)">Vista anterior</button>
-        <span class="pyq-info">${prefs.dias > 31 ? `<span style="color:#fcd34d">${prefs.q ? 'Búsqueda en Yiqi · ' : (prefs.vend ? '' : (truncadoLargo ? 'Mostrando los 2000 más recientes — escribí en el buscador para buscar en todo el período · ' : 'Escribí en el buscador para buscar en todo el período · '))}</span>` : ''}${lista.length} de ${rows.length} pedidos${hace != null ? ` · actualizado ${hace < 1 ? 'recién' : 'hace ' + hace + ' min'}` : ''} · <span style="color:#a78bfa">✎</span> = editable (clic en la celda)</span>
+        <span class="pyq-info">${prefs.dias > 31 ? `<span style="color:#fcd34d">${prefs.q ? 'Búsqueda en Yiqi · ' : (prefs.vend ? '' : (truncadoLargo ? 'Mostrando los 2000 más recientes — escribí en el buscador para buscar en todo el período · ' : 'Escribí en el buscador para buscar en todo el período · '))}</span>` : ''}${lista.length} de ${rows.length} pedidos${hace != null ? ` · actualizado ${hace < 1 ? 'recién' : 'hace ' + hace + ' min'}` : ''} · <span style="color:#a78bfa">✎</span> = editable (clic en la celda) · clic en el pedido = vista previa</span>
       </div>
       ${needLogin ? `<div class="pyq-login">🔑 Ingresá tu usuario de Yiqi para ver los pedidos:
           <input type="text" id="pyq-u" placeholder="Usuario" autocomplete="username"><input type="password" id="pyq-p" placeholder="Contraseña" autocomplete="current-password">
@@ -64463,7 +64516,7 @@ body.light-mode #pyq-wrap table tbody tr:hover td.pc{background:var(--pch);}
       </div>
       <div class="pyq-scroll"><table>
         <thead><tr>${VC.map(c => `<th draggable="true" data-col="${c.k}" class="${pc(c.k)}" ${c.k==='_acc'?'':`data-sort="${c.k}"`} title="Arrastrá para mover la columna">${esc(c.t)}${c.ed ? '<span class="pyq-ed">✎</span>' : ''}${prefs.sort===c.k ? (prefs.dir<0?' ▼':' ▲') : ''}</th>`).join('')}</tr></thead>
-        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}" class="${String(rowId(r))===String(resaltar)?'pyq-nuevo':''}">${VC.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}${pc(c.k)}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
+        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}" class="${String(rowId(r))===String(resaltar)?'pyq-nuevo':''}${String(rowId(r))===String(prevId)?' pyq-sel':''}">${VC.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}${pc(c.k)}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
           : `<tr><td colspan="${VC.length}" style="text-align:center;color:#64748b;padding:30px;">${loading ? 'Cargando pedidos desde Yiqi…' : 'No hay pedidos para mostrar.'}</td></tr>`}</tbody>
       </table></div>`;
     const sc = w.querySelector('.pyq-scroll'); if (sc) { sc.scrollTop = sTop; sc.scrollLeft = sLeft; }
@@ -64517,6 +64570,166 @@ body.light-mode #pyq-wrap table tbody tr:hover td.pc{background:var(--pch);}
     inp.addEventListener('blur', () => setTimeout(() => cerrar(true), 120));
   }
 
+  // ── Vista previa del pedido: clic en una celda del pedido (que no sea editable ni un botón) ──
+  let prevId = null, prevSeq = 0, prevBlob = null, prevNro = ''; const prevCache = new Map();
+  const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+  const prevFmt = () => localStorage.getItem('pyq_prev_fmt') || 'PRESUPUESTO_v1';
+  let prevZoom = Number(localStorage.getItem('pyq_prev_zoom')) || 1;
+  // Ancho del panel (se arrastra el borde izquierdo); se guarda
+  function aplicarAnchoPrev(px) {
+    if (px) document.documentElement.style.setProperty('--ppw', Math.round(px) + 'px');
+    else document.documentElement.style.removeProperty('--ppw');
+  }
+  aplicarAnchoPrev(Number(localStorage.getItem('pyq_prev_w')) || 0);
+  function cerrarPreview() {
+    prevId = null; prevSeq++; prevBlob = null;
+    document.getElementById('pyq-prev')?.remove();
+    document.body.classList.remove('pp-on');
+    document.querySelectorAll('#pyq-wrap tr.pyq-sel').forEach(t => t.classList.remove('pyq-sel'));
+  }
+  async function abrirPreview(id) {
+    const r = rows.find(x => String(rowId(x)) === String(id)); if (!r) return;
+    prevId = String(id); prevBlob = null; prevNro = nro(r); const my = ++prevSeq;
+    document.querySelectorAll('#pyq-wrap tr.pyq-sel').forEach(t => t.classList.remove('pyq-sel'));
+    const tr = document.querySelector(`#pyq-wrap tr[data-id="${CSS.escape(String(id))}"]`);
+    if (tr) { tr.classList.add('pyq-sel'); tr.scrollIntoView({ block: 'nearest' }); }
+    document.body.classList.add('pp-on');
+    let p = document.getElementById('pyq-prev');
+    if (!p) { p = document.createElement('div'); p.id = 'pyq-prev'; document.body.appendChild(p); }
+    const fmt = prevFmt();
+    const [bg, fg] = (typeof ESTADO_COLOR_CLARO !== 'undefined' && document.body.classList.contains('light-mode') ? ESTADO_COLOR_CLARO : ESTADO_COLOR)[String(r.DESC_ESTADO || '').toLowerCase()] || [];
+    const fecha = r.AUDI_FECHA_ALTA || r.PEDI_FECHA;
+    p.innerHTML = `<div class="pp-drag" title="Arrastrá para cambiar el ancho del panel (doble clic: ancho normal)"></div>
+      <div class="pp-h">
+        <div class="pp-t"><b>Pedido ${esc(nro(r))}</b>${r.DESC_ESTADO ? `<span class="pp-badge" style="${bg ? `background:${bg};color:${fg}` : ''}">${esc(r.DESC_ESTADO)}</span>` : ''}
+          <div class="pp-s" title="${esc(r.CLIE_NOMBRE || '')}">${esc(r.CLIE_NOMBRE || '')}${r.PEDI_TOTAL != null && r.PEDI_TOTAL !== '' ? ' · ' + fmtMoney(r.PEDI_TOTAL) : ''}${fecha ? ' · ' + fmtFecha(fecha) : ''}</div></div>
+        <button class="pp-x" data-pp="x" title="Cerrar (Esc)">✕</button></div>
+      <div class="pp-bar"><select data-pp="fmt" title="Formato del PDF">${FORMATOS_PDF.map(f => `<option value="${f.c}" ${f.c === fmt ? 'selected' : ''}>${esc(f.n)}</option>`).join('')}</select>
+        <span class="pp-zoom"><button data-pp="zm" title="Alejar (−)">−</button><button data-pp="z1" class="pp-zl" title="Ajustar al ancho del panel (0)">${Math.round(prevZoom * 100)}%</button><button data-pp="zp" title="Acercar (+) · también Ctrl + rueda del mouse">+</button></span>
+        <button data-pp="dl" title="Descargar este PDF">⬇ Descargar</button>
+        <a href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/${esc(String(id))}" target="_blank" rel="noopener" title="Abrir el pedido en Yiqi">↗ Yiqi</a>
+        <span class="pp-k">↑ ↓ otro pedido · + − zoom · Esc cierra</span></div>
+      <div class="pp-b"><div class="pp-load">⏳ Trayendo el PDF del pedido ${esc(nro(r))} de Yiqi…</div></div>`;
+    try {
+      const k = id + '|' + fmt; let blob = prevCache.get(k);
+      if (!blob) {
+        const res = await yiqiFetch(`${API}/api/public/PEDIDO/report?reportName=${encodeURIComponent(fmt)}&instanceId=${encodeURIComponent(id)}&schemaId=${SCHEMA}`, { headers: { 'Authorization': 'Bearer ' + await token() } });
+        if (!res.ok) { const tx = await res.text().catch(() => ''); throw new Error(res.status === 403 ? 'tu usuario no tiene permiso para imprimir pedidos' : (msgYiqi(tx).slice(0, 200) || 'HTTP ' + res.status)); }
+        blob = await res.blob();
+        if (!blob.size) throw new Error('Yiqi devolvió un archivo vacío');
+        prevCache.set(k, blob);
+        if (prevCache.size > 30) prevCache.delete(prevCache.keys().next().value);
+      }
+      if (my !== prevSeq) return;
+      prevBlob = blob;
+      await mostrarPdfPrev(p.querySelector('.pp-b'), blob, my, nro(r));
+    } catch (e) {
+      if (my === prevSeq) p.querySelector('.pp-b').innerHTML = `<div class="pp-load err">⚠ No se pudo traer el PDF: ${esc(e.message || String(e))}</div>`;
+    }
+  }
+  // Dibuja el PDF con PDF.js (ya cargado en la página). Así se ve aunque Chrome esté configurado
+  // para descargar los PDF en vez de abrirlos. Si PDF.js no está, se usa el visor del navegador.
+  async function mostrarPdfPrev(cont, blob, my, numero) {
+    const lib = window.pdfjsLib;
+    if (!lib || !lib.getDocument) {
+      const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      cont.innerHTML = `<iframe src="${url}#view=FitH" title="Vista previa del pedido ${esc(numero)}"></iframe>`;
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+      return;
+    }
+    const pdf = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+    if (my !== prevSeq) return;
+    // Mantener la posición relativa del scroll al cambiar el zoom
+    const rx = cont.scrollWidth > cont.clientWidth ? (cont.scrollLeft + cont.clientWidth / 2) / cont.scrollWidth : 0.5;
+    const ry = cont.scrollHeight > cont.clientHeight ? (cont.scrollTop + cont.clientHeight / 2) / cont.scrollHeight : 0;
+    const hoja = document.createElement('div'); hoja.className = 'pp-pages';
+    const ancho = Math.max(240, (cont.clientWidth || 500) - 24) * prevZoom;
+    const dpr = Math.min(2.5, Math.max(1.5, window.devicePixelRatio || 1));
+    const canvases = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      if (my !== prevSeq) return;
+      const v0 = page.getViewport({ scale: 1 }), e1 = ancho / v0.width;
+      const px = Math.min(dpr, 5000 / (v0.width * e1)); // tope de tamaño del lienzo
+      const vp = page.getViewport({ scale: e1 * px });
+      const cv = document.createElement('canvas');
+      cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
+      cv.style.width = Math.floor(v0.width * e1) + 'px'; cv.style.height = Math.floor(v0.height * e1) + 'px';
+      await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+      if (my !== prevSeq) return;
+      canvases.push(cv);
+    }
+    canvases.forEach(cv => hoja.appendChild(cv));
+    cont.innerHTML = ''; cont.appendChild(hoja);
+    if (prevZoom !== 1 || ry) { cont.scrollLeft = rx * cont.scrollWidth - cont.clientWidth / 2; cont.scrollTop = ry * cont.scrollHeight - cont.clientHeight / 2; }
+    try { pdf.destroy(); } catch (e) {}
+  }
+  function zoomPrev(z) {
+    z = Math.max(ZOOMS[0], Math.min(ZOOMS[ZOOMS.length - 1], z));
+    if (z === prevZoom) return;
+    prevZoom = z; localStorage.setItem('pyq_prev_zoom', String(z));
+    const p = document.getElementById('pyq-prev'); if (!p) return;
+    const l = p.querySelector('.pp-zl'); if (l) l.textContent = Math.round(z * 100) + '%';
+    if (prevBlob) mostrarPdfPrev(p.querySelector('.pp-b'), prevBlob, ++prevSeq, prevNro).catch(() => {});
+  }
+  const zoomPaso = d => { const i = ZOOMS.findIndex(z => z >= prevZoom - 1e-6); zoomPrev(ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, (i < 0 ? ZOOMS.length - 1 : i) + d))]); };
+  function moverPreview(d) {
+    const trs = [...document.querySelectorAll('#pyq-wrap tbody tr[data-id]')];
+    const i = trs.findIndex(t => t.dataset.id === prevId);
+    const nx = trs[i < 0 ? 0 : i + d]; if (nx) abrirPreview(nx.dataset.id);
+  }
+  document.addEventListener('click', e => {
+    if (prevId && e.target.closest('.tab-btn')) return cerrarPreview();
+    const b = e.target.closest('#pyq-prev [data-pp]'); if (!b) return;
+    const a = b.dataset.pp;
+    if (a === 'x') return cerrarPreview();
+    if (a === 'dl' && prevId) return descargarPdf(prevId, prevFmt(), b);
+    if (a === 'zm') return zoomPaso(-1);
+    if (a === 'zp') return zoomPaso(1);
+    if (a === 'z1') return zoomPrev(1);
+  });
+  document.addEventListener('change', e => {
+    const sl = e.target.closest('#pyq-prev select[data-pp="fmt"]'); if (!sl) return;
+    localStorage.setItem('pyq_prev_fmt', sl.value); if (prevId) abrirPreview(prevId);
+  });
+  // Ctrl + rueda sobre el PDF = zoom
+  document.addEventListener('wheel', e => {
+    if (!e.ctrlKey || !e.target.closest || !e.target.closest('#pyq-prev .pp-b')) return;
+    e.preventDefault(); zoomPaso(e.deltaY < 0 ? 1 : -1);
+  }, { passive: false });
+  // Arrastrar el borde izquierdo = cambiar el ancho del panel
+  document.addEventListener('mousedown', e => {
+    const h = e.target.closest && e.target.closest('#pyq-prev .pp-drag'); if (!h) return;
+    e.preventDefault(); document.body.classList.add('pp-arrastrando');
+    const mover = ev => aplicarAnchoPrev(Math.max(320, Math.min(window.innerWidth - 160, window.innerWidth - ev.clientX)));
+    const soltar = () => {
+      document.removeEventListener('mousemove', mover); document.removeEventListener('mouseup', soltar);
+      document.body.classList.remove('pp-arrastrando');
+      const w = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ppw')) || 0;
+      if (w) localStorage.setItem('pyq_prev_w', String(w));
+      const p = document.getElementById('pyq-prev'); if (p && prevBlob) mostrarPdfPrev(p.querySelector('.pp-b'), prevBlob, ++prevSeq, prevNro).catch(() => {});
+    };
+    document.addEventListener('mousemove', mover); document.addEventListener('mouseup', soltar);
+  });
+  document.addEventListener('dblclick', e => {
+    if (!e.target.closest || !e.target.closest('#pyq-prev .pp-drag')) return;
+    localStorage.removeItem('pyq_prev_w'); aplicarAnchoPrev(0);
+    const p = document.getElementById('pyq-prev'); if (p && prevBlob) setTimeout(() => mostrarPdfPrev(p.querySelector('.pp-b'), prevBlob, ++prevSeq, prevNro).catch(() => {}), 50);
+  });
+  document.addEventListener('keydown', e => {
+    if (!prevId || !document.getElementById('pyq-prev')) return;
+    if (e.target.closest && e.target.closest('input,textarea,select,[contenteditable="true"]')) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key; let ok = true;
+    if (k === 'Escape') cerrarPreview();
+    else if (k === 'ArrowDown' || k === 'ArrowUp') moverPreview(k === 'ArrowDown' ? 1 : -1);
+    else if (k === '+' || k === '=') zoomPaso(1);
+    else if (k === '-' || k === '_') zoomPaso(-1);
+    else if (k === '0') zoomPrev(1);
+    else ok = false;
+    if (ok) { e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true);
+
   document.addEventListener('click', async e => {
     const w = document.getElementById('pyq-wrap'); if (!w || !w.contains(e.target)) return;
     const a = e.target.closest('[data-a]'), chip = e.target.closest('[data-estado]'), th = e.target.closest('th[data-sort]'), td = e.target.closest('td.ed');
@@ -64552,6 +64765,11 @@ body.light-mode #pyq-wrap table tbody tr:hover td.pc{background:var(--pch);}
     }
     if (chip) { prefs.estado = chip.dataset.estado; savePrefs(); return render(); }
     if (th) { if (prefs.sort === th.dataset.sort) prefs.dir *= -1; else { prefs.sort = th.dataset.sort; prefs.dir = th.dataset.sort === 'PEDI_NUMERO_SOLO' || th.dataset.sort === 'AUDI_FECHA_ALTA' || th.dataset.sort === 'PEDI_TOTAL' ? -1 : 1; } savePrefs(); return render(); }
+    const tdv = e.target.closest('tbody td');
+    if (!td && tdv && !tdv.classList.contains('c-acc') && !e.target.closest('button,a,input,select,textarea')) {
+      const trv = tdv.closest('tr[data-id]');
+      if (trv) return prevId === trv.dataset.id ? cerrarPreview() : abrirPreview(trv.dataset.id);
+    }
     if (td && !td.querySelector('select,textarea,input')) abrirEditor(td);
   });
   document.addEventListener('change', e => {
