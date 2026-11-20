@@ -66832,7 +66832,7 @@ body.pp-on #pyq-wrap{padding-right:calc(var(--ppw,min(560px,48vw)) + 8px);box-si
 
   // ── Campos que se completan y los que el usuario tocó a mano ──
   const CAMPOS = ['ped-origen', 'ped-vendedor', 'ped-condventa', 'ped-lista', 'ped-puntoventa', 'ped-ubicorig',
-    'ped-cliefac-input', 'ped-dir-envio', 'ped-ciudad-envio', 'ped-cp-envio', 'ped-prov-envio', 'ped-pais-envio', 'ped-localidad-envio'];
+    'ped-cliefac-input', 'ped-dir-envio', 'ped-ciudad-envio', 'ped-cp-envio', 'ped-prov-envio', 'ped-pais-envio', 'ped-localidad-envio', 'ped-obs'];
   const tocados = new Set();
   document.addEventListener('input', e => { if (e.isTrusted && CAMPOS.includes(e.target.id)) tocados.add(e.target.id); }, true);
   let _llenando = false;
@@ -66879,7 +66879,7 @@ body.pp-on #pyq-wrap{padding-right:calc(var(--ppw,min(560px,48vw)) + 8px);box-si
   }
 
   const COLS = ['PEDI_NUMERO_SOLO', 'PEDI_FECHA', 'DESC_ESTADO', 'EXTE_ID_EXTE', 'VEHA_ID_VEHA', 'COVE_ID_COVE', 'LIDP_ID_LIDP', 'PUVE_ID_PUVE', 'CEDI_ID_ORIG',
-    'CLIE_ID_FACT', 'FACT_NOMBRE', 'PEDI_DIRECCION_DE_ENVIO', 'PEDI_CIUDAD_DE_ENVIO', 'PEDI_PROVINCIA_DE_ENVIO', 'PEDI_PAIS_DE_ENVIO', 'PEDI_LOCALIDAD_DE_ENVIO', 'PEDI_CODIGO_POSTAL_DE_ENV'];
+    'CLIE_ID_FACT', 'FACT_NOMBRE', 'PEDI_DIRECCION_DE_ENVIO', 'PEDI_CIUDAD_DE_ENVIO', 'PEDI_PROVINCIA_DE_ENVIO', 'PEDI_PAIS_DE_ENVIO', 'PEDI_LOCALIDAD_DE_ENVIO', 'PEDI_CODIGO_POSTAL_DE_ENV', 'PEDI_OBSERVACIONES'];
   let _seq = 0;
   async function autocompletar(nombre){
     const my = ++_seq;
@@ -66919,6 +66919,9 @@ body.pp-on #pyq-wrap{padding-right:calc(var(--ppw,min(560px,48vw)) + 8px);box-si
       setTxt('ped-pais-envio', o.PEDI_PAIS_DE_ENVIO);
       setTxt('ped-localidad-envio', o.PEDI_LOCALIDAD_DE_ENVIO);
       setTxt('ped-cp-envio', o.PEDI_CODIGO_POSTAL_DE_ENV);
+      // Notas internas (Observaciones en Yiqi): solo si están vacías y no las escribiste a mano
+      const obsTa = $('ped-obs');
+      if (obsTa && !obsTa.value.trim()) setTxt('ped-obs', String(o.PEDI_OBSERVACIONES || '').trim());
       const f = o.PEDI_FECHA ? new Date(o.PEDI_FECHA).toLocaleDateString('es-AR') : '';
       marca(`✓ Datos completados de su último pedido N° ${o.PEDI_NUMERO_SOLO}${f ? ' (' + f + ')' : ''}`);
       if (typeof showToast === 'function') showToast('✓ Datos del último pedido N° ' + o.PEDI_NUMERO_SOLO + ' cargados', 'ok');
