@@ -28563,6 +28563,42 @@ function _mailDepCompletar(d) {
 }
 window._mailDepCompletar = _mailDepCompletar;
 
+// Si Yiqi todavía no asignó el N° del pedido, se sigue buscando en segundo plano (con el mail ya abierto)
+// y se completa solo en cuanto aparece → eso trae el cliente y adjunta el PDF del presupuesto.
+// buscar(): promesa con el N° o vacío. Se detiene si cerrás el mail o escribís el N° a mano.
+function _mailDepEsperarNro(buscar, opts) {
+  opts = opts || {};
+  const maxMs = opts.maxMs || 120000, cada = opts.cada || 3000, t0 = Date.now();
+  let miBd = null;
+  const fin = (nroIn, ph) => { if (nroIn) { nroIn.placeholder = ph != null ? ph : (nroIn.dataset.ph || ''); delete nroIn.dataset.esperando; } };
+  const tick = async () => {
+    const bd = document.getElementById('ped-modal-bd');
+    if (!bd) { if (miBd || Date.now() - t0 > 8000) return; return setTimeout(tick, 300); }
+    if (miBd && bd !== miBd) return;           // se abrió otro mail: no tocarlo
+    miBd = bd;
+    const nroIn = bd.querySelector('#env-nro'); if (!nroIn) return;
+    if (nroIn.value.trim()) return fin(nroIn); // ya tiene N° (a mano o encontrado)
+    if (!nroIn.dataset.esperando) { nroIn.dataset.esperando = '1'; nroIn.dataset.ph = nroIn.placeholder || ''; nroIn.placeholder = '⏳ esperando N°…'; nroIn.title = 'Yiqi todavía no asignó el N° del pedido: se completa solo en cuanto aparezca'; }
+    let nro = '';
+    try { nro = String((await buscar()) || '').replace(/\D/g, ''); } catch (e) {}
+    if (document.getElementById('ped-modal-bd') !== bd) return;
+    if (nroIn.value.trim()) return fin(nroIn);
+    if (nro) {
+      fin(nroIn);
+      nroIn.value = nro;
+      nroIn.dispatchEvent(new Event('input', { bubbles: true })); nroIn.dispatchEvent(new Event('blur'));
+      nroIn.style.transition = 'box-shadow .3s'; nroIn.style.boxShadow = '0 0 0 3px rgba(16,185,129,.55)'; setTimeout(() => { nroIn.style.boxShadow = ''; }, 2500);
+      try { opts.onOk && opts.onOk(nro); } catch (e) {}
+      return;
+    }
+    if (Date.now() - t0 > maxMs) { fin(nroIn, 'completalo a mano'); try { opts.onFalla && opts.onFalla(); } catch (e) {} return; }
+    setTimeout(tick, cada);
+  };
+  setTimeout(tick, 400);
+}
+window._mailDepEsperarNro = _mailDepEsperarNro;
+
+
 function abrirModalNuevoPedido() {
   const existing = document.getElementById('ped-modal-bd');
   if (existing) { existing.remove(); return; }
@@ -41606,7 +41642,23 @@ async function cargarPedidoEnYiqi(btnEl) {
         document.getElementById('ped-modal-bd')?.remove();
         abrirModalNuevoPedido();
         setTimeout(() => _mailDepCompletar(Object.assign({ nro: _nroPed }, _datosMail)), 120);
-        if (!_nroPed) showToast('⚠ No se pudo leer el N° del pedido en Yiqi: completalo a mano en el mail', 'warn');
+        // Sin N° todavía: se sigue buscando en Yiqi con el mail abierto y se completa solo
+        if (!_nroPed) {
+          showToast('⏳ Yiqi todavía no asignó el N° del pedido: se completa solo en el mail en cuanto aparezca', 'ok');
+          _mailDepEsperarNro(async () => {
+            try {
+              const r1 = await yiqiFetch(`${YIQI_API_BASE}/api/public/PEDIDO/${newId}?schemaId=${YIQI_SCHEMA_ID}`, { headers: authHeader });
+              if (r1.ok) { const j1 = await r1.json(); const o1 = (j1 && (j1.data || j1)) || {}; if (o1.PEDI_NUMERO_SOLO || o1.PEDI_NUMERO) return o1.PEDI_NUMERO_SOLO || o1.PEDI_NUMERO; }
+            } catch (e) {}
+            const r2 = await yiqiFetch(`${YIQI_API_BASE}/api/public/PEDIDO/query?schemaId=${YIQI_SCHEMA_ID}`, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, authHeader),
+              body: JSON.stringify({ page: 1, pageSize: 1, columns: [{ field: 'ID', title: 'ID', order: 1 }, { field: 'PEDI_NUMERO_SOLO', title: 'PEDI_NUMERO_SOLO', order: 2 }], filters: [{ columnName: 'ID', operator: '=', value: Number(newId) }] }) });
+            if (!r2.ok) return '';
+            const j2 = await r2.json(); return (((j2 && j2.data) || [])[0] || {}).PEDI_NUMERO_SOLO || '';
+          }, {
+            onOk: n => showToast('✅ Yiqi asignó el N° ' + n + ': completado en el mail', 'ok'),
+            onFalla: () => showToast('⚠ Yiqi no asignó el N° en 2 minutos: completalo a mano en el mail', 'warn')
+          });
+        }
       } catch (_e) { console.warn('cargarYiqi: no se pudo abrir el mail al depósito', _e); }
     }
 
