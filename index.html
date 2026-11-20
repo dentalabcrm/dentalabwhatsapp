@@ -63895,6 +63895,17 @@ body.pp-on #pyq-wrap{padding-right:calc(var(--ppw,min(560px,48vw)) + 8px);box-si
 #pyq-wrap td.c-nro small{font-size:10px;}
 #pyq-wrap .pyq-colpanel{max-width:calc(100vw - 24px);}
 }
+/* El texto que no entra sigue para abajo (sin cortarse con … ni ensanchar la columna) */
+#pyq-wrap td{white-space:normal;}
+#pyq-wrap td.c-acc,#pyq-wrap td.c-nro,#pyq-wrap td.c-fecha,#pyq-wrap td.c-total{white-space:nowrap;}
+#pyq-wrap td .pyq-txt{display:block;overflow:visible;text-overflow:clip;white-space:pre-line;overflow-wrap:anywhere;-webkit-line-clamp:unset;}
+#pyq-wrap td.c-obs .pyq-txt{display:block;overflow:visible;-webkit-line-clamp:unset;}
+/* Líneas de filas y columnas más marcadas */
+#pyq-wrap th{border-right:1px solid rgba(255,255,255,.12);border-bottom:2px solid rgba(255,255,255,.22);}
+#pyq-wrap td{border-right:1px solid rgba(255,255,255,.09);border-bottom:1px solid rgba(255,255,255,.15);}
+body.light-mode #pyq-wrap th{border-right:1px solid #ced4da;border-bottom:2px solid #adb5bd;}
+body.light-mode #pyq-wrap td{border-right:1px solid #d7dce1;border-bottom:1px solid #c6ccd2;}
+body.light-mode #pyq-wrap .pyq-scroll{border-color:#adb5bd;}
 </style>
 <script>
 (function(){
