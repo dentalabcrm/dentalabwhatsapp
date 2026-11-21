@@ -40319,6 +40319,23 @@ function renderDashboard() {
 }
 
 // Helper para cambiar tab desde cualquier lugar
+// Envíos Dentalab: la tecla Retroceso (fuera de un campo de texto) lleva al buscador
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Backspace' || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (t && t.closest && t.closest('input,textarea,select,[contenteditable="true"],[contenteditable=""]')) return;
+  const panel = document.getElementById('panel-envios-dentalab');
+  if (!panel || !panel.getClientRects().length) return;
+  // No si hay una ventana abierta encima (ej. Nuevo envío)
+  const visible = el => el.getClientRects().length > 0 && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden';
+  if ([...document.querySelectorAll('[id$="modal-bd"],[id$="-modal"],.modal-bd,.modal-overlay,.modal-backdrop')].some(el => !panel.contains(el) || getComputedStyle(el).position === 'fixed' ? visible(el) : false)) return;
+  const inp = [...document.querySelectorAll('#ed-search')].find(visible);
+  if (!inp) return;
+  e.preventDefault();
+  inp.focus(); inp.select();
+  inp.scrollIntoView({ block: 'nearest' });
+});
+
 function switchTab(tabName) {
   const tabBtn = document.getElementById('tab-' + tabName);
   if (!tabBtn) return;
@@ -63824,9 +63841,12 @@ document.addEventListener('DOMContentLoaded', () => {
 #pyq-wrap .pyq-swb{width:15px;height:15px;border-radius:50%;border:1px solid rgba(255,255,255,.25);cursor:pointer;padding:0;}
 #pyq-wrap .pyq-swb.sin{background:#0f172a;background-image:linear-gradient(135deg,transparent 45%,#ef4444 45%,#ef4444 55%,transparent 55%);}
 #pyq-wrap .pyq-swb.on{outline:2px solid #a78bfa;outline-offset:1px;}
-#pyq-wrap .pc-amarillo{--pc:rgba(250,204,21,.09);--pch:rgba(250,204,21,.26);--pcs:#facc15;} #pyq-wrap .pc-verde{--pc:rgba(34,197,94,.09);--pch:rgba(34,197,94,.26);--pcs:#22c55e;}
-#pyq-wrap .pc-azul{--pc:rgba(59,130,246,.10);--pch:rgba(59,130,246,.28);--pcs:#3b82f6;} #pyq-wrap .pc-rosa{--pc:rgba(236,72,153,.09);--pch:rgba(236,72,153,.26);--pcs:#ec4899;}
-#pyq-wrap .pc-violeta{--pc:rgba(139,92,246,.10);--pch:rgba(139,92,246,.28);--pcs:#8b5cf6;} #pyq-wrap .pc-naranja{--pc:rgba(249,115,22,.09);--pch:rgba(249,115,22,.26);--pcs:#f97316;}
+#pyq-wrap .pc-amarillo,
+#pyq-prev .pc-amarillo{--pc:rgba(250,204,21,.09);--pch:rgba(250,204,21,.26);--pcs:#facc15;} #pyq-wrap .pc-verde, #pyq-prev .pc-verde{--pc:rgba(34,197,94,.09);--pch:rgba(34,197,94,.26);--pcs:#22c55e;}
+#pyq-wrap .pc-azul,
+#pyq-prev .pc-azul{--pc:rgba(59,130,246,.10);--pch:rgba(59,130,246,.28);--pcs:#3b82f6;} #pyq-wrap .pc-rosa, #pyq-prev .pc-rosa{--pc:rgba(236,72,153,.09);--pch:rgba(236,72,153,.26);--pcs:#ec4899;}
+#pyq-wrap .pc-violeta,
+#pyq-prev .pc-violeta{--pc:rgba(139,92,246,.10);--pch:rgba(139,92,246,.28);--pcs:#8b5cf6;} #pyq-wrap .pc-naranja, #pyq-prev .pc-naranja{--pc:rgba(249,115,22,.09);--pch:rgba(249,115,22,.26);--pcs:#f97316;}
 #pyq-wrap .pyq-swb[class*="pc-"]{background:var(--pcs);}
 #pyq-wrap table thead tr th.pc{background:linear-gradient(var(--pch),var(--pch)),#1e293b;color:#f1f5f9;}
 #pyq-wrap table tbody tr td.pc{background:var(--pc);}
@@ -63885,8 +63905,10 @@ body.light-mode #pyq-wrap .pyq-org.o-otro,body.pyq-claro #pyq-wrap .pyq-org.o-ot
 body.light-mode #pyq-wrap .pyq-swb,body.pyq-claro #pyq-wrap .pyq-swb{border-color:#ced4da;}
 body.light-mode #pyq-wrap .pyq-swb.sin,body.pyq-claro #pyq-wrap .pyq-swb.sin{background:#fff;background-image:linear-gradient(135deg,transparent 45%,#dc3545 45%,#dc3545 55%,transparent 55%);}
 body.light-mode #pyq-wrap .pyq-swb.on,body.pyq-claro #pyq-wrap .pyq-swb.on{outline-color:#1a73e8;}
-body.light-mode #pyq-wrap .pc-amarillo,body.pyq-claro #pyq-wrap .pc-amarillo{--pc:#fff8d6;--pch:#fde68a;} body.light-mode #pyq-wrap .pc-verde,body.pyq-claro #pyq-wrap .pc-verde{--pc:#e9f9ef;--pch:#bbf7d0;} body.light-mode #pyq-wrap .pc-azul,body.pyq-claro #pyq-wrap .pc-azul{--pc:#eaf2ff;--pch:#bfdbfe;}
-body.light-mode #pyq-wrap .pc-rosa,body.pyq-claro #pyq-wrap .pc-rosa{--pc:#fdeef6;--pch:#fbcfe8;} body.light-mode #pyq-wrap .pc-violeta,body.pyq-claro #pyq-wrap .pc-violeta{--pc:#f3efff;--pch:#ddd6fe;} body.light-mode #pyq-wrap .pc-naranja,body.pyq-claro #pyq-wrap .pc-naranja{--pc:#fff1e3;--pch:#fed7aa;}
+body.light-mode #pyq-wrap .pc-amarillo,body.pyq-claro #pyq-wrap .pc-amarillo,
+body.light-mode #pyq-prev .pc-amarillo,body.pyq-claro #pyq-prev .pc-amarillo{--pc:#fff8d6;--pch:#fde68a;} body.light-mode #pyq-wrap .pc-verde,body.pyq-claro #pyq-wrap .pc-verde, body.light-mode #pyq-prev .pc-verde,body.pyq-claro #pyq-prev .pc-verde{--pc:#e9f9ef;--pch:#bbf7d0;} body.light-mode #pyq-wrap .pc-azul,body.pyq-claro #pyq-wrap .pc-azul, body.light-mode #pyq-prev .pc-azul,body.pyq-claro #pyq-prev .pc-azul{--pc:#eaf2ff;--pch:#bfdbfe;}
+body.light-mode #pyq-wrap .pc-rosa,body.pyq-claro #pyq-wrap .pc-rosa,
+body.light-mode #pyq-prev .pc-rosa,body.pyq-claro #pyq-prev .pc-rosa{--pc:#fdeef6;--pch:#fbcfe8;} body.light-mode #pyq-wrap .pc-violeta,body.pyq-claro #pyq-wrap .pc-violeta, body.light-mode #pyq-prev .pc-violeta,body.pyq-claro #pyq-prev .pc-violeta{--pc:#f3efff;--pch:#ddd6fe;} body.light-mode #pyq-wrap .pc-naranja,body.pyq-claro #pyq-wrap .pc-naranja, body.light-mode #pyq-prev .pc-naranja,body.pyq-claro #pyq-prev .pc-naranja{--pc:#fff1e3;--pch:#fed7aa;}
 body.light-mode #pyq-wrap table thead tr th.pc,body.pyq-claro #pyq-wrap table thead tr th.pc{background:var(--pch);color:#212529;}
 body.light-mode #pyq-wrap table tbody tr td.pc,body.pyq-claro #pyq-wrap table tbody tr td.pc{background:var(--pc);}
 body.light-mode #pyq-wrap table tbody tr:hover td.pc,body.pyq-claro #pyq-wrap table tbody tr:hover td.pc{background:var(--pch);}
@@ -63984,6 +64006,57 @@ body.pyq-claro:not(.light-mode) #pyq-wrap .pyq-chk input{accent-color:#1a73e8;}
 body.light-mode #pyq-wrap .pyq-tema-btn{display:none;}
 #pyq-wrap td.c-acc .pyq-acc2{margin-top:4px;}
 #pyq-wrap td.c-acc .pyq-acc2 .pyq-mini{width:100%;margin-right:0;text-align:center;}
+#pyq-prev .pp-tabs{display:flex;gap:4px;align-items:flex-end;padding:6px 12px 0;}
+#pyq-prev .pp-tabs button{font:inherit;font-size:12.5px;padding:5px 12px;border-radius:6px 6px 0 0;cursor:pointer;margin-bottom:-1px;}
+#pyq-prev .pp-tabs button.on{font-weight:700;}
+#pyq-prev .pp-tabs a{margin-left:6px;margin-bottom:5px;font-size:12px;text-decoration:none;padding:3px 8px;border-radius:4px;}
+#pyq-prev .pp-tabs .pp-k{margin-bottom:6px;}
+#pyq-prev .pp-ficha{width:100%;align-self:flex-start;padding:6px 14px 12px;box-sizing:border-box;font-size:12px;line-height:1.3;}
+#pyq-prev .pf-r{display:grid;grid-template-columns:minmax(105px,36%) 1fr;gap:8px;padding:3px 0;}
+#pyq-prev .pf-k{font-weight:600;font-size:11.5px;}
+#pyq-prev .pf-v{white-space:pre-line;overflow-wrap:anywhere;}
+#pyq-prev .pp-tabs{border-bottom:1px solid rgba(255,255,255,.12);}
+#pyq-prev .pp-tabs button{border:1px solid rgba(255,255,255,.12);background:#1e293b;color:#94a3b8;}
+#pyq-prev .pp-tabs button.on{background:#0f172a;color:#93c5fd;border-bottom-color:#0f172a;}
+#pyq-prev .pp-tabs a{border:1px solid rgba(255,255,255,.14);color:#cbd5e1;background:#1e293b;}
+#pyq-prev .pp-b.pp-b-datos{background:#0f172a;}
+#pyq-prev .pf-r{border-bottom:1px solid rgba(255,255,255,.07);}
+#pyq-prev .pf-k{color:#94a3b8;}
+#pyq-prev .pf-v{color:#e2e8f0;}
+#pyq-prev .pf-0{color:#475569;}
+#pyq-prev .pf-obs .pf-v{background:rgba(250,204,21,.1);border-radius:4px;padding:2px 5px;}
+body.light-mode #pyq-prev .pp-tabs,body.pyq-claro #pyq-prev .pp-tabs{border-bottom:1px solid #dee2e6;}
+body.light-mode #pyq-prev .pp-tabs button,body.pyq-claro #pyq-prev .pp-tabs button{border:1px solid #dee2e6;background:#f8f9fa;color:#495057;}
+body.light-mode #pyq-prev .pp-tabs button.on,body.pyq-claro #pyq-prev .pp-tabs button.on{background:#fff;color:#1a73e8;border-bottom-color:#fff;}
+body.light-mode #pyq-prev .pp-tabs a,body.pyq-claro #pyq-prev .pp-tabs a{border:1px solid #ced4da;color:#495057;background:#fff;}
+body.light-mode #pyq-prev .pp-tabs a:hover,body.pyq-claro #pyq-prev .pp-tabs a:hover{background:#e8f0fe;border-color:#1a73e8;color:#1a73e8;}
+body.light-mode #pyq-prev .pp-b.pp-b-datos,body.pyq-claro #pyq-prev .pp-b.pp-b-datos{background:#fff;}
+body.light-mode #pyq-prev .pf-r,body.pyq-claro #pyq-prev .pf-r{border-bottom:1px solid #eef0f2;}
+body.light-mode #pyq-prev .pf-k,body.pyq-claro #pyq-prev .pf-k{color:#6c757d;}
+body.light-mode #pyq-prev .pf-v,body.pyq-claro #pyq-prev .pf-v{color:#212529;}
+body.light-mode #pyq-prev .pf-0,body.pyq-claro #pyq-prev .pf-0{color:#ced4da;}
+body.light-mode #pyq-prev .pf-obs .pf-v,body.pyq-claro #pyq-prev .pf-obs .pf-v{background:#fff8e1;border-radius:4px;padding:2px 5px;}
+#pyq-prev .pf-r{padding:3px 6px;margin:0 -6px;border-radius:3px;}
+#pyq-prev .pf-r.pc{background:var(--pc);}
+#pyq-prev .pf-r.pc .pf-k{color:inherit;opacity:.8;}
+#pyq-prev .pf-sep{margin:10px 0 4px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.55;}
+#pyq-prev .pf-v .pyq-txt{white-space:pre-line;}
+#pyq-prev .pf-v .pyq-empty{opacity:.4;}
+#pyq-prev .pf-v small{display:block;font-size:10.5px;}
+#pyq-prev .pf-v .pyq-nro,#pyq-prev .pf-v .pyq-nrolink{font-weight:700;text-decoration:none;}
+#pyq-prev .pf-v .pyq-badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap;}
+#pyq-prev .pf-v .pyq-nro,#pyq-prev .pf-v .pyq-nrolink{color:#93c5fd;}
+#pyq-prev .pf-v small{color:#94a3b8;}
+#pyq-prev .pf-v .pyq-badge{background:var(--bg,rgba(148,163,184,.15));color:var(--fg,#cbd5e1);}
+#pyq-prev .pf-v .pyq-org.o-wa{color:#4ade80;}
+#pyq-prev .pf-v .pyq-org.o-web{color:#93c5fd;}
+#pyq-prev .pf-v .pyq-org.o-otro{color:#e2e8f0;}
+body.light-mode #pyq-prev .pf-v .pyq-nro,body.light-mode #pyq-prev .pf-v .pyq-nrolink,body.pyq-claro #pyq-prev .pf-v .pyq-nro,body.pyq-claro #pyq-prev .pf-v .pyq-nrolink{color:#1a73e8;}
+body.light-mode #pyq-prev .pf-v small,body.pyq-claro #pyq-prev .pf-v small{color:#6c757d;}
+body.light-mode #pyq-prev .pf-v .pyq-org.o-wa,body.pyq-claro #pyq-prev .pf-v .pyq-org.o-wa{color:#15803d;}
+body.light-mode #pyq-prev .pf-v .pyq-org.o-web,body.pyq-claro #pyq-prev .pf-v .pyq-org.o-web{color:#1d4ed8;}
+body.light-mode #pyq-prev .pf-v .pyq-org.o-otro,body.pyq-claro #pyq-prev .pf-v .pyq-org.o-otro{color:#111827;}
+body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-badge{background:var(--lbg,#e9ecef);color:var(--lfg,#495057);}
 </style>
 <script>
 (function(){
@@ -64594,7 +64667,7 @@ body.light-mode #pyq-wrap .pyq-tema-btn{display:none;}
         <span style="position:relative;display:inline-block;"><button class="pyq-btn sec" data-a="cols">⚙ Columnas</button>${colsAbierto ? panelCols() : ''}</span>
         <button class="pyq-btn sec pyq-tema-btn" data-a="tema" title="${document.body.classList.contains('pyq-claro') ? 'Pasar la grilla de Pedidos a modo oscuro' : 'Pasar la grilla de Pedidos a modo claro'}">${document.body.classList.contains('pyq-claro') ? '🌙' : '☀️'}</button>
         <button class="pyq-btn sec" data-a="crm" title="Volver a la vista anterior del CRM (Gmail, calendario, etc.)">Vista anterior</button>
-        <span class="pyq-info">${prefs.dias > 31 ? `<span style="color:#fcd34d">${prefs.q ? 'Búsqueda en Yiqi · ' : (prefs.vend ? '' : (truncadoLargo ? 'Mostrando los 2000 más recientes — escribí en el buscador para buscar en todo el período · ' : 'Escribí en el buscador para buscar en todo el período · '))}</span>` : ''}${lista.length} de ${rows.length} pedidos${hace != null ? ` · actualizado ${hace < 1 ? 'recién' : 'hace ' + hace + ' min'}` : ''} · <span style="color:#a78bfa">✎</span> = editable (clic en la celda) · clic en el pedido = vista previa</span>
+        <span class="pyq-info">${prefs.dias > 31 ? `<span style="color:#fcd34d">${prefs.q ? 'Búsqueda en Yiqi · ' : (prefs.vend ? '' : (truncadoLargo ? 'Mostrando los 2000 más recientes — escribí en el buscador para buscar en todo el período · ' : 'Escribí en el buscador para buscar en todo el período · '))}</span>` : ''}${lista.length} de ${rows.length} pedidos${hace != null ? ` · actualizado ${hace < 1 ? 'recién' : 'hace ' + hace + ' min'}` : ''} · <span style="color:#a78bfa">✎</span> = editable (clic en la celda) · ↑ ↓ moverse · mouse + Enter o clic = ficha del pedido</span>
       </div>
       ${needLogin ? `<div class="pyq-login">🔑 Ingresá tu usuario de Yiqi para ver los pedidos:
           <input type="text" id="pyq-u" placeholder="Usuario" autocomplete="username"><input type="password" id="pyq-p" placeholder="Contraseña" autocomplete="current-password">
@@ -64606,7 +64679,7 @@ body.light-mode #pyq-wrap .pyq-tema-btn{display:none;}
       </div>
       <div class="pyq-scroll"><table>
         <thead><tr>${VC.map(c => `<th draggable="true" data-col="${c.k}" class="${pc(c.k)}" ${c.k==='_acc'?'':`data-sort="${c.k}"`} title="Arrastrá para mover la columna">${esc(c.t)}${c.ed ? '<span class="pyq-ed">✎</span>' : ''}${prefs.sort===c.k ? (prefs.dir<0?' ▼':' ▲') : ''}</th>`).join('')}</tr></thead>
-        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}" class="${String(rowId(r))===String(resaltar)?'pyq-nuevo':''}${String(rowId(r))===String(prevId)?' pyq-sel':''}">${VC.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}${pc(c.k)}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
+        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}" class="${String(rowId(r))===String(resaltar)?'pyq-nuevo':''}${String(rowId(r))===String(prevId || selId)?' pyq-sel':''}">${VC.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}${pc(c.k)}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
           : `<tr><td colspan="${VC.length}" style="text-align:center;color:#64748b;padding:30px;">${loading ? 'Cargando pedidos desde Yiqi…' : 'No hay pedidos para mostrar.'}</td></tr>`}</tbody>
       </table></div>`;
     const sc = w.querySelector('.pyq-scroll'); if (sc) { sc.scrollTop = sTop; sc.scrollLeft = sLeft; }
@@ -64668,45 +64741,67 @@ body.light-mode #pyq-wrap .pyq-tema-btn{display:none;}
   try { pyqTema(localStorage.getItem('pyq_tema') !== 'oscuro'); } catch (e) { pyqTema(true); }
 
   // ── Vista previa del pedido: clic en una celda del pedido (que no sea editable ni un botón) ──
+  let selId = null, hoverId = null; // fila marcada (flechas) y fila bajo el mouse (Enter)
   let prevId = null, prevSeq = 0, prevBlob = null, prevNro = ''; const prevCache = new Map();
   const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
   const prevFmt = () => localStorage.getItem('pyq_prev_fmt') || 'PRESUPUESTO_v1';
   let prevZoom = Number(localStorage.getItem('pyq_prev_zoom')) || 1;
+  let prevTab = localStorage.getItem('pyq_prev_tab') === 'pdf' ? 'pdf' : 'datos';
+  // Ficha: todos los datos del pedido en vertical, en el mismo orden que las columnas de la grilla
+  // (las visibles de izquierda a derecha y después las ocultas), con el mismo formato y colores
+  function fichaHTML(r) {
+    const h = ocultas(), keys = ordenCols().filter(k => k !== '_acc' && COL_DEF[k]);
+    const fila = k => {
+      const c = COL_DEF[k];
+      let v = ''; try { v = celda(c, r); } catch (e) { v = esc(r[k] == null ? '' : r[k]); }
+      const vacia = !String(v).replace(/<[^>]*>/g, '').replace(/—/g, '').trim();
+      return `<div class="pf-r${pc(k)}${k === 'PEDI_OBSERVACIONES' ? ' pf-obs' : ''}"><div class="pf-k">${esc(c.t || k)}</div><div class="pf-v">${vacia ? '<span class="pf-0">—</span>' : v}</div></div>`;
+    };
+    const vis = keys.filter(k => !h.has(k)), ocu = keys.filter(k => h.has(k));
+    return `<div class="pp-ficha">${vis.map(fila).join('')}${ocu.length ? `<div class="pf-sep">Columnas ocultas en la grilla</div>${ocu.map(fila).join('')}` : ''}</div>`;
+  }
   // Ancho del panel (se arrastra el borde izquierdo); se guarda
   function aplicarAnchoPrev(px) {
     if (px) document.documentElement.style.setProperty('--ppw', Math.round(px) + 'px');
     else document.documentElement.style.removeProperty('--ppw');
   }
   aplicarAnchoPrev(Number(localStorage.getItem('pyq_prev_w')) || 0);
+  function marcarFila(id) {
+    selId = id == null ? null : String(id);
+    document.querySelectorAll('#pyq-wrap tr.pyq-sel').forEach(t => t.classList.remove('pyq-sel'));
+    if (selId == null) return;
+    const tr = document.querySelector(`#pyq-wrap tr[data-id="${CSS.escape(selId)}"]`);
+    if (tr) { tr.classList.add('pyq-sel'); tr.scrollIntoView({ block: 'nearest' }); }
+  }
   function cerrarPreview() {
     prevId = null; prevSeq++; prevBlob = null;
     document.getElementById('pyq-prev')?.remove();
     document.body.classList.remove('pp-on');
-    document.querySelectorAll('#pyq-wrap tr.pyq-sel').forEach(t => t.classList.remove('pyq-sel'));
   }
   async function abrirPreview(id) {
     const r = rows.find(x => String(rowId(x)) === String(id)); if (!r) return;
     prevId = String(id); prevBlob = null; prevNro = nro(r); const my = ++prevSeq;
-    document.querySelectorAll('#pyq-wrap tr.pyq-sel').forEach(t => t.classList.remove('pyq-sel'));
-    const tr = document.querySelector(`#pyq-wrap tr[data-id="${CSS.escape(String(id))}"]`);
-    if (tr) { tr.classList.add('pyq-sel'); tr.scrollIntoView({ block: 'nearest' }); }
+    marcarFila(id);
     document.body.classList.add('pp-on');
     let p = document.getElementById('pyq-prev');
     if (!p) { p = document.createElement('div'); p.id = 'pyq-prev'; document.body.appendChild(p); }
     const fmt = prevFmt();
-    const [bg, fg] = (typeof ESTADO_COLOR_CLARO !== 'undefined' && (document.body.classList.contains('light-mode') || document.body.classList.contains('pyq-claro')) ? ESTADO_COLOR_CLARO : ESTADO_COLOR)[String(r.DESC_ESTADO || '').toLowerCase()] || [];
+    const [bg, fg] = (typeof ESTADO_COLOR_CLARO !== 'undefined' && document.body.classList.contains('light-mode') ? ESTADO_COLOR_CLARO : ESTADO_COLOR)[String(r.DESC_ESTADO || '').toLowerCase()] || [];
     const fecha = r.AUDI_FECHA_ALTA || r.PEDI_FECHA;
     p.innerHTML = `<div class="pp-drag" title="Arrastrá para cambiar el ancho del panel (doble clic: ancho normal)"></div>
       <div class="pp-h">
         <div class="pp-t"><b>Pedido ${esc(nro(r))}</b>${r.DESC_ESTADO ? `<span class="pp-badge" style="${bg ? `background:${bg};color:${fg}` : ''}">${esc(r.DESC_ESTADO)}</span>` : ''}
           <div class="pp-s" title="${esc(r.CLIE_NOMBRE || '')}">${esc(r.CLIE_NOMBRE || '')}${r.PEDI_TOTAL != null && r.PEDI_TOTAL !== '' ? ' · ' + fmtMoney(r.PEDI_TOTAL) : ''}${fecha ? ' · ' + fmtFecha(fecha) : ''}</div></div>
         <button class="pp-x" data-pp="x" title="Cerrar (Esc)">✕</button></div>
-      <div class="pp-bar"><select data-pp="fmt" title="Formato del PDF">${FORMATOS_PDF.map(f => `<option value="${f.c}" ${f.c === fmt ? 'selected' : ''}>${esc(f.n)}</option>`).join('')}</select>
+      <div class="pp-tabs"><button data-pp="tab-datos" class="${prevTab === 'datos' ? 'on' : ''}" title="Todos los datos del pedido (D)">📋 Datos</button><button data-pp="tab-pdf" class="${prevTab === 'pdf' ? 'on' : ''}" title="Vista previa del PDF (P)">📄 PDF</button>
+        <a href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/${esc(String(id))}" target="_blank" rel="noopener" title="Abrir el pedido en Yiqi">↗ Yiqi</a>
+        <span class="pp-k">↑ ↓ otro pedido · Esc cierra</span></div>
+      <div class="pp-bar"${prevTab === 'pdf' ? '' : ' style="display:none"'}><select data-pp="fmt" title="Formato del PDF">${FORMATOS_PDF.map(f => `<option value="${f.c}" ${f.c === fmt ? 'selected' : ''}>${esc(f.n)}</option>`).join('')}</select>
         <span class="pp-zoom"><button data-pp="zm" title="Alejar (−)">−</button><button data-pp="z1" class="pp-zl" title="Ajustar al ancho del panel (0)">${Math.round(prevZoom * 100)}%</button><button data-pp="zp" title="Acercar (+) · también Ctrl + rueda del mouse">+</button></span>
         <button data-pp="dl" title="Descargar este PDF">⬇ Descargar</button>
-        <a href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/${esc(String(id))}" target="_blank" rel="noopener" title="Abrir el pedido en Yiqi">↗ Yiqi</a>
-        <span class="pp-k">↑ ↓ otro pedido · + − zoom · Esc cierra</span></div>
-      <div class="pp-b"><div class="pp-load">⏳ Trayendo el PDF del pedido ${esc(nro(r))} de Yiqi…</div></div>`;
+        <span class="pp-k">+ − zoom</span></div>
+      <div class="pp-b${prevTab === 'datos' ? ' pp-b-datos' : ''}">${prevTab === 'datos' ? fichaHTML(r) : `<div class="pp-load">⏳ Trayendo el PDF del pedido ${esc(nro(r))} de Yiqi…</div>`}</div>`;
+    if (prevTab === 'datos') return;
     try {
       const k = id + '|' + fmt; let blob = prevCache.get(k);
       if (!blob) {
@@ -64767,13 +64862,19 @@ body.light-mode #pyq-wrap .pyq-tema-btn{display:none;}
     prevZoom = z; localStorage.setItem('pyq_prev_zoom', String(z));
     const p = document.getElementById('pyq-prev'); if (!p) return;
     const l = p.querySelector('.pp-zl'); if (l) l.textContent = Math.round(z * 100) + '%';
-    if (prevBlob) mostrarPdfPrev(p.querySelector('.pp-b'), prevBlob, ++prevSeq, prevNro).catch(() => {});
+    if (prevBlob && prevTab === 'pdf') mostrarPdfPrev(p.querySelector('.pp-b'), prevBlob, ++prevSeq, prevNro).catch(() => {});
   }
   const zoomPaso = d => { const i = ZOOMS.findIndex(z => z >= prevZoom - 1e-6); zoomPrev(ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, (i < 0 ? ZOOMS.length - 1 : i) + d))]); };
   function moverPreview(d) {
     const trs = [...document.querySelectorAll('#pyq-wrap tbody tr[data-id]')];
-    const i = trs.findIndex(t => t.dataset.id === prevId);
-    const nx = trs[i < 0 ? 0 : i + d]; if (nx) abrirPreview(nx.dataset.id);
+    const base = prevId || selId;
+    const i = trs.findIndex(t => t.dataset.id === base);
+    const nx = trs[i < 0 ? 0 : i + d]; if (!nx) return;
+    if (prevId && document.getElementById('pyq-prev')) abrirPreview(nx.dataset.id); else marcarFila(nx.dataset.id);
+  }
+  function cambiarTab(t) {
+    if (t === prevTab) return; prevTab = t; localStorage.setItem('pyq_prev_tab', t);
+    if (prevId) abrirPreview(prevId);
   }
   document.addEventListener('click', e => {
     if (prevId && e.target.closest('.tab-btn')) return cerrarPreview();
@@ -64784,6 +64885,8 @@ body.light-mode #pyq-wrap .pyq-tema-btn{display:none;}
     if (a === 'zm') return zoomPaso(-1);
     if (a === 'zp') return zoomPaso(1);
     if (a === 'z1') return zoomPrev(1);
+    if (a === 'tab-datos') return cambiarTab('datos');
+    if (a === 'tab-pdf') return cambiarTab('pdf');
   });
   document.addEventListener('change', e => {
     const sl = e.target.closest('#pyq-prev select[data-pp="fmt"]'); if (!sl) return;
@@ -64813,16 +64916,37 @@ body.light-mode #pyq-wrap .pyq-tema-btn{display:none;}
     localStorage.removeItem('pyq_prev_w'); aplicarAnchoPrev(0);
     const p = document.getElementById('pyq-prev'); if (p && prevBlob) setTimeout(() => mostrarPdfPrev(p.querySelector('.pp-b'), prevBlob, ++prevSeq, prevNro).catch(() => {}), 50);
   });
+  document.addEventListener('mouseover', e => {
+    const tr = e.target.closest && e.target.closest('#pyq-wrap tbody tr[data-id]');
+    hoverId = tr ? tr.dataset.id : null;
+  });
+  const grillaVisible = () => { const w = document.getElementById('pyq-wrap'); return !!w && w.getClientRects().length > 0; };
   document.addEventListener('keydown', e => {
-    if (!prevId || !document.getElementById('pyq-prev')) return;
-    if (e.target.closest && e.target.closest('input,textarea,select,[contenteditable="true"]')) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const k = e.key; let ok = true;
-    if (k === 'Escape') cerrarPreview();
-    else if (k === 'ArrowDown' || k === 'ArrowUp') moverPreview(k === 'ArrowDown' ? 1 : -1);
-    else if (k === '+' || k === '=') zoomPaso(1);
-    else if (k === '-' || k === '_') zoomPaso(-1);
-    else if (k === '0') zoomPrev(1);
+    const t = e.target;
+    // En el buscador de la grilla, las flechas ↑ ↓ igual mueven entre pedidos (el resto de las teclas escriben normal)
+    const enBuscador = !!(t && t.matches && t.matches('#pyq-wrap input.pyq-q'));
+    if (enBuscador && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if (!enBuscador && t && t.closest && t.closest('input,textarea,select,[contenteditable="true"]')) return;
+    // Solo si el foco está en la grilla, en el panel o en ningún lado (no dentro de otro modal)
+    if (t && t !== document.body && t !== document.documentElement && !(t.closest && t.closest('#pyq-wrap,#pyq-prev'))) return;
+    if (!grillaVisible() || document.getElementById('ped-modal-bd')) return;
+    const k = e.key, abierto = !!(prevId && document.getElementById('pyq-prev'));
+    let ok = true;
+    if (k === 'ArrowDown' || k === 'ArrowUp') moverPreview(k === 'ArrowDown' ? 1 : -1);
+    else if (k === 'Enter') {
+      if (t && t.closest && t.closest('button,a')) return; // Enter sobre un botón: que haga lo suyo
+      const id = hoverId || selId; if (!id) return;
+      abrirPreview(id);
+    }
+    else if (k === 'Escape' && !abierto && selId) marcarFila(null);
+    else if (!abierto) ok = false;
+    else if (k === 'Escape') cerrarPreview();
+    else if (k === 'd' || k === 'D') cambiarTab('datos');
+    else if (k === 'p' || k === 'P') cambiarTab('pdf');
+    else if (prevTab === 'pdf' && (k === '+' || k === '=')) zoomPaso(1);
+    else if (prevTab === 'pdf' && (k === '-' || k === '_')) zoomPaso(-1);
+    else if (prevTab === 'pdf' && k === '0') zoomPrev(1);
     else ok = false;
     if (ok) { e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
