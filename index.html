@@ -63982,6 +63982,8 @@ body.pyq-claro:not(.light-mode) #pyq-wrap{background:#fff;border:1px solid #dee2
 body.pyq-claro:not(.light-mode) #pyq-wrap a{color:#1a73e8;}
 body.pyq-claro:not(.light-mode) #pyq-wrap .pyq-chk input{accent-color:#1a73e8;}
 body.light-mode #pyq-wrap .pyq-tema-btn{display:none;}
+#pyq-wrap td.c-acc .pyq-acc2{margin-top:4px;}
+#pyq-wrap td.c-acc .pyq-acc2 .pyq-mini{width:100%;margin-right:0;text-align:center;}
 </style>
 <script>
 (function(){
@@ -64532,8 +64534,8 @@ body.light-mode #pyq-wrap .pyq-tema-btn{display:none;}
     if (c.k === '_acc') {
       const id = esc(rowId(r));
       if (copiando[rowId(r)]) return '<span class="pyq-mini" style="opacity:.7">⏳ procesando…</span>';
-      // Solo Copiar y el segundo botón, para que la columna ocupe menos y se vea más de la grilla
-      return `<button class="pyq-mini" data-copiar="${id}" title="Copiar pedido (igual que 'Copiar Pedido' de Yiqi)">⧉<span class="pyq-lbl"> Copiar</span></button><button class="pyq-mini pyq-presu" data-presu="${esc(nro(r))}" title="Abrir en Presupuestos para modificar productos y envío">🧾<span class="pyq-lbl"> Presupuesto</span></button>`;
+      // Copiar y el segundo botón; abajo, Factura (solo en pedidos facturados)
+      return `<div class="pyq-acc1"><button class="pyq-mini" data-copiar="${id}" title="Copiar pedido (igual que 'Copiar Pedido' de Yiqi)">⧉<span class="pyq-lbl"> Copiar</span></button><button class="pyq-mini pyq-presu" data-presu="${esc(nro(r))}" title="Abrir en Presupuestos para modificar productos y envío">🧾<span class="pyq-lbl"> Presupuesto</span></button></div>${tieneFactura(r) ? `<div class="pyq-acc2"><button class="pyq-mini pyq-fact" data-fact="${id}" title="Descargar la factura de este pedido${r.PEDI_TIPOS_FACT_GENERADOS ? ' (' + esc(r.PEDI_TIPOS_FACT_GENERADOS) + ')' : ''}">🧾<span class="pyq-lbl"> Factura</span>${r.PEDI_TIPOS_FACT_GENERADOS && r.PEDI_TIPOS_FACT_GENERADOS !== 'Sin documentos' ? ' ' + esc(r.PEDI_TIPOS_FACT_GENERADOS) : ''}</button></div>` : ''}`;
     }
     if (c.k === 'PEDI_NUMERO_SOLO') {
       const o = MAP_EXTE[r.EXTE_ID_EXTE] || (r.EXTE_ID_EXTE ? 'Origen ' + r.EXTE_ID_EXTE : '');
