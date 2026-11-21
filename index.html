@@ -64005,10 +64005,16 @@ body.pyq-claro:not(.light-mode) #pyq-wrap a{color:#1a73e8;}
 body.pyq-claro:not(.light-mode) #pyq-wrap .pyq-chk input{accent-color:#1a73e8;}
 body.light-mode #pyq-wrap .pyq-tema-btn{display:none;}
 #pyq-wrap td.c-acc .pyq-acc2{margin-top:4px;}
-#pyq-wrap td.c-acc .pyq-acc2 .pyq-mini{width:100%;margin-right:0;text-align:center;}
+#pyq-wrap td.c-acc .pyq-acc2{display:flex;gap:2px;}
+#pyq-wrap td.c-acc .pyq-acc2:empty{display:none;}
+#pyq-wrap td.c-acc .pyq-acc2 .pyq-mini{flex:1;margin-right:0;text-align:center;}
+#pyq-wrap .pyq-mini.pyq-cc{border-color:rgba(139,92,246,.45);color:#c4b5fd;background:rgba(139,92,246,.12);}
+body.light-mode #pyq-wrap .pyq-mini.pyq-cc,body.pyq-claro #pyq-wrap .pyq-mini.pyq-cc{border-color:#c4b5fd;color:#6d28d9;background:#f5f3ff;}
 #pyq-prev .pp-tabs{display:flex;gap:4px;align-items:flex-end;padding:6px 12px 0;}
 #pyq-prev .pp-tabs button{font:inherit;font-size:12.5px;padding:5px 12px;border-radius:6px 6px 0 0;cursor:pointer;margin-bottom:-1px;}
 #pyq-prev .pp-tabs button.on{font-weight:700;}
+#pyq-prev .pp-tabs button,#pyq-prev .pp-tabs a{white-space:nowrap;}
+#pyq-prev .pp-tabs{flex-wrap:wrap;}
 #pyq-prev .pp-tabs a{margin-left:6px;margin-bottom:5px;font-size:12px;text-decoration:none;padding:3px 8px;border-radius:4px;}
 #pyq-prev .pp-tabs .pp-k{margin-bottom:6px;}
 #pyq-prev .pp-ficha{width:100%;align-self:flex-start;padding:6px 14px 12px;box-sizing:border-box;font-size:12px;line-height:1.3;}
@@ -64114,7 +64120,7 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
   const QCOLS = ['ID','PEDI_NUMERO','PEDI_NUMERO_SOLO','AUDI_FECHA_ALTA','PEDI_FECHA','CLIE_NOMBRE','PEDI_RAZON_SOCIAL','CEDI_ID_ORIG','TIFA_ID_TIFA',
     'PEDI_TOTAL','PEDI_OBSERVACIONES','PEDI_ESTADO_DEL_ENVIO','PEDI_ESTADO_DE_PAGO','PEDI_ESTADO','PEDI_ESTADO_ACTUAL_DEL_PE',
     'PEDI_PROVINCIA_DE_ENVIO','DESC_ESTADO','EXTE_ID_EXTE','PUVE_ID_PUVE','VEHA_ID_VEHA','COVE_ID_COVE','PEDI_DIRECCION_DE_ENVIO',
-    'PEDI_LOCALIDAD_DE_ENVIO','PEDI_TELEFONO','PEDI_FACTURAS','PEDI_TIPOS_FACT_GENERADOS'];
+    'PEDI_LOCALIDAD_DE_ENVIO','PEDI_TELEFONO','PEDI_FACTURAS','PEDI_TIPOS_FACT_GENERADOS','CLIE_ID_CLIE'];
   const ESTADO_COLOR = {
     'en espera de pago':['rgba(245,158,11,.18)','#fcd34d'], 'entregado':['rgba(16,185,129,.18)','#6ee7b7'],
     'staging out':['rgba(59,130,246,.18)','#93c5fd'], 'quiebre 2':['rgba(239,68,68,.18)','#fca5a5'],
@@ -64608,7 +64614,7 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
       const id = esc(rowId(r));
       if (copiando[rowId(r)]) return '<span class="pyq-mini" style="opacity:.7">⏳ procesando…</span>';
       // Copiar y el segundo botón; abajo, Factura (solo en pedidos facturados)
-      return `<div class="pyq-acc1"><button class="pyq-mini" data-copiar="${id}" title="Copiar pedido (igual que 'Copiar Pedido' de Yiqi)">⧉<span class="pyq-lbl"> Copiar</span></button><button class="pyq-mini pyq-presu" data-presu="${esc(nro(r))}" title="Abrir en Presupuestos para modificar productos y envío">🧾<span class="pyq-lbl"> Presupuesto</span></button></div>${tieneFactura(r) ? `<div class="pyq-acc2"><button class="pyq-mini pyq-fact" data-fact="${id}" title="Descargar la factura de este pedido${r.PEDI_TIPOS_FACT_GENERADOS ? ' (' + esc(r.PEDI_TIPOS_FACT_GENERADOS) + ')' : ''}">🧾<span class="pyq-lbl"> Factura</span>${r.PEDI_TIPOS_FACT_GENERADOS && r.PEDI_TIPOS_FACT_GENERADOS !== 'Sin documentos' ? ' ' + esc(r.PEDI_TIPOS_FACT_GENERADOS) : ''}</button></div>` : ''}`;
+      return `<div class="pyq-acc1"><button class="pyq-mini" data-copiar="${id}" title="Copiar pedido (igual que 'Copiar Pedido' de Yiqi)">⧉<span class="pyq-lbl"> Copiar</span></button><button class="pyq-mini pyq-presu" data-presu="${esc(nro(r))}" title="Abrir en Presupuestos para modificar productos y envío">🧾<span class="pyq-lbl"> Presupuesto</span></button></div><div class="pyq-acc2">${clienteId(r) ? `<button class="pyq-mini pyq-cc" data-cc="${id}" title="Cuenta corriente del cliente: vista previa y PDF">📒<span class="pyq-lbl"> CC</span></button>` : ''}${tieneFactura(r) ? `<button class="pyq-mini pyq-fact" data-fact="${id}" title="Descargar la factura de este pedido${r.PEDI_TIPOS_FACT_GENERADOS ? ' (' + esc(r.PEDI_TIPOS_FACT_GENERADOS) + ')' : ''}">🧾<span class="pyq-lbl"> Factura</span>${r.PEDI_TIPOS_FACT_GENERADOS && r.PEDI_TIPOS_FACT_GENERADOS !== 'Sin documentos' ? ' ' + esc(r.PEDI_TIPOS_FACT_GENERADOS) : ''}</button>` : ''}</div>`;
     }
     if (c.k === 'PEDI_NUMERO_SOLO') {
       const o = MAP_EXTE[r.EXTE_ID_EXTE] || (r.EXTE_ID_EXTE ? 'Origen ' + r.EXTE_ID_EXTE : '');
@@ -64747,6 +64753,10 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
   const prevFmt = () => localStorage.getItem('pyq_prev_fmt') || 'PRESUPUESTO_v1';
   let prevZoom = Number(localStorage.getItem('pyq_prev_zoom')) || 1;
   let prevTab = localStorage.getItem('pyq_prev_tab') === 'pdf' ? 'pdf' : 'datos';
+  // Cuenta corriente del cliente: reporte "CC Cliente" de Yiqi (Empresa → CC Cliente)
+  const CC_REPORTE = 'CC_CLIENTE_v2.4';
+  function clienteId(r) { const v = r && r.CLIE_ID_CLIE; return v && typeof v === 'object' ? (v.id != null ? v.id : v.ID) : v; }
+  function abrirCC(id) { prevTab = 'cc'; abrirPreview(id); }
   // Ficha: todos los datos del pedido en vertical, en el mismo orden que las columnas de la grilla
   // (las visibles de izquierda a derecha y después las ocultas), con el mismo formato y colores
   function fichaHTML(r) {
@@ -64793,20 +64803,24 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
         <div class="pp-t"><b>Pedido ${esc(nro(r))}</b>${r.DESC_ESTADO ? `<span class="pp-badge" style="${bg ? `background:${bg};color:${fg}` : ''}">${esc(r.DESC_ESTADO)}</span>` : ''}
           <div class="pp-s" title="${esc(r.CLIE_NOMBRE || '')}">${esc(r.CLIE_NOMBRE || '')}${r.PEDI_TOTAL != null && r.PEDI_TOTAL !== '' ? ' · ' + fmtMoney(r.PEDI_TOTAL) : ''}${fecha ? ' · ' + fmtFecha(fecha) : ''}</div></div>
         <button class="pp-x" data-pp="x" title="Cerrar (Esc)">✕</button></div>
-      <div class="pp-tabs"><button data-pp="tab-datos" class="${prevTab === 'datos' ? 'on' : ''}" title="Todos los datos del pedido (D)">📋 Datos</button><button data-pp="tab-pdf" class="${prevTab === 'pdf' ? 'on' : ''}" title="Vista previa del PDF (P)">📄 PDF</button>
+      <div class="pp-tabs"><button data-pp="tab-datos" class="${prevTab === 'datos' ? 'on' : ''}" title="Todos los datos del pedido (D)">📋 Datos</button><button data-pp="tab-pdf" class="${prevTab === 'pdf' ? 'on' : ''}" title="Vista previa del PDF (P)">📄 PDF</button><button data-pp="tab-cc" class="${prevTab === 'cc' ? 'on' : ''}" title="Cuenta corriente del cliente (C)">📒 CC cliente</button>
         <a href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/${esc(String(id))}" target="_blank" rel="noopener" title="Abrir el pedido en Yiqi">↗ Yiqi</a>
         <span class="pp-k">↑ ↓ otro pedido · Esc cierra</span></div>
-      <div class="pp-bar"${prevTab === 'pdf' ? '' : ' style="display:none"'}><select data-pp="fmt" title="Formato del PDF">${FORMATOS_PDF.map(f => `<option value="${f.c}" ${f.c === fmt ? 'selected' : ''}>${esc(f.n)}</option>`).join('')}</select>
+      <div class="pp-bar"${prevTab === 'datos' ? ' style="display:none"' : ''}><select data-pp="fmt" title="Formato del PDF"${prevTab === 'cc' ? ' style="display:none"' : ''}>${FORMATOS_PDF.map(f => `<option value="${f.c}" ${f.c === fmt ? 'selected' : ''}>${esc(f.n)}</option>`).join('')}</select>
         <span class="pp-zoom"><button data-pp="zm" title="Alejar (−)">−</button><button data-pp="z1" class="pp-zl" title="Ajustar al ancho del panel (0)">${Math.round(prevZoom * 100)}%</button><button data-pp="zp" title="Acercar (+) · también Ctrl + rueda del mouse">+</button></span>
-        <button data-pp="dl" title="Descargar este PDF">⬇ Descargar</button>
+        <button data-pp="dl" title="${prevTab === 'cc' ? 'Descargar la cuenta corriente del cliente en PDF' : 'Descargar este PDF'}">⬇ Descargar${prevTab === 'cc' ? ' CC' : ''}</button>
         <span class="pp-k">+ − zoom</span></div>
-      <div class="pp-b${prevTab === 'datos' ? ' pp-b-datos' : ''}">${prevTab === 'datos' ? fichaHTML(r) : `<div class="pp-load">⏳ Trayendo el PDF del pedido ${esc(nro(r))} de Yiqi…</div>`}</div>`;
+      <div class="pp-b${prevTab === 'datos' ? ' pp-b-datos' : ''}">${prevTab === 'datos' ? fichaHTML(r) : `<div class="pp-load">⏳ Trayendo ${prevTab === 'cc' ? 'la cuenta corriente de ' + esc(r.CLIE_NOMBRE || 'el cliente') : 'el PDF del pedido ' + esc(nro(r))} de Yiqi…</div>`}</div>`;
     if (prevTab === 'datos') return;
     try {
-      const k = id + '|' + fmt; let blob = prevCache.get(k);
+      const esCC = prevTab === 'cc', cid = clienteId(r);
+      if (esCC && !cid) throw new Error('el pedido no tiene el cliente cargado');
+      const k = esCC ? 'cc|' + cid : id + '|' + fmt; let blob = prevCache.get(k);
       if (!blob) {
-        const res = await yiqiFetch(`${API}/api/public/PEDIDO/report?reportName=${encodeURIComponent(fmt)}&instanceId=${encodeURIComponent(id)}&schemaId=${SCHEMA}`, { headers: { 'Authorization': 'Bearer ' + await token() } });
-        if (!res.ok) { const tx = await res.text().catch(() => ''); throw new Error(res.status === 403 ? 'tu usuario no tiene permiso para imprimir pedidos' : (msgYiqi(tx).slice(0, 200) || 'HTTP ' + res.status)); }
+        const res = await yiqiFetch(esCC
+          ? `${API}/api/public/CLIENTE/report?reportName=${encodeURIComponent(CC_REPORTE)}&instanceId=${encodeURIComponent(cid)}&schemaId=${SCHEMA}`
+          : `${API}/api/public/PEDIDO/report?reportName=${encodeURIComponent(fmt)}&instanceId=${encodeURIComponent(id)}&schemaId=${SCHEMA}`, { headers: { 'Authorization': 'Bearer ' + await token() } });
+        if (!res.ok) { const tx = await res.text().catch(() => ''); throw new Error(res.status === 403 ? (esCC ? 'tu usuario no tiene permiso para imprimir la cuenta corriente' : 'tu usuario no tiene permiso para imprimir pedidos') : (msgYiqi(tx).slice(0, 200) || 'HTTP ' + res.status)); }
         blob = await res.blob();
         if (!blob.size) throw new Error('Yiqi devolvió un archivo vacío');
         prevCache.set(k, blob);
@@ -64862,7 +64876,7 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     prevZoom = z; localStorage.setItem('pyq_prev_zoom', String(z));
     const p = document.getElementById('pyq-prev'); if (!p) return;
     const l = p.querySelector('.pp-zl'); if (l) l.textContent = Math.round(z * 100) + '%';
-    if (prevBlob && prevTab === 'pdf') mostrarPdfPrev(p.querySelector('.pp-b'), prevBlob, ++prevSeq, prevNro).catch(() => {});
+    if (prevBlob && prevTab !== 'datos') mostrarPdfPrev(p.querySelector('.pp-b'), prevBlob, ++prevSeq, prevNro).catch(() => {});
   }
   const zoomPaso = d => { const i = ZOOMS.findIndex(z => z >= prevZoom - 1e-6); zoomPrev(ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, (i < 0 ? ZOOMS.length - 1 : i) + d))]); };
   function moverPreview(d) {
@@ -64873,7 +64887,7 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     if (prevId && document.getElementById('pyq-prev')) abrirPreview(nx.dataset.id); else marcarFila(nx.dataset.id);
   }
   function cambiarTab(t) {
-    if (t === prevTab) return; prevTab = t; localStorage.setItem('pyq_prev_tab', t);
+    if (t === prevTab) return; prevTab = t; if (t !== 'cc') localStorage.setItem('pyq_prev_tab', t);
     if (prevId) abrirPreview(prevId);
   }
   document.addEventListener('click', e => {
@@ -64881,12 +64895,18 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     const b = e.target.closest('#pyq-prev [data-pp]'); if (!b) return;
     const a = b.dataset.pp;
     if (a === 'x') return cerrarPreview();
+    if (a === 'dl' && prevId && prevTab === 'cc') {
+      const r = rows.find(x => String(rowId(x)) === String(prevId)), cid = clienteId(r);
+      if (!cid) return toast('⚠ El pedido no tiene el cliente cargado', 'warn');
+      return descargarReporte('CLIENTE', cid, CC_REPORTE, `Cuenta_corriente_${String(r.CLIE_NOMBRE || cid).replace(/[^\w\-áéíóúñÁÉÍÓÚÑ]+/g, '_')}.pdf`, b, '📒 Cuenta corriente descargada');
+    }
     if (a === 'dl' && prevId) return descargarPdf(prevId, prevFmt(), b);
     if (a === 'zm') return zoomPaso(-1);
     if (a === 'zp') return zoomPaso(1);
     if (a === 'z1') return zoomPrev(1);
     if (a === 'tab-datos') return cambiarTab('datos');
     if (a === 'tab-pdf') return cambiarTab('pdf');
+    if (a === 'tab-cc') return cambiarTab('cc');
   });
   document.addEventListener('change', e => {
     const sl = e.target.closest('#pyq-prev select[data-pp="fmt"]'); if (!sl) return;
@@ -64954,9 +64974,10 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     else if (k === 'Escape') cerrarPreview();
     else if (k === 'd' || k === 'D') cambiarTab('datos');
     else if (k === 'p' || k === 'P') cambiarTab('pdf');
-    else if (prevTab === 'pdf' && (k === '+' || k === '=')) zoomPaso(1);
-    else if (prevTab === 'pdf' && (k === '-' || k === '_')) zoomPaso(-1);
-    else if (prevTab === 'pdf' && k === '0') zoomPrev(1);
+    else if (k === 'c' || k === 'C') cambiarTab('cc');
+    else if (prevTab !== 'datos' && (k === '+' || k === '=')) zoomPaso(1);
+    else if (prevTab !== 'datos' && (k === '-' || k === '_')) zoomPaso(-1);
+    else if (prevTab !== 'datos' && k === '0') zoomPrev(1);
     else ok = false;
     if (ok) { e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
@@ -64968,6 +64989,8 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     if (e.target.closest('a[data-yiqi]')) return; // el N° abre el pedido en Yiqi (pestaña nueva)
     const rb = e.target.closest('[data-reservar]');
     if (rb) return solicitarReserva(rb.dataset.reservar);
+    const ccb = e.target.closest('[data-cc]');
+    if (ccb) return abrirCC(ccb.dataset.cc);
     const fb = e.target.closest('[data-fact]');
     if (fb) return facturaPdf(fb, fb.dataset.fact);
     const pdfb = e.target.closest('[data-pdf]');
