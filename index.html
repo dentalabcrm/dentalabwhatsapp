@@ -74090,6 +74090,78 @@ edCambiarEstado = function(id, nuevoEstado) {
 };
 window.edCambiarEstado = edCambiarEstado;
 
+// ── Automático: pedidos de Juan Martin Gaffuri que en Yiqi pasan a "Staging Out" o "Entregado" ─────────
+// marcan en su envío "Facturado" y "Pago acreditado", si están disponibles con las mismas reglas del selector
+// (Pago acreditado no va con Efectivo / Dólares / Cuenta corriente; ninguno se repite). Si solo uno está
+// disponible, se marca ese. Lo hace solo un admin con la sesión de Yiqi abierta.
+(function edAutoFacturadoYiqi() {
+  const VENDEDOR_ID = 4;                     // Juan Martin Gaffuri en Yiqi
+  const ESTADOS_YIQI = ['staging out', 'entregado'];
+  const FINALES = ['en_camino','entregado','no_entregado','no_responde','cancelado','cobrado','guia_enviada'];
+  const DIAS = 45, CADA_MS = 4 * 60 * 1000;
+  let corriendo = false;
+  const tiene = (e, est) => (e.estadoLog || []).some(l => l.estado === est && !l.esReprogramado) || e.estado === est;
+  const pagoDisponible = e => !['efectivo','dolares','cuenta_corriente'].includes(e.cobro) && !tiene(e, 'pago_acreditado');
+  const facturadoDisponible = e => !tiene(e, 'facturado');
+  function candidatos() {
+    const limite = Date.now() - DIAS * 864e5;
+    return (_edEnvios || []).filter(e => e && !e.esCombo && /^\d{4,}$/.test(String(e.nroPedido || '').trim())
+      && !FINALES.includes(e.estado) && (Number(e.creadoAt || e.id) || 0) >= limite
+      && (facturadoDisponible(e) || pagoDisponible(e)));
+  }
+  async function revisar(motivo) {
+    if (corriendo) return;
+    try { if (typeof edGetRol !== 'function' || edGetRol() !== 'admin') return; } catch (e) { return; }
+    const lista = candidatos(); if (!lista.length) return;
+    let tok = null; try { tok = await window._yiqiGetTokenGlobal(); } catch (e) {}
+    if (!tok) return;
+    corriendo = true;
+    try {
+      const nros = [...new Set(lista.map(e => Number(String(e.nroPedido).trim())))];
+      const enYiqi = new Map();
+      for (let i = 0; i < nros.length; i += 80) {
+        const r = await yiqiFetch('https://api.yiqi.com.ar/api/public/PEDIDO/query?schemaId=328', { method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ page: 1, pageSize: 200, columns: ['ID','PEDI_NUMERO_SOLO','DESC_ESTADO','VEHA_ID_VEHA'].map((f, k) => ({ field: f, title: f, order: k + 1 })),
+            filters: [{ columnName: 'PEDI_NUMERO_SOLO', operator: 'IN', value: nros.slice(i, i + 80) }] }) });
+        if (!r.ok) { console.warn('[ed-auto] Yiqi respondió', r.status); return; }
+        const j = await r.json();
+        (j.data || []).forEach(p => enYiqi.set(String(p.PEDI_NUMERO_SOLO), p));
+      }
+      const marcados = [];
+      const _toast = showToast; showToast = function() {};   // sin un aviso por cada estado; al final va un resumen
+      const _undo = _edMostrarUndo; _edMostrarUndo = function() {};
+      try {
+        for (const e of lista) {
+          const p = enYiqi.get(String(Number(String(e.nroPedido).trim()))); if (!p) continue;
+          const vend = p.VEHA_ID_VEHA && typeof p.VEHA_ID_VEHA === 'object' ? (p.VEHA_ID_VEHA.id ?? p.VEHA_ID_VEHA.ID) : p.VEHA_ID_VEHA;
+          if (Number(vend) !== VENDEDOR_ID) continue;
+          const est = String(p.DESC_ESTADO || '').toLowerCase().trim();
+          if (!ESTADOS_YIQI.includes(est)) continue;
+          const t0 = Date.now(), hechos = [];
+          if (facturadoDisponible(e)) { edCambiarEstado(e.id, 'facturado'); if (tiene(e, 'facturado')) hechos.push('Facturado'); }
+          const e2 = _edEnvios.find(x => x.id === e.id) || e;
+          if (pagoDisponible(e2)) { edCambiarEstado(e.id, 'pago_acreditado'); if (tiene(e2, 'pago_acreditado')) hechos.push('Pago acreditado'); }
+          if (hechos.length) {
+            (e2.estadoLog || []).forEach(l => { if (l.ts >= t0 && (l.estado === 'facturado' || l.estado === 'pago_acreditado')) { l.autor = 'Automático (Yiqi: ' + p.DESC_ESTADO + ')'; l.auto = true; } });
+            marcados.push(`#${e.nroPedido} ${String(e.cliente || '').replace(/\s+N[°º]\s*\d+.*$/i, '').trim()} → ${hechos.join(' + ')}`);
+          }
+        }
+      } finally { showToast = _toast; _edMostrarUndo = _undo; }
+      if (marcados.length) {
+        edSaveEnvios(); edRenderLista();
+        showToast(`🤖 ${marcados.length === 1 ? '1 envío de Juan Martin Gaffuri marcado' : marcados.length + ' envíos de Juan Martin Gaffuri marcados'} (Staging Out / Entregado en Yiqi): ${marcados.slice(0, 3).join(' · ')}${marcados.length > 3 ? ' …' : ''}`, 'ok');
+        console.info('[ed-auto]', motivo, marcados);
+      }
+    } catch (err) { console.warn('[ed-auto] no se pudo revisar Yiqi', err); }
+    finally { corriendo = false; }
+  }
+  window.edAutoFacturadoYiqi = revisar;
+  setTimeout(() => revisar('inicio'), 25000);
+  setInterval(() => { if (!document.hidden) revisar('cada 4 min'); }, CADA_MS);
+  document.addEventListener('click', ev => { if (ev.target.closest && ev.target.closest('#tab-envios-dentalab')) setTimeout(() => revisar('pestaña'), 800); });
+})();
+
 // ── Interceptar edEliminar para registrar en el log y borrar de GCal ────────
 const _edEliminarOrig = edEliminar;
 edEliminar = function(id) {
