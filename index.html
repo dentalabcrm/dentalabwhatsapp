@@ -70999,6 +70999,9 @@ function _edMostrarUndo(id, estadoPrev, estadoNuevo) {
     if (idx2 < 0) return;
     _edEnvios[idx2].estado = estadoPrev;
     if (_edEnvios[idx2].estadoLog?.length) _edEnvios[idx2].estadoLog.pop();
+    if (estadoNuevo === 'facturado' || estadoNuevo === 'pago_acreditado') {
+      _edEnvios[idx2].autoBloqueo = Object.assign({}, _edEnvios[idx2].autoBloqueo, { [estadoNuevo]: true });
+    }
     if (estadoPrev !== 'en_camino') delete _edEnvios[idx2].enCaminoAt;
     if (estadoPrev !== 'entregado') delete _edEnvios[idx2].entregadoAt;
     _edEnvios[idx2].updatedAt = Date.now();
@@ -71147,6 +71150,10 @@ function edBorrarEstadoLog(id, ts, estado) {
   newLog.splice(entradaIdx, 1);
   _edEnvios[idx].estadoLog = newLog;
   _edEnvios[idx].updatedAt = Date.now();
+  // Si se borra a mano Facturado o Pago acreditado, el marcado automático (Yiqi) no lo vuelve a poner
+  if (estado === 'facturado' || estado === 'pago_acreditado') {
+    _edEnvios[idx].autoBloqueo = Object.assign({}, _edEnvios[idx].autoBloqueo, { [estado]: true });
+  }
   edSaveEnvioById(id);
   edRenderLista();
   showToast('Estado eliminado del historial', 'ok');
@@ -74101,8 +74108,9 @@ window.edCambiarEstado = edCambiarEstado;
   const DIAS = 45, CADA_MS = 4 * 60 * 1000;
   let corriendo = false;
   const tiene = (e, est) => (e.estadoLog || []).some(l => l.estado === est && !l.esReprogramado) || e.estado === est;
-  const pagoDisponible = e => !['efectivo','dolares','cuenta_corriente'].includes(e.cobro) && !tiene(e, 'pago_acreditado');
-  const facturadoDisponible = e => !tiene(e, 'facturado');
+  const bloqueado = (e, est) => !!(e.autoBloqueo && e.autoBloqueo[est]); // lo borraste o deshiciste a mano
+  const pagoDisponible = e => !['efectivo','dolares','cuenta_corriente'].includes(e.cobro) && !tiene(e, 'pago_acreditado') && !bloqueado(e, 'pago_acreditado');
+  const facturadoDisponible = e => !tiene(e, 'facturado') && !bloqueado(e, 'facturado');
   function candidatos() {
     const limite = Date.now() - DIAS * 864e5;
     return (_edEnvios || []).filter(e => e && !e.esCombo && /^\d{4,}$/.test(String(e.nroPedido || '').trim())
