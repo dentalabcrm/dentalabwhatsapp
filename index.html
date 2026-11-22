@@ -36022,6 +36022,81 @@ function cliComputeClientes(rows) {
 
 
 // ── Sincronizar clientes desde Yiqi ERP ────────────────────────────────────
+// ── Clientes (Empresa) en Yiqi con vendedor "Federico Silva" (8) → "Local" (1) ──
+async function clientesFedericoALocal(btnEl) {
+  const API = 'https://api.yiqi.com.ar', SCHEMA = 328;
+  const VEHA_FEDERICO = 8, VEHA_LOCAL = 1;
+  const origLabel = btnEl ? btnEl.innerHTML : '';
+  const setBtn = (label, dis) => { if (!btnEl) return; btnEl.innerHTML = label; btnEl.disabled = dis; btnEl.style.opacity = dis ? '.6' : '1'; };
+  try {
+    setBtn('🔑 Autenticando…', true);
+    let token;
+    const exp = parseInt(localStorage.getItem('yiqi_api_token_exp') || '0', 10);
+    token = localStorage.getItem('yiqi_api_token');
+    if (!token || Date.now() >= exp) {
+      const user = localStorage.getItem('yiqi_api_user'), pass = localStorage.getItem('yiqi_api_pass');
+      if (!user || !pass) throw new Error('No hay credenciales Yiqi. Usá primero "🔄 Sincronizar historial YIQI".');
+      const r = await yiqiFetch(API + '/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'grant_type=password&username=' + encodeURIComponent(user) + '&password=' + encodeURIComponent(pass) });
+      if (!r.ok) throw new Error('Error al autenticar con Yiqi');
+      const d = await r.json();
+      token = d.access_token;
+      localStorage.setItem('yiqi_api_token', token);
+      localStorage.setItem('yiqi_api_token_exp', String(Date.now() + (d.expires_in || 86400) * 1000 - 60000));
+    }
+    const H = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+
+    // 1. Buscar todos los clientes con vendedor Federico Silva
+    setBtn('🔎 Buscando…', true);
+    const lista = [];
+    for (let page = 1; page <= 50; page++) {
+      const r = await yiqiFetch(`${API}/api/public/CLIENTE/query?schemaId=${SCHEMA}`, { method: 'POST', headers: H,
+        body: JSON.stringify({ page, pageSize: 200,
+          columns: [{ field: 'CLIE_NOMBRE', title: 'Nombre' }, { field: 'VEHA_ID_VEHA', title: 'Vendedor' }],
+          filters: [{ columnName: 'VEHA_ID_VEHA', field: 'VEHA_ID_VEHA', operator: '=', value: VEHA_FEDERICO }] }) });
+      if (!r.ok) throw new Error('Error al buscar clientes (' + r.status + ')');
+      const arr = (await r.json()).data || [];
+      arr.forEach(c => {
+        const id = c.id || c.ID;
+        if (id && Number(c.VEHA_ID_VEHA ?? VEHA_FEDERICO) === VEHA_FEDERICO && !lista.some(x => x.id === id))
+          lista.push({ id, nombre: String(c.CLIE_NOMBRE || '').trim() });
+      });
+      if (arr.length < 200) break;
+    }
+
+    if (!lista.length) { showToast('✓ No hay clientes con vendedor "Federico Silva" — nada para corregir', 'ok'); return; }
+    if (!confirm(`Hay ${lista.length} cliente(s) en Yiqi con vendedor "Federico Silva".\n\n¿Pasarlos todos a vendedor "Local"?`)) return;
+
+    // Respaldo de la lista, por si hay que volver atrás
+    try { localStorage.setItem('dentalab_backup_federico_a_local', JSON.stringify({ fecha: new Date().toISOString(), clientes: lista })); } catch (e) {}
+
+    // 2. Cambiar el vendedor uno por uno (solo el campo Vendedor)
+    let ok = 0; const fallos = [];
+    for (let i = 0; i < lista.length; i++) {
+      const c = lista[i];
+      setBtn(`⏳ ${i + 1}/${lista.length}…`, true);
+      try {
+        const r = await yiqiFetch(`${API}/api/public/CLIENTE/${c.id}?schemaId=${SCHEMA}`, { method: 'PUT', headers: H,
+          body: JSON.stringify({ schemaId: SCHEMA, data: { VEHA_ID_VEHA: VEHA_LOCAL } }) });
+        if (r.ok) ok++;
+        else fallos.push(c.nombre + ' (#' + c.id + '): ' + (await r.text().catch(() => r.status)).slice(0, 120));
+      } catch (e) { fallos.push(c.nombre + ' (#' + c.id + '): ' + (e.message || e)); }
+    }
+
+    if (fallos.length) {
+      console.warn('[Federico → Local] fallaron:', fallos);
+      showToast(`⚠ ${ok} pasado(s) a "Local", ${fallos.length} con error (ver consola)`, 'warn');
+    } else {
+      showToast(`✅ ${ok} cliente(s) pasados a vendedor "Local"`, 'ok');
+    }
+  } catch (err) {
+    console.error('clientesFedericoALocal:', err);
+    showToast('❌ ' + (err.message || err), 'error');
+  } finally {
+    setBtn(origLabel, false);
+  }
+}
+
 async function syncClientesDesdeYiqi(btnEl) {
   const YIQI_API_BASE  = 'https://api.yiqi.com.ar';
   const YIQI_SCHEMA_ID = 328;
@@ -36965,6 +37040,11 @@ function renderClientesMain(wrap) {
         style="background:linear-gradient(135deg,#0ea5e9,#0284c7);border:none;border-radius:8px;padding:7px 14px;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;"
         title="Importa todos los pedidos de Yiqi y actualiza la base de clientes">
         🔄 Sincronizar historial YIQI
+      </button>
+      <button id="btn-federico-a-local" onclick="clientesFedericoALocal(this)"
+        style="background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:8px;padding:7px 14px;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;"
+        title="Pasa a vendedor &quot;Local&quot; todos los clientes (Empresa) de Yiqi que tengan vendedor &quot;Federico Silva&quot;">
+        🧑‍💼 Federico → Local
       </button>
       <span id="yiqi-cli-countdown" style="font-size:11px;color:var(--text3);white-space:nowrap;">${(() => {
         const last = parseInt(localStorage.getItem('dentalab_yiqi_cli_auto_ts') || '0', 10);
@@ -64018,6 +64098,8 @@ body.light-mode #pyq-wrap .pyq-mini.pyq-cc,body.pyq-claro #pyq-wrap .pyq-mini.py
 #pyq-prev .pp-tabs button.on{font-weight:700;}
 #pyq-prev .pp-tabs button,#pyq-prev .pp-tabs a{white-space:nowrap;}
 #pyq-prev .pp-tabs{flex-wrap:wrap;}
+#pyq-wrap .pyq-acnota{flex-basis:100%;order:98;margin:2px 0 0;padding:6px 12px;border-radius:8px;background:#fef9c3;border:1px solid #fde047;color:#713f12;font-size:12.5px;line-height:1.4;}
+#pyq-wrap .pyq-acnota a{color:inherit;}
 #pyq-wrap table tbody td.pyq-cel .pyq-btn-sel{outline:2px solid #60a5fa;outline-offset:1px;box-shadow:0 0 0 4px rgba(96,165,250,.22);}
 body.light-mode #pyq-wrap table tbody td.pyq-cel .pyq-btn-sel,body.pyq-claro #pyq-wrap table tbody td.pyq-cel .pyq-btn-sel{outline-color:#1a73e8;box-shadow:0 0 0 4px rgba(26,115,232,.18);}
 #pyq-wrap table tbody td.pyq-cel{outline:2px solid #60a5fa;outline-offset:-2px;box-shadow:inset 0 0 0 1px #60a5fa;}
@@ -64269,12 +64351,12 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
   // ── Períodos largos (3 meses a 2 años): son miles de pedidos, así que se busca EN YIQI ──
   // Con texto: busca por N°, cliente, observaciones y vendedor. Sin texto: trae los más recientes (hasta 2000).
   let truncadoLargo = false;
-  async function fetchLargo(H) {
+  async function fetchLargo(H, qForzado) {
     const desde = new Date(); desde.setHours(0,0,0,0); desde.setDate(desde.getDate() - prefs.dias);
     const dia = isoDia(desde);
     const base = [{ c: 'PEDI_FECHA', op: '>=', v: dia }];
     if (!prefs.ml) base.push({ c: 'EXTE_ID_EXTE', op: '!=', v: 2 });
-    const q = String(prefs.q || '').trim();
+    const q = String(qForzado != null ? qForzado : (prefs.q || '')).trim();
     truncadoLargo = false;
     const consultas = [];
     if (q) {
@@ -64299,7 +64381,12 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
       } catch(e) { ultimoErr = e; console.warn('[pedidosYiqi] búsqueda larga falló:', extra, e.message); }
     }
     if (!okAlguna) throw ultimoErr || new Error('Sin respuesta de Yiqi');
-    return finalizar(out, desde);
+    const res = finalizar(out, desde);
+    if (!res.length && q && qForzado == null) {            // nada en Yiqi: probar con el cliente más parecido
+      const corr = corregirBusqueda(q);
+      if (corr && corr !== q.toLowerCase()) return fetchLargo(H, corr);
+    }
+    return res;
   }
   function finalizar(out, desde) {
     let res = out;
@@ -64597,8 +64684,37 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     if (y) render();
   }
 
+  // ── Autocorrector del buscador (el mismo de productos; se activa/desactiva igual) ──
+  // Si lo escrito no encuentra nada, prueba con el nombre de cliente más parecido ("rizato" → "rizzatto").
+  // Aprende los nombres de clientes de todos los pedidos que pasan por la grilla (se guardan en este navegador).
+  const LS_VOC = 'pyq_vocab_clientes';
+  let vocNombres = null, vocGuardarT = null, acNota = null, acIgnorar = null;
+  function vocabPyq() {
+    if (!vocNombres) { try { vocNombres = new Set(JSON.parse(localStorage.getItem(LS_VOC) || '[]')); } catch (e) { vocNombres = new Set(); } }
+    const antes = vocNombres.size;
+    rows.forEach(r => { const n = String(r.CLIE_NOMBRE || '').trim(); if (n) vocNombres.add(n); });
+    if (vocNombres.size !== antes) { clearTimeout(vocGuardarT); vocGuardarT = setTimeout(() => { try { localStorage.setItem(LS_VOC, JSON.stringify([...vocNombres].slice(-6000))); } catch (e) {} }, 1500); }
+    return window._acVocab('pyq', vocNombres.size, add => vocNombres.forEach(add));
+  }
+  function corregirBusqueda(txt) {
+    txt = String(txt || '').trim();
+    if (!txt || /^\d+$/.test(txt) || txt.length < 3 || acIgnorar === txt) return null;
+    if (!window._acCorregirTexto || !window._acActivo || !window._acActivo()) return null;
+    return window._acCorregirTexto(txt, vocabPyq());
+  }
+  window._pyqAcExacto = () => { acIgnorar = String(prefs.q || '').trim(); render(); };
   function filtradas() {
-    const q = prefs.q.trim().toLowerCase();
+    acNota = null;
+    const r = filtradasBase();
+    if (r.length || !prefs.q.trim()) return r;
+    const corr = corregirBusqueda(prefs.q);
+    if (!corr) return r;
+    const r2 = filtradasBase(corr);
+    if (r2.length) { acNota = { orig: prefs.q.trim(), corr }; return r2; }
+    return r;
+  }
+  function filtradasBase(qForzado) {
+    const q = String(qForzado != null ? qForzado : prefs.q).trim().toLowerCase();
     let out = rows.filter(r => {
       if (prefs.estado && estadoVer(r.DESC_ESTADO || '') !== estadoVer(prefs.estado)) return false;
       if (prefs.vend && String(r.VEHA_ID_VEHA ?? '') !== String(prefs.vend)) return false;
@@ -64688,7 +64804,7 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
         <span style="position:relative;display:inline-block;"><button class="pyq-btn sec" data-a="cols">⚙ Columnas</button>${colsAbierto ? panelCols() : ''}</span>
         <button class="pyq-btn sec pyq-tema-btn" data-a="tema" title="${document.body.classList.contains('pyq-claro') ? 'Pasar la grilla de Pedidos a modo oscuro' : 'Pasar la grilla de Pedidos a modo claro'}">${document.body.classList.contains('pyq-claro') ? '🌙' : '☀️'}</button>
         <button class="pyq-btn sec" data-a="crm" title="Volver a la vista anterior del CRM (Gmail, calendario, etc.)">Vista anterior</button>
-        <span class="pyq-info">${prefs.dias > 31 ? `<span style="color:#fcd34d">${prefs.q ? 'Búsqueda en Yiqi · ' : (prefs.vend ? '' : (truncadoLargo ? 'Mostrando los 2000 más recientes — escribí en el buscador para buscar en todo el período · ' : 'Escribí en el buscador para buscar en todo el período · '))}</span>` : ''}${lista.length} de ${rows.length} pedidos${hace != null ? ` · actualizado ${hace < 1 ? 'recién' : 'hace ' + hace + ' min'}` : ''} · <span style="color:#a78bfa">✎</span> = editable (clic en la celda) · ↑ ↓ ← → moverse · Shift + ← → costados · Enter editar / guardar · Shift + Enter o clic = ficha del pedido</span>
+        ${acNota ? `<div class="pyq-acnota">${window._acNotaHTML(acNota.orig, acNota.corr, 'window._pyqAcExacto()', null)}</div>` : ''}<span class="pyq-info">${prefs.dias > 31 ? `<span style="color:#fcd34d">${prefs.q ? 'Búsqueda en Yiqi · ' : (prefs.vend ? '' : (truncadoLargo ? 'Mostrando los 2000 más recientes — escribí en el buscador para buscar en todo el período · ' : 'Escribí en el buscador para buscar en todo el período · '))}</span>` : ''}${lista.length} de ${rows.length} pedidos${hace != null ? ` · actualizado ${hace < 1 ? 'recién' : 'hace ' + hace + ' min'}` : ''} · <span style="color:#a78bfa">✎</span> = editable (clic en la celda) · ↑ ↓ ← → moverse · Shift + ← → costados · Enter editar / guardar · Shift + Enter o clic = ficha del pedido</span>
       </div>
       ${needLogin ? `<div class="pyq-login">🔑 Ingresá tu usuario de Yiqi para ver los pedidos:
           <input type="text" id="pyq-u" placeholder="Usuario" autocomplete="username"><input type="password" id="pyq-p" placeholder="Contraseña" autocomplete="current-password">
@@ -65034,7 +65150,9 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     // (ahí se mueven entre celdas). Esc desmarca y vuelven a mover el cursor del texto.
     const celdaDesdeBuscador = enBuscador && selId != null && !e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight');
     const escDesdeBuscador = enBuscador && selId != null && e.key === 'Escape';
-    if (enBuscador && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && !lateral && !celdaDesdeBuscador && !escDesdeBuscador) return;
+    const enterDesdeBuscador = enBuscador && selId != null && e.key === 'Enter'; // Enter actúa sobre la celda / botón marcado
+    if (enBuscador && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && !lateral && !celdaDesdeBuscador && !escDesdeBuscador && !enterDesdeBuscador) return;
+    if (enterDesdeBuscador) ultimoMouse = false;   // desde el buscador manda el teclado (la celda marcada), no el mouse
     if (!enBuscador && t && t.closest && t.closest('input,textarea,select,[contenteditable="true"]')) return;
     // Solo si el foco está en la grilla, en el panel o en ningún lado (no dentro de otro modal)
     if (t && t !== document.body && t !== document.documentElement && !(t.closest && t.closest('#pyq-wrap,#pyq-prev'))) return;
@@ -65062,6 +65180,11 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
           const tr = td.closest('tr[data-id]'), th = document.querySelectorAll('#pyq-wrap thead th')[[...tr.children].indexOf(td)];
           if (th && th.dataset.col) { selCol = th.dataset.col; selId = tr.dataset.id; marcarFila(selId); }
           td.click();
+          // Si se editó desde el buscador, al terminar (guardar o cancelar) el cursor vuelve al buscador
+          if (enBuscador) {
+            const ed = td.querySelector('textarea,input,select'), q = t;
+            if (ed) ed.addEventListener('blur', () => setTimeout(() => { if (!document.activeElement || document.activeElement === document.body) { q.focus(); } }, 200), { once: true });
+          }
         } else if (typeof toast === 'function') toast('Esta celda no se edita desde acá · Shift + Enter abre la ficha del pedido', 'warn');
       }
     }
