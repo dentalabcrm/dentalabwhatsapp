@@ -65382,6 +65382,14 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
       });
       budgetItems = items;
       budgetGlobalDisc = 0; budgetGlobalDiscMonto = 0;
+      // Descuento global del pedido (Dto Global % de Yiqi). Si el % no es redondo (ej. 10,0386%),
+      // se carga como monto en $ para que el total quede igual al de Yiqi.
+      { const dg = Number(ped.PEDI_DTO_GLOBAL) || 0;
+        if (dg > 0 && dg < 100) {
+          if (Math.abs(dg - Math.round(dg * 100) / 100) < 1e-6) { budgetDiscMode = 'pct'; budgetGlobalDisc = Math.round(dg * 100) / 100; }
+          else { const sub = items.reduce((s, it) => s + (typeof calcItem === 'function' ? calcItem(it) : it.precio * it.qty * (1 - (it.disc || 0) / 100)), 0);
+                 budgetDiscMode = 'monto'; budgetGlobalDiscMonto = r2(sub * dg / 100); }
+        } else { budgetDiscMode = 'pct'; } }
       budgetClientData = Object.assign({}, budgetClientData, { nombre: info.cliente || ped.PEDI_RAZON_SOCIAL || '', cuit: ped.PEDI_CUIT || '', notas: 'Pedido Yiqi N° ' + info.nro });
       const inv = SEYI_INV();
       const s0 = servs.find(s => Number(s.SEYI_ID_SEYI) !== 16); // 16 = Financiamiento (no es envío)
