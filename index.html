@@ -63850,7 +63850,8 @@ document.addEventListener('DOMContentLoaded', () => {
 #pyq-wrap .pyq-swb[class*="pc-"]{background:var(--pcs);}
 #pyq-wrap table thead tr th.pc{background:linear-gradient(var(--pch),var(--pch)),#1e293b;color:#f1f5f9;}
 #pyq-wrap table tbody tr td.pc{background:var(--pc);}
-#pyq-wrap table tbody tr:hover td.pc{background:var(--pch);}
+#pyq-wrap table tbody tr:hover td.pc,
+#pyq-wrap table tbody tr.pyq-sel td.pc{background:var(--pch);}
 /* ── Modo claro: misma estética que Pedidos Yiqi del catálogo ── */
 body.light-mode #pyq-wrap{color:#212529;}
 body.light-mode #pyq-wrap .pyq-title,body.pyq-claro #pyq-wrap .pyq-title{color:#212529;}
@@ -63867,7 +63868,8 @@ body.light-mode #pyq-wrap th,body.pyq-claro #pyq-wrap th{background:#f8f9fa;colo
 body.light-mode #pyq-wrap th .pyq-ed,body.pyq-claro #pyq-wrap th .pyq-ed{color:#1a73e8;}
 body.light-mode #pyq-wrap td,body.pyq-claro #pyq-wrap td{color:#212529;background:#fff;border-bottom:1px solid #e9ecef;border-right:1px solid #f1f3f5;}
 body.light-mode #pyq-wrap tbody tr:nth-child(even) td,body.pyq-claro #pyq-wrap tbody tr:nth-child(even) td{background:#fbfbfc;}
-body.light-mode #pyq-wrap tbody tr:hover td,body.pyq-claro #pyq-wrap tbody tr:hover td{background:#f1f5fb;}
+body.light-mode #pyq-wrap tbody tr:hover td,body.pyq-claro #pyq-wrap tbody tr:hover td,
+body.light-mode #pyq-wrap tbody tr.pyq-sel td,body.pyq-claro #pyq-wrap tbody tr.pyq-sel td{background:#f1f5fb;}
 body.light-mode #pyq-wrap .pyq-mini,body.pyq-claro #pyq-wrap .pyq-mini{background:#fff;border:1px solid #ced4da;color:#495057;border-radius:4px;}
 body.light-mode #pyq-wrap .pyq-mini:hover,body.pyq-claro #pyq-wrap .pyq-mini:hover{background:#e8f0fe;border-color:#1a73e8;color:#1a73e8;}
 body.light-mode #pyq-wrap .pyq-mini.pyq-del:hover,body.pyq-claro #pyq-wrap .pyq-mini.pyq-del:hover{background:#fdecea;border-color:#dc3545;color:#dc3545;}
@@ -63911,7 +63913,8 @@ body.light-mode #pyq-wrap .pc-rosa,body.pyq-claro #pyq-wrap .pc-rosa,
 body.light-mode #pyq-prev .pc-rosa,body.pyq-claro #pyq-prev .pc-rosa{--pc:#fdeef6;--pch:#fbcfe8;} body.light-mode #pyq-wrap .pc-violeta,body.pyq-claro #pyq-wrap .pc-violeta, body.light-mode #pyq-prev .pc-violeta,body.pyq-claro #pyq-prev .pc-violeta{--pc:#f3efff;--pch:#ddd6fe;} body.light-mode #pyq-wrap .pc-naranja,body.pyq-claro #pyq-wrap .pc-naranja, body.light-mode #pyq-prev .pc-naranja,body.pyq-claro #pyq-prev .pc-naranja{--pc:#fff1e3;--pch:#fed7aa;}
 body.light-mode #pyq-wrap table thead tr th.pc,body.pyq-claro #pyq-wrap table thead tr th.pc{background:var(--pch);color:#212529;}
 body.light-mode #pyq-wrap table tbody tr td.pc,body.pyq-claro #pyq-wrap table tbody tr td.pc{background:var(--pc);}
-body.light-mode #pyq-wrap table tbody tr:hover td.pc,body.pyq-claro #pyq-wrap table tbody tr:hover td.pc{background:var(--pch);}
+body.light-mode #pyq-wrap table tbody tr:hover td.pc,body.pyq-claro #pyq-wrap table tbody tr:hover td.pc,
+body.light-mode #pyq-wrap table tbody tr.pyq-sel td.pc,body.pyq-claro #pyq-wrap table tbody tr.pyq-sel td.pc{background:var(--pch);}
 /* ── Vista previa del pedido (panel a la derecha) ── */
 #pyq-prev{position:fixed;top:0;right:0;bottom:0;width:var(--ppw,min(560px,48vw));max-width:100vw;z-index:9500;display:flex;flex-direction:column;font-family:'DM Sans',sans-serif;}
 #pyq-prev .pp-drag{position:absolute;left:-4px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:3;}
