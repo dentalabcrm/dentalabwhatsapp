@@ -32,7 +32,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dentalab Whatsapp CRM · v25.441</title>
+<title>Dentalab Whatsapp CRM · v25.442</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%B7%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12810,7 +12810,7 @@ const SINONIMOS_RAW = [
   ['Escáner intraoral', 'scanner intraoral', 'escaner', 'scanner', 'escáner 3D', 'intraoral'],
   ['RX Portátil', 'rayos x', 'rayos', 'radiografía', 'radiografia', 'equipo de rayos'],
   ['Sistema Radiográfico Digital', 'RVG', 'radiovisiógrafo', 'radiovisiografo', 'sensor', 'sensor RVG', 'sensor digital'],
-  ['Lámpara de Fotocurado', 'fotocurado', 'lámpara LED', 'luz de fotocurado', 'lámpara de luz'],
+  ['Lámpara de Fotocurado', 'lámpara LED', 'luz de fotocurado', 'lámpara de luz'], // sin "fotocurado" suelto: traía adhesivos/barreras al buscar "lámpara"
   ['Autoclave', 'esterilizador', 'esterilizadora', 'clase B', 'autoclave 21L'],
   ['Fisiodispenser', 'motor de implantes', 'implant motor'], // sin "implantes" suelto (traía contra ángulos "• Implantes")
   ['Micromotor Eléctrico', 'motor eléctrico', 'motor de cirugía', 'micromotor LED'],
@@ -13560,7 +13560,8 @@ function _applyFiltersBase() {
         // (para que "ocryl" encuentre "O-cryl", "acrilico" encuentre "Acrílico", etc.)
         // y probar también los sinónimos del grupo de cada término (ej: "irrigador" → "Duchador").
         const _okT = t => {
-          const candidatos = _candidatosSinonimos(t);
+          // Un sinónimo que repite otra palabra de la misma búsqueda no cuenta ("lámpara de fotocurado" traía adhesivos)
+          const candidatos = _candidatosSinonimos(t).filter(c => c === t || !(tokensNorm.includes(_sinPuntGlobal(c)) || (' ' + tokensNorm.join(' ') + ' ').includes(' ' + _sinPuntGlobal(c) + ' ')));
           return candidatos.some(c => fields.some(f => f.includes(c)) || fieldsSinPunt.some(f => f.includes(_sinPunt(c))));
         };
         let tokensOk = tokens.every(_okT);
@@ -28499,6 +28500,121 @@ function detectTipoDesdeAsunto(subject) {
   return null;
 }
 
+// ── Después de cargar un pedido en Yiqi: abrir "Nuevo pedido → depósito" con todo completo ──
+// Tipo de pedido según el origen y el estado del envío del pedido cargado.
+function _mailDepTipo(origen, envio) {
+  const env = /^\s*ENVIAR/i.test(String(envio || '')) ? 'enviar' : 'retira';
+  const o = String(origen || '').toLowerCase();
+  const pre = /web/.test(o) ? 'web-' : /jorge/.test(o) ? 'jorge-' : /gregorio/.test(o) ? 'gregorio-' : /^local/.test(o) ? 'mostrador-' : '';
+  return pre + env;
+}
+// Cobro según el estado de pago (y si no hay, la condición de venta). null = dejar el que pone el modal.
+function _mailDepCobro(pago, cond) {
+  const p = String(pago || '').toUpperCase().trim(), c = String(cond || '').toLowerCase();
+  if (p === 'TRANSFERENCIA') return 'TRANSFERENCIA';
+  if (p === 'EFECTIVO') return 'EFECTIVO';
+  if (/MOSTRADOR/.test(p)) return 'EF. /DEB. /TRANSF.';
+  if (/LINK DE PAGO/.test(p)) return 'LINK DE PAGO';
+  if (p === 'CUENTA CORRIENTE') return 'CUENTA CORRIENTE';
+  if (p === 'EN ESPERA') return 'A CONFIRMAR';
+  if (/transferencia/.test(c)) return 'TRANSFERENCIA';
+  if (/cuenta corriente/.test(c)) return 'CUENTA CORRIENTE';
+  if (/mercado pago|tarjeta/.test(c)) return 'LINK DE PAGO';
+  return null;
+}
+// Nombres de vendedor / origen / condición de venta según su ID en Yiqi (para completar el mail desde el N°)
+const MD_VEHA = {12:'Aris Samandjian',13:'Mercado Libre',4:'Juan Martin Gaffuri',8:'Federico Silva',7:'Eduardo Balassanian',5:'Jorge Campagnoli',3:'Carlos Cirigliano',1:'Local',10:'Mostrador',11:'Patricia Bazan',6:'POS Factura',9:'Showroom',2:'Gregorio Samandjian'};
+const MD_EXTE = {13:'WhatsApp',3:'Local',4:'Jorge (Dep 7)',6:'Gregorio (Dep 2)',10:'E. Balassanian',11:'Web',16:'Sólo Factura',2:'MercadoLibre'};
+const MD_COVE = {3:'Contado',6:'Transferencia bancaria',5:'Mercado Pago',7:'Tarjeta de Crédito',8:'Tarjeta de Débito',9:'Cuenta Corriente',4:'Cuenta Corriente - 30 días',2:'15 Días Fecha de Factura',1:'30 Días Fecha de Factura',10:'15 + 15 días F.P.F.'};
+const _mdId = v => (v && typeof v === 'object') ? (v.id != null ? v.id : v.ID) : v;
+// Datos del mail a partir de un pedido de Yiqi (fila de PEDIDO/query)
+function _mailDepDatosDePedido(p) {
+  const nom = (map, v) => { const id = _mdId(v); return map[id] || (typeof v === 'string' && isNaN(Number(v)) ? v : ''); };
+  return { vendedor: nom(MD_VEHA, p.VEHA_ID_VEHA), origen: nom(MD_EXTE, p.EXTE_ID_EXTE), envio: p.PEDI_ESTADO_DEL_ENVIO || '', pago: p.PEDI_ESTADO_DE_PAGO || '', cond: nom(MD_COVE, p.COVE_ID_COVE) };
+}
+window._mailDepDatosDePedido = _mailDepDatosDePedido;
+// d = { nro, cliente, vendedor, origen, envio, pago, cond }. desdeNro: los datos vienen de buscar el N° (pisan lo elegido antes)
+function _mailDepCompletar(d, opts) {
+  const bd = document.getElementById('ped-modal-bd'); if (!bd || !d) return;
+  opts = opts || {};
+  const $ = s => bd.querySelector(s);
+  const fire = (el, ev) => { if (el) el.dispatchEvent(new Event(ev, { bubbles: true })); };
+  const tiene = (el, v) => !!el && v != null && v !== '' && Array.from(el.options).some(o => o.value === v);
+  if (opts.desdeNro) { delete bd.dataset.cobroManual; delete bd.dataset.respManual; }
+  // 1) Vendedor (dispara su regla de cobro por defecto); no cambia el vendedor predeterminado guardado
+  const vSel = $('#env-vendedor');
+  if (tiene(vSel, d.vendedor)) {
+    let prev = null; try { prev = loadVendedorDefault(); } catch (e) {}
+    vSel.value = d.vendedor; fire(vSel, 'change');
+    try { if (prev != null) saveVendedorDefault(prev); } catch (e) {}
+  }
+  // 2) Tipo de pedido (Retira / Enviar / Web / Jorge / Gregorio / Mostrador)
+  if (d.origen || d.envio) {
+    const t = TIPOS_PEDIDO.find(x => x.value === _mailDepTipo(d.origen, d.envio));
+    const tSel = $('#env-tipo'), tTxt = $('#env-tipo-text');
+    if (t && tSel) { tSel.value = t.value; if (tTxt) tTxt.value = t.label; fire(tSel, 'change'); }
+  }
+  // 3) Responsable (tipos Web/Jorge/Gregorio/Mostrador) y cobro: se guardan en el modal y se re-aplican
+  //    si el modal los pisa al completar N° o cliente (los listeners se ponen una sola vez)
+  bd._mdDatos = { vendedor: d.vendedor, cobro: _mailDepCobro(d.pago, d.cond) };
+  const cSel = $('#env-cobro'), rSel = $('#env-web-responsable'), cliIn = $('#env-cliente'), nroIn = $('#env-nro');
+  const aplicar = () => {
+    const md = bd._mdDatos || {}, wrap = $('#env-web-responsable-wrap');
+    if (wrap && wrap.style.display !== 'none' && bd.dataset.respManual !== '1' && tiene(rSel, md.vendedor) && rSel.value !== md.vendedor) { rSel.value = md.vendedor; fire(rSel, 'change'); }
+    if (md.cobro && bd.dataset.cobroManual !== '1' && tiene(cSel, md.cobro) && cSel.value !== md.cobro) { cSel.value = md.cobro; fire(cSel, 'change'); }
+  };
+  if (!bd.dataset.mdListen) {
+    bd.dataset.mdListen = '1';
+    cSel?.addEventListener('change', e => { if (e.isTrusted) bd.dataset.cobroManual = '1'; });
+    rSel?.addEventListener('change', e => { if (e.isTrusted) bd.dataset.respManual = '1'; });
+    [nroIn, cliIn].forEach(el => el?.addEventListener('input', () => setTimeout(() => bd._mdAplicar && bd._mdAplicar(), 0)));
+  }
+  bd._mdAplicar = aplicar;
+  aplicar();
+  // 4) Cliente (al instante; después Yiqi lo confirma con el N°)
+  if (cliIn && d.cliente && !cliIn.value.trim()) { cliIn.value = String(d.cliente).trim(); cliIn.dataset.auto = '1'; fire(cliIn, 'input'); }
+  // 5) N° de pedido → completa cliente, tipo, cobro, vendedor y adjunta el PDF del presupuesto
+  if (nroIn && d.nro) { nroIn.value = String(d.nro).replace(/\D/g, ''); fire(nroIn, 'input'); nroIn.dispatchEvent(new Event('blur')); }
+  setTimeout(aplicar, 0);
+}
+window._mailDepCompletar = _mailDepCompletar;
+
+// Si Yiqi todavía no asignó el N° del pedido, se sigue buscando en segundo plano (con el mail ya abierto)
+// y se completa solo en cuanto aparece → eso trae el cliente y adjunta el PDF del presupuesto.
+// buscar(): promesa con el N° o vacío. Se detiene si cerrás el mail o escribís el N° a mano.
+function _mailDepEsperarNro(buscar, opts) {
+  opts = opts || {};
+  const maxMs = opts.maxMs || 120000, cada = opts.cada || 3000, t0 = Date.now();
+  let miBd = null;
+  const fin = (nroIn, ph) => { if (nroIn) { nroIn.placeholder = ph != null ? ph : (nroIn.dataset.ph || ''); delete nroIn.dataset.esperando; } };
+  const tick = async () => {
+    const bd = document.getElementById('ped-modal-bd');
+    if (!bd) { if (miBd || Date.now() - t0 > 8000) return; return setTimeout(tick, 300); }
+    if (miBd && bd !== miBd) return;           // se abrió otro mail: no tocarlo
+    miBd = bd;
+    const nroIn = bd.querySelector('#env-nro'); if (!nroIn) return;
+    if (nroIn.value.trim()) return fin(nroIn); // ya tiene N° (a mano o encontrado)
+    if (!nroIn.dataset.esperando) { nroIn.dataset.esperando = '1'; nroIn.dataset.ph = nroIn.placeholder || ''; nroIn.placeholder = '⏳ esperando N°…'; nroIn.title = 'Yiqi todavía no asignó el N° del pedido: se completa solo en cuanto aparezca'; }
+    let nro = '';
+    try { nro = String((await buscar()) || '').replace(/\D/g, ''); } catch (e) {}
+    if (document.getElementById('ped-modal-bd') !== bd) return;
+    if (nroIn.value.trim()) return fin(nroIn);
+    if (nro) {
+      fin(nroIn);
+      nroIn.value = nro;
+      nroIn.dispatchEvent(new Event('input', { bubbles: true })); nroIn.dispatchEvent(new Event('blur'));
+      nroIn.style.transition = 'box-shadow .3s'; nroIn.style.boxShadow = '0 0 0 3px rgba(16,185,129,.55)'; setTimeout(() => { nroIn.style.boxShadow = ''; }, 2500);
+      try { opts.onOk && opts.onOk(nro); } catch (e) {}
+      return;
+    }
+    if (Date.now() - t0 > maxMs) { fin(nroIn, 'completalo a mano'); try { opts.onFalla && opts.onFalla(); } catch (e) {} return; }
+    setTimeout(tick, cada);
+  };
+  setTimeout(tick, 400);
+}
+window._mailDepEsperarNro = _mailDepEsperarNro;
+
+
 function abrirModalNuevoPedido() {
   const existing = document.getElementById('ped-modal-bd');
   if (existing) { existing.remove(); return; }
@@ -28683,7 +28799,7 @@ function abrirModalNuevoPedido() {
       try {
         // 2) Pedido por N° (nunca por "adivinar" el ID)
         const r = await yiqiFetch(`${API}/api/public/PEDIDO/query?schemaId=${SCHEMA}`, { method: 'POST', headers: H,
-          body: JSON.stringify({ page: 1, pageSize: 5, columns: ['ID', 'PEDI_NUMERO_SOLO', 'CLIE_NOMBRE', 'PEDI_RAZON_SOCIAL', 'DESC_ESTADO'].map((f, i) => ({ field: f, title: f, order: i + 1 })),
+          body: JSON.stringify({ page: 1, pageSize: 5, columns: ['ID', 'PEDI_NUMERO_SOLO', 'CLIE_NOMBRE', 'PEDI_RAZON_SOCIAL', 'DESC_ESTADO', 'VEHA_ID_VEHA', 'EXTE_ID_EXTE', 'COVE_ID_COVE', 'PEDI_ESTADO_DEL_ENVIO', 'PEDI_ESTADO_DE_PAGO'].map((f, i) => ({ field: f, title: f, order: i + 1 })),
             filters: [{ columnName: 'PEDI_NUMERO_SOLO', operator: '=', value: Number(nro) }] }) });
         if (my !== _envSeq) return;
         const j = r.ok ? await r.json() : {};
@@ -28692,6 +28808,8 @@ function abrirModalNuevoPedido() {
         const id = p.id || p.ID;
         const nombre = String(p.PEDI_RAZON_SOCIAL || p.CLIE_NOMBRE || '').trim();
         if (nombre && autoNombre() && my === _envSeq) { cliIn.value = nombre; cliIn.dataset.auto = '1'; cliIn.dispatchEvent(new Event('input', { bubbles: true })); }
+        // Tipo de pedido, cobro y vendedor del pedido de Yiqi
+        if (my === _envSeq && window._mailDepCompletar && window._mailDepDatosDePedido) { try { window._mailDepCompletar(window._mailDepDatosDePedido(p), { desdeNro: true }); } catch (e) { console.warn('[mail] no se pudieron completar tipo/cobro/vendedor', e); } }
         estado('<span style="color:#34d399">✓ ' + (nombre || 'Pedido encontrado') + (p.DESC_ESTADO ? ' · ' + p.DESC_ESTADO : '') + '</span> · <a href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/' + id + '" target="_blank" style="color:var(--blue)">ver en Yiqi ↗</a>');
         // 3) PDF del pedido → adjunto
         const atts = window._envAttachments || (window._envAttachments = []);
@@ -40201,6 +40319,23 @@ function renderDashboard() {
 }
 
 // Helper para cambiar tab desde cualquier lugar
+// Envíos Dentalab: la tecla Retroceso (fuera de un campo de texto) lleva al buscador
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Backspace' || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (t && t.closest && t.closest('input,textarea,select,[contenteditable="true"],[contenteditable=""]')) return;
+  const panel = document.getElementById('panel-envios-dentalab');
+  if (!panel || !panel.getClientRects().length) return;
+  // No si hay una ventana abierta encima (ej. Nuevo envío)
+  const visible = el => el.getClientRects().length > 0 && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden';
+  if ([...document.querySelectorAll('[id$="modal-bd"],[id$="-modal"],.modal-bd,.modal-overlay,.modal-backdrop')].some(el => !panel.contains(el) || getComputedStyle(el).position === 'fixed' ? visible(el) : false)) return;
+  const inp = [...document.querySelectorAll('#ed-search')].find(visible);
+  if (!inp) return;
+  e.preventDefault();
+  inp.focus(); inp.select();
+  inp.scrollIntoView({ block: 'nearest' });
+});
+
 function switchTab(tabName) {
   const tabBtn = document.getElementById('tab-' + tabName);
   if (!tabBtn) return;
@@ -41527,8 +41662,40 @@ async function cargarPedidoEnYiqi(btnEl) {
       else if (!_er2.omitido) showToast('⚠ El pedido se cargó pero el envío no: ' + _er2.msg, 'warn');
     } catch (eEnv2) { showToast('⚠ El pedido se cargó pero el envío no: ' + eEnv2.message, 'warn'); }
     showToast(`✅ Pedido #${newId} ${_editId2 ? 'actualizado' : 'creado'} en Yiqi${prodMsg}${_envMsg2}`, 'ok');
+    // Datos para el mail al depósito (se leen antes de limpiar el formulario)
+    const _datosMail = !_editId2 ? { cliente: clienteNombre, vendedor: g('ped-vendedor'), origen: g('ped-origen'), envio: estadoEnvFinal, pago: g('ped-estado-pago'), cond: g('ped-condventa') } : null;
     document.getElementById('pedido-modal-bd').style.display = 'none';
     resetPedidoForm();
+    // Pedido nuevo → se abre solo "Nuevo pedido → depósito" con todo completo (N°, cliente, PDF, tipo, vendedor, cobro)
+    if (_datosMail) {
+      let _nroPed = '';
+      try {
+        const _gr = await yiqiFetch(`${YIQI_API_BASE}/api/public/PEDIDO/${newId}?schemaId=${YIQI_SCHEMA_ID}`, { headers: authHeader });
+        if (_gr.ok) { const _gj = await _gr.json(); const _o = (_gj && (_gj.data || _gj)) || {}; _nroPed = _o.PEDI_NUMERO_SOLO || _o.PEDI_NUMERO || ''; }
+      } catch (_e) { console.warn('cargarYiqi: no se pudo leer el N° del pedido', _e); }
+      try {
+        document.getElementById('ped-modal-bd')?.remove();
+        abrirModalNuevoPedido();
+        setTimeout(() => _mailDepCompletar(Object.assign({ nro: _nroPed }, _datosMail)), 120);
+        // Sin N° todavía: se sigue buscando en Yiqi con el mail abierto y se completa solo
+        if (!_nroPed) {
+          showToast('⏳ Yiqi todavía no asignó el N° del pedido: se completa solo en el mail en cuanto aparezca', 'ok');
+          _mailDepEsperarNro(async () => {
+            try {
+              const r1 = await yiqiFetch(`${YIQI_API_BASE}/api/public/PEDIDO/${newId}?schemaId=${YIQI_SCHEMA_ID}`, { headers: authHeader });
+              if (r1.ok) { const j1 = await r1.json(); const o1 = (j1 && (j1.data || j1)) || {}; if (o1.PEDI_NUMERO_SOLO || o1.PEDI_NUMERO) return o1.PEDI_NUMERO_SOLO || o1.PEDI_NUMERO; }
+            } catch (e) {}
+            const r2 = await yiqiFetch(`${YIQI_API_BASE}/api/public/PEDIDO/query?schemaId=${YIQI_SCHEMA_ID}`, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, authHeader),
+              body: JSON.stringify({ page: 1, pageSize: 1, columns: [{ field: 'ID', title: 'ID', order: 1 }, { field: 'PEDI_NUMERO_SOLO', title: 'PEDI_NUMERO_SOLO', order: 2 }], filters: [{ columnName: 'ID', operator: '=', value: Number(newId) }] }) });
+            if (!r2.ok) return '';
+            const j2 = await r2.json(); return (((j2 && j2.data) || [])[0] || {}).PEDI_NUMERO_SOLO || '';
+          }, {
+            onOk: n => showToast('✅ Yiqi asignó el N° ' + n + ': completado en el mail', 'ok'),
+            onFalla: () => showToast('⚠ Yiqi no asignó el N° en 2 minutos: completalo a mano en el mail', 'warn')
+          });
+        }
+      } catch (_e) { console.warn('cargarYiqi: no se pudo abrir el mail al depósito', _e); }
+    }
 
   } catch(err) {
     console.error('cargarYiqi error:', err);
@@ -45580,7 +45747,7 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 // ═══════════════════════════════════════════════════════════════
 (function setupChangelog() {
   const STORAGE_KEY_BASE = 'dentalab_changelog_seen';
-  const LATEST_VERSION = 'v25.441';
+  const LATEST_VERSION = 'v25.442';
   // Clave por usuario: se recalcula en cada llamada para soportar login/logout
   function _changelogKey() {
     try {
@@ -45593,6 +45760,14 @@ if (_enviosPanelEl) _enviosPanelObserver.observe(_enviosPanelEl, { childList: tr
 
   // ── Historial de versiones ──
   const CHANGELOG = [
+    {
+      version: 'v25.442',
+      fecha: '2026-11-19',
+      titulo: 'Buscador: "lámpara de fotocurado" ya no trae adhesivos',
+      items: [
+        { tipo: 'corrección', texto: 'Buscar "lámpara" o "lámpara de fotocurado" trae solo lámparas: antes "lámpara" contaba como sinónimo de "fotocurado" y traía también adhesivos y barreras de fotocurado. Además, un sinónimo que repite otra palabra de la misma búsqueda ya no cuenta.' }
+      ]
+    },
     {
       version: 'v25.441',
       fecha: '2026-11-19',
@@ -63643,7 +63818,7 @@ document.addEventListener('DOMContentLoaded', () => {
 #pyq-wrap td textarea,#pyq-wrap td input,#pyq-wrap td select{width:100%;min-width:140px;box-sizing:border-box;background:#0b1220;border:1px solid #8b5cf6;border-radius:6px;color:#f1f5f9;font:inherit;padding:4px 6px;}
 #pyq-wrap td textarea{min-height:90px;min-width:260px;resize:vertical;}
 #pyq-wrap .pyq-hint{font-size:10.5px;color:#64748b;margin-top:3px;}
-#pyq-wrap .pyq-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;background:rgba(148,163,184,.15);color:#cbd5e1;}
+#pyq-wrap .pyq-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;background:var(--bg,rgba(148,163,184,.15));color:var(--fg,#cbd5e1);}
 #pyq-wrap .pyq-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
 #pyq-wrap .pyq-chip{font-size:11.5px;padding:3px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);cursor:pointer;color:#94a3b8;background:transparent;font-family:inherit;}
 #pyq-wrap .pyq-chip.on{border-color:#8b5cf6;color:#e9d5ff;background:rgba(139,92,246,.2);}
@@ -63666,13 +63841,237 @@ document.addEventListener('DOMContentLoaded', () => {
 #pyq-wrap .pyq-swb{width:15px;height:15px;border-radius:50%;border:1px solid rgba(255,255,255,.25);cursor:pointer;padding:0;}
 #pyq-wrap .pyq-swb.sin{background:#0f172a;background-image:linear-gradient(135deg,transparent 45%,#ef4444 45%,#ef4444 55%,transparent 55%);}
 #pyq-wrap .pyq-swb.on{outline:2px solid #a78bfa;outline-offset:1px;}
-#pyq-wrap .pc-amarillo{--pc:rgba(250,204,21,.09);--pch:rgba(250,204,21,.26);--pcs:#facc15;} #pyq-wrap .pc-verde{--pc:rgba(34,197,94,.09);--pch:rgba(34,197,94,.26);--pcs:#22c55e;}
-#pyq-wrap .pc-azul{--pc:rgba(59,130,246,.10);--pch:rgba(59,130,246,.28);--pcs:#3b82f6;} #pyq-wrap .pc-rosa{--pc:rgba(236,72,153,.09);--pch:rgba(236,72,153,.26);--pcs:#ec4899;}
-#pyq-wrap .pc-violeta{--pc:rgba(139,92,246,.10);--pch:rgba(139,92,246,.28);--pcs:#8b5cf6;} #pyq-wrap .pc-naranja{--pc:rgba(249,115,22,.09);--pch:rgba(249,115,22,.26);--pcs:#f97316;}
+#pyq-wrap .pc-amarillo,
+#pyq-prev .pc-amarillo{--pc:rgba(250,204,21,.09);--pch:rgba(250,204,21,.26);--pcs:#facc15;} #pyq-wrap .pc-verde, #pyq-prev .pc-verde{--pc:rgba(34,197,94,.09);--pch:rgba(34,197,94,.26);--pcs:#22c55e;}
+#pyq-wrap .pc-azul,
+#pyq-prev .pc-azul{--pc:rgba(59,130,246,.10);--pch:rgba(59,130,246,.28);--pcs:#3b82f6;} #pyq-wrap .pc-rosa, #pyq-prev .pc-rosa{--pc:rgba(236,72,153,.09);--pch:rgba(236,72,153,.26);--pcs:#ec4899;}
+#pyq-wrap .pc-violeta,
+#pyq-prev .pc-violeta{--pc:rgba(139,92,246,.10);--pch:rgba(139,92,246,.28);--pcs:#8b5cf6;} #pyq-wrap .pc-naranja, #pyq-prev .pc-naranja{--pc:rgba(249,115,22,.09);--pch:rgba(249,115,22,.26);--pcs:#f97316;}
 #pyq-wrap .pyq-swb[class*="pc-"]{background:var(--pcs);}
 #pyq-wrap table thead tr th.pc{background:linear-gradient(var(--pch),var(--pch)),#1e293b;color:#f1f5f9;}
 #pyq-wrap table tbody tr td.pc{background:var(--pc);}
-#pyq-wrap table tbody tr:hover td.pc{background:var(--pch);}
+#pyq-wrap table tbody tr:hover td.pc,
+#pyq-wrap table tbody tr.pyq-sel td.pc{background:var(--pch);}
+/* ── Modo claro: misma estética que Pedidos Yiqi del catálogo ── */
+body.light-mode #pyq-wrap{color:#212529;}
+body.light-mode #pyq-wrap .pyq-title,body.pyq-claro #pyq-wrap .pyq-title{color:#212529;}
+body.light-mode #pyq-wrap .pyq-btn,body.light-mode #pyq-toggle-crm,body.pyq-claro #pyq-wrap .pyq-btn,body.pyq-claro #pyq-toggle-crm{background:#1a73e8!important;border:1px solid #1a73e8!important;border-radius:4px!important;color:#fff!important;}
+body.light-mode #pyq-wrap .pyq-btn:hover,body.light-mode #pyq-toggle-crm:hover,body.pyq-claro #pyq-wrap .pyq-btn:hover,body.pyq-claro #pyq-toggle-crm:hover{background:#1765cc!important;}
+body.light-mode #pyq-wrap .pyq-btn.sec,body.pyq-claro #pyq-wrap .pyq-btn.sec{background:#fff!important;border-color:#ced4da!important;color:#495057!important;}
+body.light-mode #pyq-wrap .pyq-btn.sec:hover,body.pyq-claro #pyq-wrap .pyq-btn.sec:hover{background:#f1f3f5!important;}
+body.light-mode #pyq-wrap select,body.light-mode #pyq-wrap input[type=text],body.light-mode #pyq-wrap input[type=password],body.pyq-claro #pyq-wrap select,body.pyq-claro #pyq-wrap input[type=text],body.pyq-claro #pyq-wrap input[type=password]{background:#fff;border:1px solid #ced4da;border-radius:4px;color:#212529;}
+body.light-mode #pyq-wrap label.pyq-chk,body.pyq-claro #pyq-wrap label.pyq-chk{color:#495057;}
+body.light-mode #pyq-wrap .pyq-info,body.pyq-claro #pyq-wrap .pyq-info{color:#6c757d;}
+body.light-mode #pyq-wrap .pyq-err,body.pyq-claro #pyq-wrap .pyq-err{background:#fdecea;border-color:#f5c2c7;color:#842029;border-radius:4px;}
+body.light-mode #pyq-wrap .pyq-scroll,body.pyq-claro #pyq-wrap .pyq-scroll{background:#fff;border:1px solid #dee2e6;border-radius:4px;}
+body.light-mode #pyq-wrap th,body.pyq-claro #pyq-wrap th{background:#f8f9fa;color:#212529;font-weight:600;border-bottom:1px solid #dee2e6;border-right:1px solid #e9ecef;}
+body.light-mode #pyq-wrap th .pyq-ed,body.pyq-claro #pyq-wrap th .pyq-ed{color:#1a73e8;}
+body.light-mode #pyq-wrap td,body.pyq-claro #pyq-wrap td{color:#212529;background:#fff;border-bottom:1px solid #e9ecef;border-right:1px solid #f1f3f5;}
+body.light-mode #pyq-wrap tbody tr:nth-child(even) td,body.pyq-claro #pyq-wrap tbody tr:nth-child(even) td{background:#fbfbfc;}
+body.light-mode #pyq-wrap tbody tr:hover td,body.pyq-claro #pyq-wrap tbody tr:hover td,
+body.light-mode #pyq-wrap tbody tr.pyq-sel td,body.pyq-claro #pyq-wrap tbody tr.pyq-sel td{background:#f1f5fb;}
+body.light-mode #pyq-wrap .pyq-mini,body.pyq-claro #pyq-wrap .pyq-mini{background:#fff;border:1px solid #ced4da;color:#495057;border-radius:4px;}
+body.light-mode #pyq-wrap .pyq-mini:hover,body.pyq-claro #pyq-wrap .pyq-mini:hover{background:#e8f0fe;border-color:#1a73e8;color:#1a73e8;}
+body.light-mode #pyq-wrap .pyq-mini.pyq-del:hover,body.pyq-claro #pyq-wrap .pyq-mini.pyq-del:hover{background:#fdecea;border-color:#dc3545;color:#dc3545;}
+body.light-mode #pyq-wrap .pyq-mini.pyq-fact,body.pyq-claro #pyq-wrap .pyq-mini.pyq-fact{border-color:#a3cfbb;color:#146c43;background:#e8f5ee;}
+body.light-mode #pyq-wrap .pyq-mini.pyq-res,body.pyq-claro #pyq-wrap .pyq-mini.pyq-res{border-color:#ffda6a;color:#7a5b00;background:#fff8e1;}
+body.light-mode #pyq-wrap .pyq-mini.pyq-presu,body.pyq-claro #pyq-wrap .pyq-mini.pyq-presu{border-color:#b6d4fe;color:#0a58ca;background:#eef4ff;}
+body.light-mode #pyq-pdfmenu,body.pyq-claro #pyq-pdfmenu{background:#fff;border:1px solid #ced4da;border-radius:6px;box-shadow:0 8px 28px rgba(0,0,0,.18);}
+body.light-mode #pyq-pdfmenu button,body.pyq-claro #pyq-pdfmenu button{color:#212529;}
+body.light-mode #pyq-pdfmenu button:hover,body.pyq-claro #pyq-pdfmenu button:hover{background:#e8f0fe;}
+body.light-mode #pyq-pdfmenu .t,body.pyq-claro #pyq-pdfmenu .t{color:#6c757d;}
+body.light-mode #pyq-wrap tr.pyq-nuevo td,body.pyq-claro #pyq-wrap tr.pyq-nuevo td{animation:pyqNuevoClaro 4s ease;}
+@keyframes pyqNuevoClaro{0%,40%{background:#d1f2df;}100%{background:transparent;}}
+body.light-mode #pyq-wrap td.c-nro,body.light-mode #pyq-wrap .pyq-nrolink,body.pyq-claro #pyq-wrap td.c-nro,body.pyq-claro #pyq-wrap .pyq-nrolink{color:#1a73e8;}
+body.light-mode #pyq-wrap .pyq-nrolink:hover,body.pyq-claro #pyq-wrap .pyq-nrolink:hover{color:#1765cc;}
+body.light-mode #pyq-wrap td.c-nro small,body.pyq-claro #pyq-wrap td.c-nro small{color:#6c757d;}
+body.light-mode #pyq-wrap td.c-fecha,body.pyq-claro #pyq-wrap td.c-fecha{color:#212529;}
+body.light-mode #pyq-wrap td.ed:hover,body.pyq-claro #pyq-wrap td.ed:hover{outline:1px dashed #1a73e8;outline-offset:-3px;}
+body.light-mode #pyq-wrap td.ed .pyq-empty,body.pyq-claro #pyq-wrap td.ed .pyq-empty{color:#ced4da;}
+body.light-mode #pyq-wrap td.bad,body.pyq-claro #pyq-wrap td.bad{background:#fdecea!important;}
+body.light-mode #pyq-wrap td textarea,body.light-mode #pyq-wrap td input,body.light-mode #pyq-wrap td select,body.pyq-claro #pyq-wrap td textarea,body.pyq-claro #pyq-wrap td input,body.pyq-claro #pyq-wrap td select{background:#fff;border:1px solid #1a73e8;border-radius:4px;color:#212529;}
+body.light-mode #pyq-wrap .pyq-hint,body.pyq-claro #pyq-wrap .pyq-hint{color:#6c757d;}
+body.light-mode #pyq-wrap .pyq-badge,body.pyq-claro #pyq-wrap .pyq-badge{border-radius:3px;padding:1px 5px;background:var(--lbg,#e9ecef);color:var(--lfg,#495057);}
+body.light-mode #pyq-wrap .pyq-chip,body.pyq-claro #pyq-wrap .pyq-chip{border-radius:4px;border:1px solid #dee2e6;color:#495057;background:#fff;}
+body.light-mode #pyq-wrap .pyq-chip.on,body.pyq-claro #pyq-wrap .pyq-chip.on{border-color:#1a73e8;color:#fff;background:#1a73e8;}
+body.light-mode #pyq-wrap .pyq-login,body.pyq-claro #pyq-wrap .pyq-login{background:#fff8e1;border-color:#ffe08a;color:#7a5b00;border-radius:4px;}
+body.light-mode #pyq-wrap .pyq-colpanel,body.pyq-claro #pyq-wrap .pyq-colpanel{background:#fff;border:1px solid #ced4da;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.18);}
+body.light-mode #pyq-wrap .pyq-colpanel > div:first-child,body.pyq-claro #pyq-wrap .pyq-colpanel > div:first-child{color:#212529!important;}
+body.light-mode #pyq-wrap .pyq-colrow:hover,body.pyq-claro #pyq-wrap .pyq-colrow:hover{background:#f1f3f5;}
+body.light-mode #pyq-wrap .pyq-colrow label,body.pyq-claro #pyq-wrap .pyq-colrow label{color:#212529;}
+body.light-mode #pyq-wrap .pyq-colrow.drag-over,body.light-mode #pyq-wrap th.drag-over,body.pyq-claro #pyq-wrap .pyq-colrow.drag-over,body.pyq-claro #pyq-wrap th.drag-over{box-shadow:inset 3px 0 0 #1a73e8;}
+body.light-mode #pyq-wrap .pyq-grip,body.pyq-claro #pyq-wrap .pyq-grip{color:#adb5bd;}
+body.light-mode #pyq-wrap .pyq-org.o-wa,body.pyq-claro #pyq-wrap .pyq-org.o-wa{color:#15803d;}
+body.light-mode #pyq-wrap .pyq-org.o-web,body.pyq-claro #pyq-wrap .pyq-org.o-web{color:#1d4ed8;}
+body.light-mode #pyq-wrap .pyq-org.o-otro,body.pyq-claro #pyq-wrap .pyq-org.o-otro{color:#111827;}
+body.light-mode #pyq-wrap .pyq-swb,body.pyq-claro #pyq-wrap .pyq-swb{border-color:#ced4da;}
+body.light-mode #pyq-wrap .pyq-swb.sin,body.pyq-claro #pyq-wrap .pyq-swb.sin{background:#fff;background-image:linear-gradient(135deg,transparent 45%,#dc3545 45%,#dc3545 55%,transparent 55%);}
+body.light-mode #pyq-wrap .pyq-swb.on,body.pyq-claro #pyq-wrap .pyq-swb.on{outline-color:#1a73e8;}
+body.light-mode #pyq-wrap .pc-amarillo,body.pyq-claro #pyq-wrap .pc-amarillo,
+body.light-mode #pyq-prev .pc-amarillo,body.pyq-claro #pyq-prev .pc-amarillo{--pc:#fff8d6;--pch:#fde68a;} body.light-mode #pyq-wrap .pc-verde,body.pyq-claro #pyq-wrap .pc-verde, body.light-mode #pyq-prev .pc-verde,body.pyq-claro #pyq-prev .pc-verde{--pc:#e9f9ef;--pch:#bbf7d0;} body.light-mode #pyq-wrap .pc-azul,body.pyq-claro #pyq-wrap .pc-azul, body.light-mode #pyq-prev .pc-azul,body.pyq-claro #pyq-prev .pc-azul{--pc:#eaf2ff;--pch:#bfdbfe;}
+body.light-mode #pyq-wrap .pc-rosa,body.pyq-claro #pyq-wrap .pc-rosa,
+body.light-mode #pyq-prev .pc-rosa,body.pyq-claro #pyq-prev .pc-rosa{--pc:#fdeef6;--pch:#fbcfe8;} body.light-mode #pyq-wrap .pc-violeta,body.pyq-claro #pyq-wrap .pc-violeta, body.light-mode #pyq-prev .pc-violeta,body.pyq-claro #pyq-prev .pc-violeta{--pc:#f3efff;--pch:#ddd6fe;} body.light-mode #pyq-wrap .pc-naranja,body.pyq-claro #pyq-wrap .pc-naranja, body.light-mode #pyq-prev .pc-naranja,body.pyq-claro #pyq-prev .pc-naranja{--pc:#fff1e3;--pch:#fed7aa;}
+body.light-mode #pyq-wrap table thead tr th.pc,body.pyq-claro #pyq-wrap table thead tr th.pc{background:var(--pch);color:#212529;}
+body.light-mode #pyq-wrap table tbody tr td.pc,body.pyq-claro #pyq-wrap table tbody tr td.pc{background:var(--pc);}
+body.light-mode #pyq-wrap table tbody tr:hover td.pc,body.pyq-claro #pyq-wrap table tbody tr:hover td.pc,
+body.light-mode #pyq-wrap table tbody tr.pyq-sel td.pc,body.pyq-claro #pyq-wrap table tbody tr.pyq-sel td.pc{background:var(--pch);}
+/* ── Vista previa del pedido (panel a la derecha) ── */
+#pyq-prev{position:fixed;top:0;right:0;bottom:0;width:var(--ppw,min(560px,48vw));max-width:100vw;z-index:9500;display:flex;flex-direction:column;font-family:'DM Sans',sans-serif;}
+#pyq-prev .pp-drag{position:absolute;left:-4px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:3;}
+#pyq-prev .pp-drag:hover,body.pp-arrastrando #pyq-prev .pp-drag{background:rgba(26,115,232,.35);}
+body.pp-arrastrando{cursor:col-resize!important;user-select:none!important;}
+body.pp-arrastrando #pyq-prev .pp-b{pointer-events:none;}
+#pyq-prev .pp-h{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;}
+#pyq-prev .pp-t{flex:1;min-width:0;font-size:15px;}
+#pyq-prev .pp-t b{margin-right:8px;}
+#pyq-prev .pp-badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap;vertical-align:2px;}
+#pyq-prev .pp-s{font-size:12.5px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#pyq-prev .pp-x{border-radius:4px;cursor:pointer;padding:3px 9px;font-size:13px;font-family:inherit;}
+#pyq-prev .pp-bar{display:flex;gap:6px;align-items:center;padding:7px 12px;flex-wrap:wrap;}
+#pyq-prev .pp-bar select,#pyq-prev .pp-bar button,#pyq-prev .pp-bar a{font:inherit;font-size:12px;padding:4px 8px;border-radius:4px;cursor:pointer;text-decoration:none;}
+#pyq-prev .pp-zoom{display:inline-flex;}
+#pyq-prev .pp-zoom button{border-radius:0;margin-left:-1px;min-width:30px;font-weight:700;}
+#pyq-prev .pp-zoom button:first-child{border-radius:4px 0 0 4px;margin-left:0;}
+#pyq-prev .pp-zoom button:last-child{border-radius:0 4px 4px 0;}
+#pyq-prev .pp-zoom .pp-zl{min-width:52px;font-weight:600;}
+#pyq-prev .pp-k{margin-left:auto;font-size:11px;white-space:nowrap;}
+#pyq-prev .pp-b{flex:1;min-height:0;overflow:auto;display:flex;background:#525659;}
+#pyq-prev .pp-b iframe{flex:1;border:0;width:100%;height:100%;}
+#pyq-prev .pp-pages{min-width:100%;width:max-content;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:12px;}
+#pyq-prev .pp-pages canvas{background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);display:block;flex:none;}
+#pyq-prev .pp-load{margin:auto;color:#fff;font-size:13px;padding:20px;text-align:center;}
+#pyq-prev .pp-load.err{color:#fecaca;}
+#pyq-wrap tbody td:not(.c-acc):not(.ed){cursor:pointer;}
+#pyq-prev{background:#0f172a;border-left:1px solid rgba(255,255,255,.12);box-shadow:-10px 0 30px rgba(0,0,0,.5);color:#e2e8f0;}
+#pyq-prev .pp-h,#pyq-prev .pp-bar{border-bottom:1px solid rgba(255,255,255,.08);}
+#pyq-prev .pp-t b{color:#93c5fd;}
+#pyq-prev .pp-badge{background:rgba(148,163,184,.15);color:#cbd5e1;border-radius:999px;padding:1px 8px;}
+#pyq-prev .pp-s{color:#94a3b8;}
+#pyq-prev .pp-x,#pyq-prev .pp-bar select,#pyq-prev .pp-bar button,#pyq-prev .pp-bar a{border:1px solid rgba(255,255,255,.14);background:#1e293b;color:#cbd5e1;}
+#pyq-prev .pp-x:hover{background:rgba(239,68,68,.3);border-color:#ef4444;color:#fff;}
+#pyq-prev .pp-bar button:hover,#pyq-prev .pp-bar a:hover{background:rgba(139,92,246,.25);border-color:#8b5cf6;color:#fff;position:relative;}
+#pyq-prev .pp-k{color:#64748b;}
+#pyq-prev .pp-b{background:#1e293b;}
+#pyq-wrap table tbody tr.pyq-sel td{}
+body.light-mode #pyq-prev,body.pyq-claro #pyq-prev{background:#fff;border-left:1px solid #dee2e6;box-shadow:-8px 0 24px rgba(0,0,0,.14);color:#212529;}
+body.light-mode #pyq-prev .pp-h,body.light-mode #pyq-prev .pp-bar,body.pyq-claro #pyq-prev .pp-h,body.pyq-claro #pyq-prev .pp-bar{border-bottom:1px solid #e9ecef;}
+body.light-mode #pyq-prev .pp-t b,body.pyq-claro #pyq-prev .pp-t b{color:#1a73e8;}
+body.light-mode #pyq-prev .pp-badge,body.pyq-claro #pyq-prev .pp-badge{border-radius:3px;padding:1px 6px;}
+body.light-mode #pyq-prev .pp-s,body.pyq-claro #pyq-prev .pp-s{color:#495057;}
+body.light-mode #pyq-prev .pp-x,body.light-mode #pyq-prev .pp-bar select,body.light-mode #pyq-prev .pp-bar button,body.light-mode #pyq-prev .pp-bar a,body.pyq-claro #pyq-prev .pp-x,body.pyq-claro #pyq-prev .pp-bar select,body.pyq-claro #pyq-prev .pp-bar button,body.pyq-claro #pyq-prev .pp-bar a{border:1px solid #ced4da;background:#fff;color:#495057;}
+body.light-mode #pyq-prev .pp-x:hover,body.pyq-claro #pyq-prev .pp-x:hover{background:#fdecea;border-color:#dc3545;color:#dc3545;}
+body.light-mode #pyq-prev .pp-bar button:hover,body.light-mode #pyq-prev .pp-bar a:hover,body.pyq-claro #pyq-prev .pp-bar button:hover,body.pyq-claro #pyq-prev .pp-bar a:hover{background:#e8f0fe;border-color:#1a73e8;color:#1a73e8;}
+body.light-mode #pyq-prev .pp-k,body.pyq-claro #pyq-prev .pp-k{color:#adb5bd;}
+body.light-mode #pyq-prev .pp-b,body.pyq-claro #pyq-prev .pp-b{background:#525659;}
+body.light-mode #pyq-wrap table tbody tr.pyq-sel td,body.pyq-claro #pyq-wrap table tbody tr.pyq-sel td{}
+body.pp-on #pyq-wrap{padding-right:calc(var(--ppw,min(560px,48vw)) + 8px);box-sizing:border-box;}
+#pyq-prev{z-index:9990;}
+@media (max-width:760px){#pyq-prev{width:100vw;}body.pp-on #pyq-wrap{padding-right:0;}#pyq-prev .pp-k{display:none;}#pyq-prev .pp-drag{display:none;}}
+/* Modo compacto automático para pantalla dividida / ventana angosta */
+@media (max-width:1300px){
+#pyq-wrap .pyq-bar{gap:5px;margin-bottom:6px;}
+#pyq-wrap .pyq-title{font-size:14px;margin-right:2px;}
+#pyq-wrap .pyq-btn{padding:4px 9px;font-size:12px;}
+#pyq-wrap select,#pyq-wrap input[type=text]{padding:4px 6px;font-size:12px;max-width:175px;}
+#pyq-wrap input.pyq-q{width:auto;flex:1 1 150px;max-width:none;}
+#pyq-wrap label.pyq-chk{font-size:12px;}
+#pyq-wrap .pyq-info{flex-basis:100%;margin-left:0;font-size:11px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#pyq-wrap .pyq-chips{flex-wrap:nowrap;overflow-x:auto;gap:4px;margin-bottom:6px;padding-bottom:3px;scrollbar-width:thin;}
+#pyq-wrap .pyq-chip{flex:none;font-size:11px;padding:2px 8px;}
+#pyq-wrap .pyq-scroll{max-height:calc(100vh - 170px);}
+#pyq-wrap table{font-size:12px;}
+#pyq-wrap th{padding:6px 7px;}
+#pyq-wrap td{padding:4px 7px;line-height:1.3;max-width:190px;}
+#pyq-wrap td.c-acc{padding:4px 3px 4px 5px;}
+#pyq-wrap .pyq-mini{padding:2px 5px;margin-right:2px;font-size:12px;}
+#pyq-wrap .pyq-mini .pyq-lbl{display:none;}
+#pyq-wrap td.c-obs{min-width:150px;max-width:190px;}
+#pyq-wrap td.c-obs .pyq-txt{-webkit-line-clamp:2;}
+#pyq-wrap td.c-nro small{font-size:10px;}
+#pyq-wrap .pyq-colpanel{max-width:calc(100vw - 24px);}
+}
+/* El texto que no entra sigue para abajo (sin cortarse con … ni ensanchar la columna) */
+#pyq-wrap td{white-space:normal;}
+#pyq-wrap td.c-acc,#pyq-wrap td.c-nro,#pyq-wrap td.c-fecha,#pyq-wrap td.c-total{white-space:nowrap;}
+#pyq-wrap td .pyq-txt{display:block;overflow:visible;text-overflow:clip;white-space:pre-line;overflow-wrap:anywhere;-webkit-line-clamp:unset;}
+#pyq-wrap td.c-obs .pyq-txt{display:block;overflow:visible;-webkit-line-clamp:unset;}
+/* Líneas de filas y columnas más marcadas */
+#pyq-wrap th{border-right:1px solid rgba(255,255,255,.12);border-bottom:2px solid rgba(255,255,255,.22);}
+#pyq-wrap td{border-right:1px solid rgba(255,255,255,.09);border-bottom:1px solid rgba(255,255,255,.15);}
+body.light-mode #pyq-wrap th,body.pyq-claro #pyq-wrap th{border-right:1px solid #ced4da;border-bottom:2px solid #adb5bd;}
+body.light-mode #pyq-wrap td,body.pyq-claro #pyq-wrap td{border-right:1px solid #d7dce1;border-bottom:1px solid #c6ccd2;}
+body.light-mode #pyq-wrap .pyq-scroll,body.pyq-claro #pyq-wrap .pyq-scroll{border-color:#adb5bd;}
+
+/* Modo claro solo para la pestaña de Pedidos (body.pyq-claro), aunque el resto del CRM esté en oscuro */
+body.pyq-claro:not(.light-mode) #pyq-wrap{background:#fff;border:1px solid #dee2e6;border-radius:10px;padding:10px 12px;}
+body.pyq-claro:not(.light-mode) #pyq-wrap a{color:#1a73e8;}
+body.pyq-claro:not(.light-mode) #pyq-wrap .pyq-chk input{accent-color:#1a73e8;}
+body.light-mode #pyq-wrap .pyq-tema-btn{display:none;}
+#pyq-wrap td.c-acc .pyq-acc2{margin-top:4px;}
+#pyq-wrap td.c-acc .pyq-acc2{display:flex;gap:2px;}
+#pyq-wrap td.c-acc .pyq-acc2:empty{display:none;}
+#pyq-wrap td.c-acc .pyq-acc2 .pyq-mini{flex:1;margin-right:0;text-align:center;}
+#pyq-wrap .pyq-mini.pyq-cc{border-color:rgba(139,92,246,.45);color:#c4b5fd;background:rgba(139,92,246,.12);}
+body.light-mode #pyq-wrap .pyq-mini.pyq-cc,body.pyq-claro #pyq-wrap .pyq-mini.pyq-cc{border-color:#c4b5fd;color:#6d28d9;background:#f5f3ff;}
+#pyq-prev .pp-tabs{display:flex;gap:4px;align-items:flex-end;padding:6px 12px 0;}
+#pyq-prev .pp-tabs button{font:inherit;font-size:12.5px;padding:5px 12px;border-radius:6px 6px 0 0;cursor:pointer;margin-bottom:-1px;}
+#pyq-prev .pp-tabs button.on{font-weight:700;}
+#pyq-prev .pp-tabs button,#pyq-prev .pp-tabs a{white-space:nowrap;}
+#pyq-prev .pp-tabs{flex-wrap:wrap;}
+#pyq-wrap .pyq-acnota{flex-basis:100%;order:98;margin:2px 0 0;padding:6px 12px;border-radius:8px;background:#fef9c3;border:1px solid #fde047;color:#713f12;font-size:12.5px;line-height:1.4;}
+#pyq-wrap .pyq-acnota a{color:inherit;}
+#pyq-wrap table tbody td.pyq-cel .pyq-btn-sel{outline:2px solid #60a5fa;outline-offset:1px;box-shadow:0 0 0 4px rgba(96,165,250,.22);}
+body.light-mode #pyq-wrap table tbody td.pyq-cel .pyq-btn-sel,body.pyq-claro #pyq-wrap table tbody td.pyq-cel .pyq-btn-sel{outline-color:#1a73e8;box-shadow:0 0 0 4px rgba(26,115,232,.18);}
+#pyq-wrap table tbody td.pyq-cel{outline:2px solid #60a5fa;outline-offset:-2px;box-shadow:inset 0 0 0 1px #60a5fa;}
+body.light-mode #pyq-wrap table tbody td.pyq-cel,body.pyq-claro #pyq-wrap table tbody td.pyq-cel{outline-color:#1a73e8;box-shadow:inset 0 0 0 1px #1a73e8;}
+#pyq-prev .pp-tabs a{margin-left:6px;margin-bottom:5px;font-size:12px;text-decoration:none;padding:3px 8px;border-radius:4px;}
+#pyq-prev .pp-tabs .pp-k{margin-bottom:6px;}
+#pyq-prev .pp-ficha{width:100%;align-self:flex-start;padding:6px 14px 12px;box-sizing:border-box;font-size:12px;line-height:1.3;}
+#pyq-prev .pf-r{display:grid;grid-template-columns:minmax(105px,36%) 1fr;gap:8px;padding:3px 0;}
+#pyq-prev .pf-k{font-weight:600;font-size:11.5px;}
+#pyq-prev .pf-v{white-space:pre-line;overflow-wrap:anywhere;}
+#pyq-prev .pp-tabs{border-bottom:1px solid rgba(255,255,255,.12);}
+#pyq-prev .pp-tabs button{border:1px solid rgba(255,255,255,.12);background:#1e293b;color:#94a3b8;}
+#pyq-prev .pp-tabs button.on{background:#0f172a;color:#93c5fd;border-bottom-color:#0f172a;}
+#pyq-prev .pp-tabs a{border:1px solid rgba(255,255,255,.14);color:#cbd5e1;background:#1e293b;}
+#pyq-prev .pp-b.pp-b-datos{background:#0f172a;}
+#pyq-prev .pf-r{border-bottom:1px solid rgba(255,255,255,.07);}
+#pyq-prev .pf-k{color:#94a3b8;}
+#pyq-prev .pf-v{color:#e2e8f0;}
+#pyq-prev .pf-0{color:#475569;}
+#pyq-prev .pf-obs .pf-v{background:rgba(250,204,21,.1);border-radius:4px;padding:2px 5px;}
+body.light-mode #pyq-prev .pp-tabs,body.pyq-claro #pyq-prev .pp-tabs{border-bottom:1px solid #dee2e6;}
+body.light-mode #pyq-prev .pp-tabs button,body.pyq-claro #pyq-prev .pp-tabs button{border:1px solid #dee2e6;background:#f8f9fa;color:#495057;}
+body.light-mode #pyq-prev .pp-tabs button.on,body.pyq-claro #pyq-prev .pp-tabs button.on{background:#fff;color:#1a73e8;border-bottom-color:#fff;}
+body.light-mode #pyq-prev .pp-tabs a,body.pyq-claro #pyq-prev .pp-tabs a{border:1px solid #ced4da;color:#495057;background:#fff;}
+body.light-mode #pyq-prev .pp-tabs a:hover,body.pyq-claro #pyq-prev .pp-tabs a:hover{background:#e8f0fe;border-color:#1a73e8;color:#1a73e8;}
+body.light-mode #pyq-prev .pp-b.pp-b-datos,body.pyq-claro #pyq-prev .pp-b.pp-b-datos{background:#fff;}
+body.light-mode #pyq-prev .pf-r,body.pyq-claro #pyq-prev .pf-r{border-bottom:1px solid #eef0f2;}
+body.light-mode #pyq-prev .pf-k,body.pyq-claro #pyq-prev .pf-k{color:#6c757d;}
+body.light-mode #pyq-prev .pf-v,body.pyq-claro #pyq-prev .pf-v{color:#212529;}
+body.light-mode #pyq-prev .pf-0,body.pyq-claro #pyq-prev .pf-0{color:#ced4da;}
+body.light-mode #pyq-prev .pf-obs .pf-v,body.pyq-claro #pyq-prev .pf-obs .pf-v{background:#fff8e1;border-radius:4px;padding:2px 5px;}
+#pyq-prev .pf-r{padding:3px 6px;margin:0 -6px;border-radius:3px;}
+#pyq-prev .pf-r.pc{background:var(--pc);}
+#pyq-prev .pf-r.pc .pf-k{color:inherit;opacity:.8;}
+#pyq-prev .pf-sep{margin:10px 0 4px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.55;}
+#pyq-prev .pf-v .pyq-txt{white-space:pre-line;}
+#pyq-prev .pf-v .pyq-empty{opacity:.4;}
+#pyq-prev .pf-v small{display:block;font-size:10.5px;}
+#pyq-prev .pf-v .pyq-nro,#pyq-prev .pf-v .pyq-nrolink{font-weight:700;text-decoration:none;}
+#pyq-prev .pf-v .pyq-badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:700;white-space:nowrap;}
+#pyq-prev .pf-v .pyq-nro,#pyq-prev .pf-v .pyq-nrolink{color:#93c5fd;}
+#pyq-prev .pf-v small{color:#94a3b8;}
+#pyq-prev .pf-v .pyq-badge{background:var(--bg,rgba(148,163,184,.15));color:var(--fg,#cbd5e1);}
+#pyq-prev .pf-v .pyq-org.o-wa{color:#4ade80;}
+#pyq-prev .pf-v .pyq-org.o-web{color:#93c5fd;}
+#pyq-prev .pf-v .pyq-org.o-otro{color:#e2e8f0;}
+body.light-mode #pyq-prev .pf-v .pyq-nro,body.light-mode #pyq-prev .pf-v .pyq-nrolink,body.pyq-claro #pyq-prev .pf-v .pyq-nro,body.pyq-claro #pyq-prev .pf-v .pyq-nrolink{color:#1a73e8;}
+body.light-mode #pyq-prev .pf-v small,body.pyq-claro #pyq-prev .pf-v small{color:#6c757d;}
+body.light-mode #pyq-prev .pf-v .pyq-org.o-wa,body.pyq-claro #pyq-prev .pf-v .pyq-org.o-wa{color:#15803d;}
+body.light-mode #pyq-prev .pf-v .pyq-org.o-web,body.pyq-claro #pyq-prev .pf-v .pyq-org.o-web{color:#1d4ed8;}
+body.light-mode #pyq-prev .pf-v .pyq-org.o-otro,body.pyq-claro #pyq-prev .pf-v .pyq-org.o-otro{color:#111827;}
+body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-badge{background:var(--lbg,#e9ecef);color:var(--lfg,#495057);}
 </style>
 <script>
 (function(){
@@ -63730,13 +64129,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const QCOLS = ['ID','PEDI_NUMERO','PEDI_NUMERO_SOLO','AUDI_FECHA_ALTA','PEDI_FECHA','CLIE_NOMBRE','PEDI_RAZON_SOCIAL','CEDI_ID_ORIG','TIFA_ID_TIFA',
     'PEDI_TOTAL','PEDI_OBSERVACIONES','PEDI_ESTADO_DEL_ENVIO','PEDI_ESTADO_DE_PAGO','PEDI_ESTADO','PEDI_ESTADO_ACTUAL_DEL_PE',
     'PEDI_PROVINCIA_DE_ENVIO','DESC_ESTADO','EXTE_ID_EXTE','PUVE_ID_PUVE','VEHA_ID_VEHA','COVE_ID_COVE','PEDI_DIRECCION_DE_ENVIO',
-    'PEDI_LOCALIDAD_DE_ENVIO','PEDI_TELEFONO','PEDI_FACTURAS','PEDI_TIPOS_FACT_GENERADOS'];
+    'PEDI_LOCALIDAD_DE_ENVIO','PEDI_TELEFONO','PEDI_FACTURAS','PEDI_TIPOS_FACT_GENERADOS','CLIE_ID_CLIE'];
+  // Solo en pantalla: "Staging Out" y "Entregado" se muestran como "Facturado", y "Con Devolución" como "Cancelado por NC" (en Yiqi no cambia nada;
+  // la lógica interna —reservas, pedidos cerrados, envíos automáticos— sigue usando el estado real)
+  const ESTADO_ALIAS = { 'staging out': 'Facturado', 'entregado': 'Facturado', 'con devolución': 'Cancelado por NC', 'con devolucion': 'Cancelado por NC' };
+  function estadoVer(v) { return ESTADO_ALIAS[String(v || '').toLowerCase().trim()] || v; }
   const ESTADO_COLOR = {
+    'cancelado por nc':['rgba(236,72,153,.18)','#f9a8d4'],
+    'facturado':['rgba(16,185,129,.18)','#6ee7b7'],
     'en espera de pago':['rgba(245,158,11,.18)','#fcd34d'], 'entregado':['rgba(16,185,129,.18)','#6ee7b7'],
     'staging out':['rgba(59,130,246,.18)','#93c5fd'], 'quiebre 2':['rgba(239,68,68,.18)','#fca5a5'],
     'anulado':['rgba(100,116,139,.2)','#94a3b8'], 'a anular':['rgba(100,116,139,.2)','#94a3b8'],
     'con devolución':['rgba(236,72,153,.18)','#f9a8d4'], 'a reservar':['rgba(139,92,246,.18)','#c4b5fd'],
     'esperando 2da validación':['rgba(14,165,233,.18)','#7dd3fc']
+  };
+  // Modo claro: mismos colores que la grilla de Pedidos Yiqi del catálogo
+  const ESTADO_COLOR_CLARO = {
+    'cancelado por nc':['#9333ea','#fff'],
+    'facturado':['#16a34a','#fff'],
+    'en espera de pago':['#1a73e8','#fff'], 'entregado':['#f6c445','#3b2f00'],
+    'staging out':['#16a34a','#fff'], 'quiebre 2':['#dc3545','#fff'],
+    'anulado':['#6b7280','#fff'], 'a anular':['#9ca3af','#fff'],
+    'con devolución':['#9333ea','#fff'], 'a reservar':['#f59e0b','#3b2f00'],
+    'esperando 2da validación':['#0ea5e9','#fff'], 'en espera de picking list':['#14b8a6','#fff'], 'asociado a picking list':['#0d9488','#fff']
   };
 
   let prefs = { dias: 7, ml: false, q: '', estado: '', sort: 'AUDI_FECHA_ALTA', dir: -1 };
@@ -63856,12 +64271,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Períodos largos (3 meses a 2 años): son miles de pedidos, así que se busca EN YIQI ──
   // Con texto: busca por N°, cliente, observaciones y vendedor. Sin texto: trae los más recientes (hasta 2000).
   let truncadoLargo = false;
-  async function fetchLargo(H) {
+  async function fetchLargo(H, qForzado) {
     const desde = new Date(); desde.setHours(0,0,0,0); desde.setDate(desde.getDate() - prefs.dias);
     const dia = isoDia(desde);
     const base = [{ c: 'PEDI_FECHA', op: '>=', v: dia }];
     if (!prefs.ml) base.push({ c: 'EXTE_ID_EXTE', op: '!=', v: 2 });
-    const q = String(prefs.q || '').trim();
+    const q = String(qForzado != null ? qForzado : (prefs.q || '')).trim();
     truncadoLargo = false;
     const consultas = [];
     if (q) {
@@ -63886,7 +64301,12 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch(e) { ultimoErr = e; console.warn('[pedidosYiqi] búsqueda larga falló:', extra, e.message); }
     }
     if (!okAlguna) throw ultimoErr || new Error('Sin respuesta de Yiqi');
-    return finalizar(out, desde);
+    const res = finalizar(out, desde);
+    if (!res.length && q && qForzado == null) {            // nada en Yiqi: probar con el cliente más parecido
+      const corr = corregirBusqueda(q);
+      if (corr && corr !== q.toLowerCase()) return fetchLargo(H, corr);
+    }
+    return res;
   }
   function finalizar(out, desde) {
     let res = out;
@@ -64178,18 +64598,48 @@ document.addEventListener('DOMContentLoaded', () => {
     const inner = document.getElementById('panel-envios-inner');
     const y = vista() === 'yiqi';
     w.style.display = y ? '' : 'none';
+    if (!y) cerrarPreview();
     if (inner) inner.style.display = y ? 'none' : '';
     document.getElementById('pyq-toggle-crm').style.display = y ? 'none' : '';
     if (y) render();
   }
 
+  // ── Autocorrector del buscador (el mismo de productos; se activa/desactiva igual) ──
+  // Si lo escrito no encuentra nada, prueba con el nombre de cliente más parecido ("rizato" → "rizzatto").
+  // Aprende los nombres de clientes de todos los pedidos que pasan por la grilla (se guardan en este navegador).
+  const LS_VOC = 'pyq_vocab_clientes';
+  let vocNombres = null, vocGuardarT = null, acNota = null, acIgnorar = null;
+  function vocabPyq() {
+    if (!vocNombres) { try { vocNombres = new Set(JSON.parse(localStorage.getItem(LS_VOC) || '[]')); } catch (e) { vocNombres = new Set(); } }
+    const antes = vocNombres.size;
+    rows.forEach(r => { const n = String(r.CLIE_NOMBRE || '').trim(); if (n) vocNombres.add(n); });
+    if (vocNombres.size !== antes) { clearTimeout(vocGuardarT); vocGuardarT = setTimeout(() => { try { localStorage.setItem(LS_VOC, JSON.stringify([...vocNombres].slice(-6000))); } catch (e) {} }, 1500); }
+    return window._acVocab('pyq', vocNombres.size, add => vocNombres.forEach(add));
+  }
+  function corregirBusqueda(txt) {
+    txt = String(txt || '').trim();
+    if (!txt || /^\d+$/.test(txt) || txt.length < 3 || acIgnorar === txt) return null;
+    if (!window._acCorregirTexto || !window._acActivo || !window._acActivo()) return null;
+    return window._acCorregirTexto(txt, vocabPyq());
+  }
+  window._pyqAcExacto = () => { acIgnorar = String(prefs.q || '').trim(); render(); };
   function filtradas() {
-    const q = prefs.q.trim().toLowerCase();
+    acNota = null;
+    const r = filtradasBase();
+    if (r.length || !prefs.q.trim()) return r;
+    const corr = corregirBusqueda(prefs.q);
+    if (!corr) return r;
+    const r2 = filtradasBase(corr);
+    if (r2.length) { acNota = { orig: prefs.q.trim(), corr }; return r2; }
+    return r;
+  }
+  function filtradasBase(qForzado) {
+    const q = String(qForzado != null ? qForzado : prefs.q).trim().toLowerCase();
     let out = rows.filter(r => {
-      if (prefs.estado && (r.DESC_ESTADO || '') !== prefs.estado) return false;
+      if (prefs.estado && estadoVer(r.DESC_ESTADO || '') !== estadoVer(prefs.estado)) return false;
       if (prefs.vend && String(r.VEHA_ID_VEHA ?? '') !== String(prefs.vend)) return false;
       if (!q) return true;
-      return [nro(r), r.CLIE_NOMBRE, MAP_VEHA[r.VEHA_ID_VEHA], MAP_EXTE[r.EXTE_ID_EXTE], MAP_CEDI[r.CEDI_ID_ORIG], MAP_COVE[r.COVE_ID_COVE], r.PEDI_OBSERVACIONES, r.PEDI_ESTADO_DEL_ENVIO, r.PEDI_ESTADO_DE_PAGO, r.PEDI_ESTADO, r.PEDI_ESTADO_ACTUAL_DEL_PE, r.PEDI_PROVINCIA_DE_ENVIO]
+      return [nro(r), r.CLIE_NOMBRE, MAP_VEHA[r.VEHA_ID_VEHA], MAP_EXTE[r.EXTE_ID_EXTE], MAP_CEDI[r.CEDI_ID_ORIG], MAP_COVE[r.COVE_ID_COVE], r.PEDI_OBSERVACIONES, r.PEDI_ESTADO_DEL_ENVIO, r.PEDI_ESTADO_DE_PAGO, r.PEDI_ESTADO, r.PEDI_ESTADO_ACTUAL_DEL_PE, r.PEDI_PROVINCIA_DE_ENVIO, r.DESC_ESTADO, estadoVer(r.DESC_ESTADO)]
         .some(v => String(v || '').toLowerCase().includes(q));
     });
     const k = prefs.sort, d = prefs.dir, col = COL_DEF[k];
@@ -64214,8 +64664,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (c.k === '_acc') {
       const id = esc(rowId(r));
       if (copiando[rowId(r)]) return '<span class="pyq-mini" style="opacity:.7">⏳ procesando…</span>';
-      const btnReserva = /en espera de pago/i.test(r.DESC_ESTADO || '') ? `<button class="pyq-mini pyq-res" data-reservar="${id}" title="Solicitar reserva (igual que en Yiqi): pasa el pedido a 'A reservar'">📦 Reservar</button>` : '';
-      return btnReserva + `<button class="pyq-mini" data-copiar="${id}" title="Copiar pedido (igual que 'Copiar Pedido' de Yiqi)">⧉ Copiar</button><button class="pyq-mini pyq-presu" data-presu="${esc(nro(r))}" title="Abrir en Presupuestos para modificar productos y envío">🧾 Presupuesto</button><button class="pyq-mini" data-editar="${esc(nro(r))}" title="Abrir en el formulario Nuevo Pedido (datos del pedido)">✏️ Editar</button><button class="pyq-mini" data-pdf="${id}" title="Descargar el PDF del pedido desde Yiqi">📄 PDF</button>${tieneFactura(r) ? `<button class="pyq-mini pyq-fact" data-fact="${id}" title="Abrir el PDF de la factura (${esc(r.PEDI_TIPOS_FACT_GENERADOS || '')})">🧾 Factura${r.PEDI_TIPOS_FACT_GENERADOS && r.PEDI_TIPOS_FACT_GENERADOS !== 'Sin documentos' ? ' ' + esc(r.PEDI_TIPOS_FACT_GENERADOS) : ''}</button>` : ''}${NO_ELIMINABLE.test(r.DESC_ESTADO || '') ? '' : `<button class="pyq-mini pyq-del" data-eliminar="${id}" title="Eliminar este pedido en Yiqi">🗑</button>`}`;
+      // Copiar y el segundo botón; abajo, Factura (solo en pedidos facturados)
+      return `<div class="pyq-acc1"><button class="pyq-mini" data-copiar="${id}" title="Copiar pedido (igual que 'Copiar Pedido' de Yiqi)">⧉<span class="pyq-lbl"> Copiar</span></button><button class="pyq-mini pyq-presu" data-presu="${esc(nro(r))}" title="Abrir en Presupuestos para modificar productos y envío">🧾<span class="pyq-lbl"> Presupuesto</span></button></div><div class="pyq-acc2">${clienteId(r) ? `<button class="pyq-mini pyq-cc" data-cc="${id}" title="Cuenta corriente del cliente: vista previa y PDF">📒<span class="pyq-lbl"> CC</span></button>` : ''}${tieneFactura(r) ? `<button class="pyq-mini pyq-fact" data-fact="${id}" title="Descargar la factura de este pedido${r.PEDI_TIPOS_FACT_GENERADOS ? ' (' + esc(r.PEDI_TIPOS_FACT_GENERADOS) + ')' : ''}">🧾<span class="pyq-lbl"> Factura</span>${r.PEDI_TIPOS_FACT_GENERADOS && r.PEDI_TIPOS_FACT_GENERADOS !== 'Sin documentos' ? ' ' + esc(r.PEDI_TIPOS_FACT_GENERADOS) : ''}</button>` : ''}</div>`;
     }
     if (c.k === 'PEDI_NUMERO_SOLO') {
       const o = MAP_EXTE[r.EXTE_ID_EXTE] || (r.EXTE_ID_EXTE ? 'Origen ' + r.EXTE_ID_EXTE : '');
@@ -64224,7 +64674,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (c.k === 'AUDI_FECHA_ALTA' || c.k === 'PEDI_FECHA') return fmtFecha(v);
     if (c.k === 'PEDI_TOTAL') return fmtMoney(v);
-    if (c.k === 'DESC_ESTADO') { const [bg, fg] = ESTADO_COLOR[String(v||'').toLowerCase()] || []; return v ? `<span class="pyq-badge" style="${bg ? `background:${bg};color:${fg}` : ''}">${esc(v)}</span>` : ''; }
+    if (c.k === 'DESC_ESTADO') { const vv = estadoVer(v), ek = String(vv||'').toLowerCase(), [bg, fg] = ESTADO_COLOR[ek] || [], [lbg, lfg] = ESTADO_COLOR_CLARO[ek] || []; return v ? `<span class="pyq-badge" style="${bg ? `--bg:${bg};--fg:${fg};` : ''}${lbg ? `--lbg:${lbg};--lfg:${lfg};` : ''}" title="${vv !== v ? 'En Yiqi: ' + esc(v) : ''}">${esc(vv)}</span>` : ''; }
     const txt = c.map ? (c.map[v] || (v ? '#' + v : '')) : (v || '');
     if (c.ed && vacio(txt)) return puedeEditar(c, r) ? '<span class="pyq-empty">—</span>' : '';
     return `<div class="pyq-txt">${esc(txt)}</div>`;
@@ -64258,7 +64708,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (editing) return; // no pisar una edición en curso
     const lista = filtradas();
     const VC = visibles();
-    const estados = {}; rows.forEach(r => { const e = r.DESC_ESTADO || '(sin estado)'; estados[e] = (estados[e] || 0) + 1; });
+    const estados = {}; rows.forEach(r => { const e = estadoVer(r.DESC_ESTADO) || '(sin estado)'; estados[e] = (estados[e] || 0) + 1; });
     const hace = lastTs ? Math.round((Date.now() - lastTs) / 60000) : null;
     const scrollEl = w.querySelector('.pyq-scroll'); const sTop = scrollEl ? scrollEl.scrollTop : 0, sLeft = scrollEl ? scrollEl.scrollLeft : 0;
     w.innerHTML = `
@@ -64272,8 +64722,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <input type="text" class="pyq-q" data-a="q" placeholder="Buscar nro, cliente, observaciones…" value="${esc(prefs.q)}">
         <label class="pyq-chk"><input type="checkbox" data-a="ml" ${prefs.ml ? 'checked' : ''}> Incluir MercadoLibre</label>
         <span style="position:relative;display:inline-block;"><button class="pyq-btn sec" data-a="cols">⚙ Columnas</button>${colsAbierto ? panelCols() : ''}</span>
+        <button class="pyq-btn sec pyq-tema-btn" data-a="tema" title="${document.body.classList.contains('pyq-claro') ? 'Pasar la grilla de Pedidos a modo oscuro' : 'Pasar la grilla de Pedidos a modo claro'}">${document.body.classList.contains('pyq-claro') ? '🌙' : '☀️'}</button>
         <button class="pyq-btn sec" data-a="crm" title="Volver a la vista anterior del CRM (Gmail, calendario, etc.)">Vista anterior</button>
-        <span class="pyq-info">${prefs.dias > 31 ? `<span style="color:#fcd34d">${prefs.q ? 'Búsqueda en Yiqi · ' : (prefs.vend ? '' : (truncadoLargo ? 'Mostrando los 2000 más recientes — escribí en el buscador para buscar en todo el período · ' : 'Escribí en el buscador para buscar en todo el período · '))}</span>` : ''}${lista.length} de ${rows.length} pedidos${hace != null ? ` · actualizado ${hace < 1 ? 'recién' : 'hace ' + hace + ' min'}` : ''} · <span style="color:#a78bfa">✎</span> = editable (clic en la celda)</span>
+        ${acNota ? `<div class="pyq-acnota">${window._acNotaHTML(acNota.orig, acNota.corr, 'window._pyqAcExacto()', null)}</div>` : ''}<span class="pyq-info">${prefs.dias > 31 ? `<span style="color:#fcd34d">${prefs.q ? 'Búsqueda en Yiqi · ' : (prefs.vend ? '' : (truncadoLargo ? 'Mostrando los 2000 más recientes — escribí en el buscador para buscar en todo el período · ' : 'Escribí en el buscador para buscar en todo el período · '))}</span>` : ''}${lista.length} de ${rows.length} pedidos${hace != null ? ` · actualizado ${hace < 1 ? 'recién' : 'hace ' + hace + ' min'}` : ''} · <span style="color:#a78bfa">✎</span> = editable (clic en la celda) · ↑ ↓ ← → moverse · Shift + ← → costados · Enter editar / guardar · Shift + Enter o clic = ficha del pedido</span>
       </div>
       ${needLogin ? `<div class="pyq-login">🔑 Ingresá tu usuario de Yiqi para ver los pedidos:
           <input type="text" id="pyq-u" placeholder="Usuario" autocomplete="username"><input type="password" id="pyq-p" placeholder="Contraseña" autocomplete="current-password">
@@ -64285,7 +64736,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <div class="pyq-scroll"><table>
         <thead><tr>${VC.map(c => `<th draggable="true" data-col="${c.k}" class="${pc(c.k)}" ${c.k==='_acc'?'':`data-sort="${c.k}"`} title="Arrastrá para mover la columna">${esc(c.t)}${c.ed ? '<span class="pyq-ed">✎</span>' : ''}${prefs.sort===c.k ? (prefs.dir<0?' ▼':' ▲') : ''}</th>`).join('')}</tr></thead>
-        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}" class="${String(rowId(r))===String(resaltar)?'pyq-nuevo':''}">${VC.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}${pc(c.k)}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
+        <tbody>${lista.length ? lista.map(r => `<tr data-id="${esc(rowId(r))}" class="${String(rowId(r))===String(resaltar)?'pyq-nuevo':''}${String(rowId(r))===String(prevId || selId)?' pyq-sel':''}">${VC.map(c => `<td class="${c.cls||''} ${puedeEditar(c, r) ? 'ed' : ''}${pc(c.k)}" data-k="${c.k}"${c.k==='PEDI_OBSERVACIONES'||c.k==='CLIE_NOMBRE' ? ` title="${esc(r[c.k])}"` : ''}>${celda(c, r)}</td>`).join('')}</tr>`).join('')
           : `<tr><td colspan="${VC.length}" style="text-align:center;color:#64748b;padding:30px;">${loading ? 'Cargando pedidos desde Yiqi…' : 'No hay pedidos para mostrar.'}</td></tr>`}</tbody>
       </table></div>`;
     const sc = w.querySelector('.pyq-scroll'); if (sc) { sc.scrollTop = sTop; sc.scrollLeft = sLeft; }
@@ -64301,7 +64752,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (c.ed === 'select') {
       html = `<select><option value="">—</option>${Object.entries(c.map).map(([vid, t]) => `<option value="${vid}" ${String(actual)===vid?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
     } else if (c.ed === 'textarea') {
-      html = `<textarea>${esc(norm(actual))}</textarea><div class="pyq-hint">Ctrl+Enter guarda · Esc cancela</div>`;
+      html = `<textarea>${esc(norm(actual))}</textarea><div class="pyq-hint">Enter guarda · Shift+Enter nueva línea · Esc cancela</div>`;
     } else {
       const dl = 'pyq-dl-' + k;
       html = `<input type="text" list="${dl}" value="${esc(norm(actual))}"><datalist id="${dl}">${sugerencias(k).map(s => `<option value="${esc(s)}">`).join('')}</datalist><div class="pyq-hint">Enter guarda · Esc cancela</div>`;
@@ -64332,12 +64783,343 @@ document.addEventListener('DOMContentLoaded', () => {
       } finally { savingN--; }
     };
     inp.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { e.preventDefault(); cerrar(false); }
-      else if (e.key === 'Enter' && (c.ed !== 'textarea' || e.ctrlKey || e.metaKey)) { e.preventDefault(); cerrar(true); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cerrar(false); } // solo cancela la edición (no cierra la grilla)
+      else if (e.key === 'Enter' && !(c.ed === 'textarea' && e.shiftKey)) { e.preventDefault(); e.stopPropagation(); cerrar(true); } // Enter guarda (en textos largos, Shift+Enter = nueva línea)
     });
     if (c.ed === 'select') inp.addEventListener('change', () => cerrar(true));
     inp.addEventListener('blur', () => setTimeout(() => cerrar(true), 120));
   }
+
+  // ── Modo claro de la pestaña Pedidos (independiente del resto del CRM). Predeterminado: claro ──
+  function pyqTema(claro, guardar) {
+    document.body.classList.toggle('pyq-claro', !!claro);
+    if (guardar) { try { localStorage.setItem('pyq_tema', claro ? 'claro' : 'oscuro'); } catch (e) {} }
+  }
+  try { pyqTema(localStorage.getItem('pyq_tema') !== 'oscuro'); } catch (e) { pyqTema(true); }
+
+  // ── Vista previa del pedido: clic en una celda del pedido (que no sea editable ni un botón) ──
+  let selId = null, hoverId = null; // fila marcada (flechas) y fila bajo el mouse (Enter)
+  let selCol = null;                 // columna de la celda activa (← →)
+  let selBtn = 0;                    // en la columna de botones: cuál botón está marcado
+  let prevId = null, prevSeq = 0, prevBlob = null, prevNro = ''; const prevCache = new Map();
+  const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+  const prevFmt = () => localStorage.getItem('pyq_prev_fmt') || 'PRESUPUESTO_v1';
+  let prevZoom = Number(localStorage.getItem('pyq_prev_zoom')) || 1;
+  let prevTab = localStorage.getItem('pyq_prev_tab') === 'pdf' ? 'pdf' : 'datos';
+  // Cuenta corriente del cliente: reporte "CC Cliente" de Yiqi (Empresa → CC Cliente)
+  const CC_REPORTE = 'CC_CLIENTE_v2.4';
+  function clienteId(r) { const v = r && r.CLIE_ID_CLIE; return v && typeof v === 'object' ? (v.id != null ? v.id : v.ID) : v; }
+  function abrirCC(id) { prevTab = 'cc'; abrirPreview(id); }
+  // Ficha: todos los datos del pedido en vertical, en el mismo orden que las columnas de la grilla
+  // (las visibles de izquierda a derecha y después las ocultas), con el mismo formato y colores
+  function fichaHTML(r) {
+    const h = ocultas(), keys = ordenCols().filter(k => k !== '_acc' && COL_DEF[k]);
+    const fila = k => {
+      const c = COL_DEF[k];
+      let v = ''; try { v = celda(c, r); } catch (e) { v = esc(r[k] == null ? '' : r[k]); }
+      const vacia = !String(v).replace(/<[^>]*>/g, '').replace(/—/g, '').trim();
+      return `<div class="pf-r${pc(k)}${k === 'PEDI_OBSERVACIONES' ? ' pf-obs' : ''}"><div class="pf-k">${esc(c.t || k)}</div><div class="pf-v">${vacia ? '<span class="pf-0">—</span>' : v}</div></div>`;
+    };
+    const vis = keys.filter(k => !h.has(k)), ocu = keys.filter(k => h.has(k));
+    return `<div class="pp-ficha">${vis.map(fila).join('')}${ocu.length ? `<div class="pf-sep">Columnas ocultas en la grilla</div>${ocu.map(fila).join('')}` : ''}</div>`;
+  }
+  // Ancho del panel (se arrastra el borde izquierdo); se guarda
+  function aplicarAnchoPrev(px) {
+    if (px) document.documentElement.style.setProperty('--ppw', Math.round(px) + 'px');
+    else document.documentElement.style.removeProperty('--ppw');
+  }
+  aplicarAnchoPrev(Number(localStorage.getItem('pyq_prev_w')) || 0);
+  function marcarFila(id) {
+    selId = id == null ? null : String(id);
+    document.querySelectorAll('#pyq-wrap tr.pyq-sel').forEach(t => t.classList.remove('pyq-sel'));
+    if (selId == null) { aplicarCelda(false); return; }   // sin pedido marcado: también se borra la celda activa
+    const tr = document.querySelector(`#pyq-wrap tr[data-id="${CSS.escape(selId)}"]`);
+    if (tr) { tr.classList.add('pyq-sel'); tr.scrollIntoView({ block: 'nearest' }); }
+    aplicarCelda();
+  }
+  // ── Celda activa: ← → se mueven dentro de la fila marcada (como en una planilla) ──
+  const colsNav = () => visibles().map(c => c.k);           // incluye la columna de botones (_acc)
+  const botonesDe = td => td ? [...td.querySelectorAll('button')].filter(b => !b.disabled && b.offsetParent !== null) : [];
+  function tdActiva() {
+    if (selId == null || !selCol) return null;
+    const tr = document.querySelector(`#pyq-wrap tr[data-id="${CSS.escape(selId)}"]`); if (!tr) return null;
+    const ths = [...document.querySelectorAll('#pyq-wrap thead th')];
+    const i = ths.findIndex(th => th.dataset.col === selCol);
+    return i >= 0 ? tr.children[i] || null : null;
+  }
+  function aplicarCelda(scroll) {
+    document.querySelectorAll('#pyq-wrap td.pyq-cel').forEach(td => td.classList.remove('pyq-cel'));
+    document.querySelectorAll('#pyq-wrap .pyq-btn-sel').forEach(b => b.classList.remove('pyq-btn-sel'));
+    const td = tdActiva(); if (!td) return;
+    td.classList.add('pyq-cel');
+    if (selCol === '_acc') { const bs = botonesDe(td); if (bs.length) { selBtn = Math.max(0, Math.min(bs.length - 1, selBtn)); bs[selBtn].classList.add('pyq-btn-sel'); } }
+    if (scroll === false) return;
+    const sc = document.querySelector('#pyq-wrap .pyq-scroll'); if (!sc) return;
+    const r = td.getBoundingClientRect(), rs = sc.getBoundingClientRect();
+    if (r.left < rs.left) sc.scrollLeft -= (rs.left - r.left) + 8;
+    else if (r.right > rs.right) sc.scrollLeft += (r.right - rs.right) + 8;
+  }
+  function moverCelda(d) {
+    const ks = colsNav(); if (!ks.length) return;
+    if (selId == null) { const tr = document.querySelector('#pyq-wrap tbody tr[data-id]'); if (!tr) return; selCol = ks.find(k => k !== '_acc') || ks[0]; return marcarFila(tr.dataset.id); }
+    // En la columna de botones, ← → pasan de botón en botón antes de cambiar de columna
+    if (selCol === '_acc') {
+      const n = botonesDe(tdActiva()).length;
+      if (selBtn + d >= 0 && selBtn + d < n) { selBtn += d; return aplicarCelda(); }
+      if (d < 0) return;                       // ya está en el primer botón
+    }
+    let i = ks.indexOf(selCol);
+    i = i < 0 ? 0 : Math.max(0, Math.min(ks.length - 1, i + d));
+    if (ks[i] === '_acc' && selCol !== '_acc') selBtn = d < 0 ? 99 : 0;  // entrando desde la derecha: último botón
+    selCol = ks[i]; aplicarCelda();
+  }
+  // Clic en una celda: queda como celda activa
+  document.addEventListener('mousedown', e => {
+    const td = e.target.closest && e.target.closest('#pyq-wrap tbody td'); if (!td) return;
+    const tr = td.closest('tr[data-id]'); if (!tr) return;
+    const th = document.querySelectorAll('#pyq-wrap thead th')[[...tr.children].indexOf(td)];
+    if (th && th.dataset.col) {
+      if (th.dataset.col === '_acc') { const b = e.target.closest('button'); if (!b) return; const i = botonesDe(td).indexOf(b); if (i >= 0) selBtn = i; }
+      selCol = th.dataset.col; selId = tr.dataset.id; marcarFila(selId);
+    }
+  }, true);
+  // Al redibujar la grilla, se vuelve a marcar la celda activa
+  (function vigilarRender() {
+    const w = document.getElementById('pyq-wrap');
+    if (!w) return setTimeout(vigilarRender, 1000);
+    new MutationObserver(() => { if (selCol && !document.querySelector('#pyq-wrap td.pyq-cel')) aplicarCelda(false); }).observe(w, { childList: true, subtree: true });
+  })();
+  function cerrarPreview() {
+    prevId = null; prevSeq++; prevBlob = null;
+    document.getElementById('pyq-prev')?.remove();
+    document.body.classList.remove('pp-on');
+  }
+  async function abrirPreview(id) {
+    const r = rows.find(x => String(rowId(x)) === String(id)); if (!r) return;
+    prevId = String(id); prevBlob = null; prevNro = nro(r); const my = ++prevSeq;
+    marcarFila(id);
+    document.body.classList.add('pp-on');
+    let p = document.getElementById('pyq-prev');
+    if (!p) { p = document.createElement('div'); p.id = 'pyq-prev'; document.body.appendChild(p); }
+    const fmt = prevFmt();
+    const [bg, fg] = (typeof ESTADO_COLOR_CLARO !== 'undefined' && document.body.classList.contains('light-mode') ? ESTADO_COLOR_CLARO : ESTADO_COLOR)[String(estadoVer(r.DESC_ESTADO) || '').toLowerCase()] || [];
+    const fecha = r.AUDI_FECHA_ALTA || r.PEDI_FECHA;
+    p.innerHTML = `<div class="pp-drag" title="Arrastrá para cambiar el ancho del panel (doble clic: ancho normal)"></div>
+      <div class="pp-h">
+        <div class="pp-t"><b>Pedido ${esc(nro(r))}</b>${r.DESC_ESTADO ? `<span class="pp-badge" style="${bg ? `background:${bg};color:${fg}` : ''}" title="${estadoVer(r.DESC_ESTADO) !== r.DESC_ESTADO ? 'En Yiqi: ' + esc(r.DESC_ESTADO) : ''}">${esc(estadoVer(r.DESC_ESTADO))}</span>` : ''}
+          <div class="pp-s" title="${esc(r.CLIE_NOMBRE || '')}">${esc(r.CLIE_NOMBRE || '')}${r.PEDI_TOTAL != null && r.PEDI_TOTAL !== '' ? ' · ' + fmtMoney(r.PEDI_TOTAL) : ''}${fecha ? ' · ' + fmtFecha(fecha) : ''}</div></div>
+        <button class="pp-x" data-pp="x" title="Cerrar (Esc)">✕</button></div>
+      <div class="pp-tabs"><button data-pp="tab-datos" class="${prevTab === 'datos' ? 'on' : ''}" title="Todos los datos del pedido (D)">📋 Datos</button><button data-pp="tab-pdf" class="${prevTab === 'pdf' ? 'on' : ''}" title="Vista previa del PDF (P)">📄 PDF</button><button data-pp="tab-cc" class="${prevTab === 'cc' ? 'on' : ''}" title="Cuenta corriente del cliente (C)">📒 CC cliente</button>
+        <a href="https://me.yiqi.com.ar/view/PEDIDO?schemaId=328#/${esc(String(id))}" target="_blank" rel="noopener" title="Abrir el pedido en Yiqi">↗ Yiqi</a>
+        <span class="pp-k">↑ ↓ otro pedido · Esc cierra</span></div>
+      <div class="pp-bar"${prevTab === 'datos' ? ' style="display:none"' : ''}><select data-pp="fmt" title="Formato del PDF"${prevTab === 'cc' ? ' style="display:none"' : ''}>${FORMATOS_PDF.map(f => `<option value="${f.c}" ${f.c === fmt ? 'selected' : ''}>${esc(f.n)}</option>`).join('')}</select>
+        <span class="pp-zoom"><button data-pp="zm" title="Alejar (−)">−</button><button data-pp="z1" class="pp-zl" title="Ajustar al ancho del panel (0)">${Math.round(prevZoom * 100)}%</button><button data-pp="zp" title="Acercar (+) · también Ctrl + rueda del mouse">+</button></span>
+        <button data-pp="dl" title="${prevTab === 'cc' ? 'Descargar la cuenta corriente del cliente en PDF' : 'Descargar este PDF'}">⬇ Descargar${prevTab === 'cc' ? ' CC' : ''}</button>
+        <span class="pp-k">+ − zoom</span></div>
+      <div class="pp-b${prevTab === 'datos' ? ' pp-b-datos' : ''}">${prevTab === 'datos' ? fichaHTML(r) : `<div class="pp-load">⏳ Trayendo ${prevTab === 'cc' ? 'la cuenta corriente de ' + esc(r.CLIE_NOMBRE || 'el cliente') : 'el PDF del pedido ' + esc(nro(r))} de Yiqi…</div>`}</div>`;
+    if (prevTab === 'datos') return;
+    try {
+      const esCC = prevTab === 'cc', cid = clienteId(r);
+      if (esCC && !cid) throw new Error('el pedido no tiene el cliente cargado');
+      const k = esCC ? 'cc|' + cid : id + '|' + fmt; let blob = prevCache.get(k);
+      if (!blob) {
+        const res = await yiqiFetch(esCC
+          ? `${API}/api/public/CLIENTE/report?reportName=${encodeURIComponent(CC_REPORTE)}&instanceId=${encodeURIComponent(cid)}&schemaId=${SCHEMA}`
+          : `${API}/api/public/PEDIDO/report?reportName=${encodeURIComponent(fmt)}&instanceId=${encodeURIComponent(id)}&schemaId=${SCHEMA}`, { headers: { 'Authorization': 'Bearer ' + await token() } });
+        if (!res.ok) { const tx = await res.text().catch(() => ''); throw new Error(res.status === 403 ? (esCC ? 'tu usuario no tiene permiso para imprimir la cuenta corriente' : 'tu usuario no tiene permiso para imprimir pedidos') : (msgYiqi(tx).slice(0, 200) || 'HTTP ' + res.status)); }
+        blob = await res.blob();
+        if (!blob.size) throw new Error('Yiqi devolvió un archivo vacío');
+        prevCache.set(k, blob);
+        if (prevCache.size > 30) prevCache.delete(prevCache.keys().next().value);
+      }
+      if (my !== prevSeq) return;
+      prevBlob = blob;
+      await mostrarPdfPrev(p.querySelector('.pp-b'), blob, my, nro(r));
+    } catch (e) {
+      if (my === prevSeq) p.querySelector('.pp-b').innerHTML = `<div class="pp-load err">⚠ No se pudo traer el PDF: ${esc(e.message || String(e))}</div>`;
+    }
+  }
+  // Dibuja el PDF con PDF.js (ya cargado en la página). Así se ve aunque Chrome esté configurado
+  // para descargar los PDF en vez de abrirlos. Si PDF.js no está, se usa el visor del navegador.
+  async function mostrarPdfPrev(cont, blob, my, numero) {
+    const lib = window.pdfjsLib;
+    if (!lib || !lib.getDocument) {
+      const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      cont.innerHTML = `<iframe src="${url}#view=FitH" title="Vista previa del pedido ${esc(numero)}"></iframe>`;
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+      return;
+    }
+    const pdf = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+    if (my !== prevSeq) return;
+    // Mantener la posición relativa del scroll al cambiar el zoom
+    const rx = cont.scrollWidth > cont.clientWidth ? (cont.scrollLeft + cont.clientWidth / 2) / cont.scrollWidth : 0.5;
+    const ry = cont.scrollHeight > cont.clientHeight ? (cont.scrollTop + cont.clientHeight / 2) / cont.scrollHeight : 0;
+    const hoja = document.createElement('div'); hoja.className = 'pp-pages';
+    const ancho = Math.max(240, (cont.clientWidth || 500) - 24) * prevZoom;
+    const dpr = Math.min(2.5, Math.max(1.5, window.devicePixelRatio || 1));
+    const canvases = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      if (my !== prevSeq) return;
+      const v0 = page.getViewport({ scale: 1 }), e1 = ancho / v0.width;
+      const px = Math.min(dpr, 5000 / (v0.width * e1)); // tope de tamaño del lienzo
+      const vp = page.getViewport({ scale: e1 * px });
+      const cv = document.createElement('canvas');
+      cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
+      cv.style.width = Math.floor(v0.width * e1) + 'px'; cv.style.height = Math.floor(v0.height * e1) + 'px';
+      await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+      if (my !== prevSeq) return;
+      canvases.push(cv);
+    }
+    canvases.forEach(cv => hoja.appendChild(cv));
+    cont.innerHTML = ''; cont.appendChild(hoja);
+    if (prevZoom !== 1 || ry) { cont.scrollLeft = rx * cont.scrollWidth - cont.clientWidth / 2; cont.scrollTop = ry * cont.scrollHeight - cont.clientHeight / 2; }
+    try { pdf.destroy(); } catch (e) {}
+  }
+  function zoomPrev(z) {
+    z = Math.max(ZOOMS[0], Math.min(ZOOMS[ZOOMS.length - 1], z));
+    if (z === prevZoom) return;
+    prevZoom = z; localStorage.setItem('pyq_prev_zoom', String(z));
+    const p = document.getElementById('pyq-prev'); if (!p) return;
+    const l = p.querySelector('.pp-zl'); if (l) l.textContent = Math.round(z * 100) + '%';
+    if (prevBlob && prevTab !== 'datos') mostrarPdfPrev(p.querySelector('.pp-b'), prevBlob, ++prevSeq, prevNro).catch(() => {});
+  }
+  const zoomPaso = d => { const i = ZOOMS.findIndex(z => z >= prevZoom - 1e-6); zoomPrev(ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, (i < 0 ? ZOOMS.length - 1 : i) + d))]); };
+  function moverPreview(d) {
+    const trs = [...document.querySelectorAll('#pyq-wrap tbody tr[data-id]')];
+    const base = prevId || selId;
+    const i = trs.findIndex(t => t.dataset.id === base);
+    const nx = trs[i < 0 ? 0 : i + d]; if (!nx) return;
+    if (!selCol) { const ks = colsNav().filter(k => k !== '_acc'); selCol = ks[0] || null; }
+    if (prevId && document.getElementById('pyq-prev')) abrirPreview(nx.dataset.id); else marcarFila(nx.dataset.id);
+  }
+  function cambiarTab(t) {
+    if (t === prevTab) return; prevTab = t; if (t !== 'cc') localStorage.setItem('pyq_prev_tab', t);
+    if (prevId) abrirPreview(prevId);
+  }
+  document.addEventListener('click', e => {
+    if (prevId && e.target.closest('.tab-btn')) return cerrarPreview();
+    const b = e.target.closest('#pyq-prev [data-pp]'); if (!b) return;
+    const a = b.dataset.pp;
+    if (a === 'x') return cerrarPreview();
+    if (a === 'dl' && prevId && prevTab === 'cc') {
+      const r = rows.find(x => String(rowId(x)) === String(prevId)), cid = clienteId(r);
+      if (!cid) return toast('⚠ El pedido no tiene el cliente cargado', 'warn');
+      return descargarReporte('CLIENTE', cid, CC_REPORTE, `Cuenta_corriente_${String(r.CLIE_NOMBRE || cid).replace(/[^\w\-áéíóúñÁÉÍÓÚÑ]+/g, '_')}.pdf`, b, '📒 Cuenta corriente descargada');
+    }
+    if (a === 'dl' && prevId) return descargarPdf(prevId, prevFmt(), b);
+    if (a === 'zm') return zoomPaso(-1);
+    if (a === 'zp') return zoomPaso(1);
+    if (a === 'z1') return zoomPrev(1);
+    if (a === 'tab-datos') return cambiarTab('datos');
+    if (a === 'tab-pdf') return cambiarTab('pdf');
+    if (a === 'tab-cc') return cambiarTab('cc');
+  });
+  document.addEventListener('change', e => {
+    const sl = e.target.closest('#pyq-prev select[data-pp="fmt"]'); if (!sl) return;
+    localStorage.setItem('pyq_prev_fmt', sl.value); if (prevId) abrirPreview(prevId);
+  });
+  // Ctrl + rueda sobre el PDF = zoom
+  document.addEventListener('wheel', e => {
+    if (!e.ctrlKey || !e.target.closest || !e.target.closest('#pyq-prev .pp-b')) return;
+    e.preventDefault(); zoomPaso(e.deltaY < 0 ? 1 : -1);
+  }, { passive: false });
+  // Arrastrar el borde izquierdo = cambiar el ancho del panel
+  document.addEventListener('mousedown', e => {
+    const h = e.target.closest && e.target.closest('#pyq-prev .pp-drag'); if (!h) return;
+    e.preventDefault(); document.body.classList.add('pp-arrastrando');
+    const mover = ev => aplicarAnchoPrev(Math.max(320, Math.min(window.innerWidth - 160, window.innerWidth - ev.clientX)));
+    const soltar = () => {
+      document.removeEventListener('mousemove', mover); document.removeEventListener('mouseup', soltar);
+      document.body.classList.remove('pp-arrastrando');
+      const w = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ppw')) || 0;
+      if (w) localStorage.setItem('pyq_prev_w', String(w));
+      const p = document.getElementById('pyq-prev'); if (p && prevBlob) mostrarPdfPrev(p.querySelector('.pp-b'), prevBlob, ++prevSeq, prevNro).catch(() => {});
+    };
+    document.addEventListener('mousemove', mover); document.addEventListener('mouseup', soltar);
+  });
+  document.addEventListener('dblclick', e => {
+    if (!e.target.closest || !e.target.closest('#pyq-prev .pp-drag')) return;
+    localStorage.removeItem('pyq_prev_w'); aplicarAnchoPrev(0);
+    const p = document.getElementById('pyq-prev'); if (p && prevBlob) setTimeout(() => mostrarPdfPrev(p.querySelector('.pp-b'), prevBlob, ++prevSeq, prevNro).catch(() => {}), 50);
+  });
+  let hoverTd = null, hoverBtn = null, ultimoMouse = false;
+  document.addEventListener('mouseover', e => {
+    const tr = e.target.closest && e.target.closest('#pyq-wrap tbody tr[data-id]');
+    hoverId = tr ? tr.dataset.id : null;
+    hoverTd = (e.target.closest && e.target.closest('#pyq-wrap tbody td')) || null;
+    hoverBtn = (e.target.closest && e.target.closest('#pyq-wrap tbody td.c-acc button')) || null;
+  });
+  document.addEventListener('mousemove', e => { if (e.target.closest && e.target.closest('#pyq-wrap tbody')) ultimoMouse = true; }, { passive: true });
+  // Shift + ← / → : mover la grilla hacia los costados, de a una columna
+  function moverLateral(d) {
+    const sc = document.querySelector('#pyq-wrap .pyq-scroll'); if (!sc) return;
+    const x = sc.scrollLeft, r0 = sc.getBoundingClientRect().left, bordes = [...sc.querySelectorAll('thead th')].map(th => Math.round(th.getBoundingClientRect().left - r0 + x));
+    let dest = d > 0 ? bordes.find(b => b > x + 4) : [...bordes].reverse().find(b => b < x - 4);
+    if (dest == null) dest = d > 0 ? sc.scrollWidth : 0;
+    sc.scrollTo({ left: dest, behavior: 'smooth' });
+  }
+  const grillaVisible = () => { const w = document.getElementById('pyq-wrap'); return !!w && w.getClientRects().length > 0; };
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    // En el buscador de la grilla, las flechas ↑ ↓ igual mueven entre pedidos (el resto de las teclas escriben normal)
+    const enBuscador = !!(t && t.matches && t.matches('#pyq-wrap input.pyq-q'));
+    const lateral = e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight');
+    // En el buscador: ← → mueven el cursor del texto, salvo que ya hayas marcado un pedido con ↑ ↓
+    // (ahí se mueven entre celdas). Esc desmarca y vuelven a mover el cursor del texto.
+    const celdaDesdeBuscador = enBuscador && selId != null && !e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight');
+    const escDesdeBuscador = enBuscador && selId != null && e.key === 'Escape';
+    const enterDesdeBuscador = enBuscador && selId != null && e.key === 'Enter'; // Enter actúa sobre la celda / botón marcado
+    if (enBuscador && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && !lateral && !celdaDesdeBuscador && !escDesdeBuscador && !enterDesdeBuscador) return;
+    if (enterDesdeBuscador) ultimoMouse = false;   // desde el buscador manda el teclado (la celda marcada), no el mouse
+    if (!enBuscador && t && t.closest && t.closest('input,textarea,select,[contenteditable="true"]')) return;
+    // Solo si el foco está en la grilla, en el panel o en ningún lado (no dentro de otro modal)
+    if (t && t !== document.body && t !== document.documentElement && !(t.closest && t.closest('#pyq-wrap,#pyq-prev'))) return;
+    if (!grillaVisible() || document.getElementById('ped-modal-bd')) return;
+    const k = e.key, abierto = !!(prevId && document.getElementById('pyq-prev'));
+    let ok = true;
+    if (k.startsWith('Arrow')) ultimoMouse = false;
+    if (lateral) moverLateral(k === 'ArrowRight' ? 1 : -1);
+    else if (k === 'ArrowLeft' || k === 'ArrowRight') moverCelda(k === 'ArrowRight' ? 1 : -1);
+    else if (k === 'F2') { const td = tdActiva(); if (td && td.classList.contains('ed')) td.click(); else ok = false; }
+    else if (k === 'ArrowDown' || k === 'ArrowUp') moverPreview(k === 'ArrowDown' ? 1 : -1);
+    else if (k === 'Enter') {
+      if (t && t.closest && t.closest('button,a')) return; // Enter sobre un botón: que haga lo suyo
+      if (e.shiftKey) {                                   // Shift + Enter: ficha del pedido
+        const id = (ultimoMouse && hoverId) || selId || hoverId; if (!id) return;
+        abrirPreview(id);
+      } else if (ultimoMouse && hoverBtn && document.contains(hoverBtn)) {
+        hoverBtn.click();                                 // Enter con el mouse sobre un botón: clic
+      } else if (!ultimoMouse && selCol === '_acc') {
+        const b = botonesDe(tdActiva())[selBtn]; if (b) b.click();   // Enter sobre el botón marcado: clic
+      } else {                                            // Enter: editar la celda (activa o bajo el mouse)
+        const td = (ultimoMouse && hoverTd && document.contains(hoverTd)) ? hoverTd : (tdActiva() || hoverTd);
+        if (!td) return;
+        if (td.classList.contains('ed')) {
+          const tr = td.closest('tr[data-id]'), th = document.querySelectorAll('#pyq-wrap thead th')[[...tr.children].indexOf(td)];
+          if (th && th.dataset.col) { selCol = th.dataset.col; selId = tr.dataset.id; marcarFila(selId); }
+          td.click();
+          // Si se editó desde el buscador, al terminar (guardar o cancelar) el cursor vuelve al buscador
+          if (enBuscador) {
+            const ed = td.querySelector('textarea,input,select'), q = t;
+            if (ed) ed.addEventListener('blur', () => setTimeout(() => { if (!document.activeElement || document.activeElement === document.body) { q.focus(); } }, 200), { once: true });
+          }
+        } else if (typeof toast === 'function') toast('Esta celda no se edita desde acá · Shift + Enter abre la ficha del pedido', 'warn');
+      }
+    }
+    else if (k === 'Escape' && !abierto && selId) marcarFila(null);
+    else if (!abierto) ok = false;
+    else if (k === 'Escape') cerrarPreview();
+    else if (k === 'd' || k === 'D') cambiarTab('datos');
+    else if (k === 'p' || k === 'P') cambiarTab('pdf');
+    else if (k === 'c' || k === 'C') cambiarTab('cc');
+    else if (prevTab !== 'datos' && (k === '+' || k === '=')) zoomPaso(1);
+    else if (prevTab !== 'datos' && (k === '-' || k === '_')) zoomPaso(-1);
+    else if (prevTab !== 'datos' && k === '0') zoomPrev(1);
+    else ok = false;
+    if (ok) { e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true);
 
   document.addEventListener('click', async e => {
     const w = document.getElementById('pyq-wrap'); if (!w || !w.contains(e.target)) return;
@@ -64346,6 +65128,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.closest('a[data-yiqi]')) return; // el N° abre el pedido en Yiqi (pestaña nueva)
     const rb = e.target.closest('[data-reservar]');
     if (rb) return solicitarReserva(rb.dataset.reservar);
+    const ccb = e.target.closest('[data-cc]');
+    if (ccb) return abrirCC(ccb.dataset.cc);
     const fb = e.target.closest('[data-fact]');
     if (fb) return facturaPdf(fb, fb.dataset.fact);
     const pdfb = e.target.closest('[data-pdf]');
@@ -64357,6 +65141,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cp) return copiarPedido(cp.dataset.copiar);
     if (edb) return editarEnCrm(edb.dataset.editar);
     if (a && a.dataset.a === 'cols') { colsAbierto = !colsAbierto; return render(); }
+    if (a && a.dataset.a === 'tema') { pyqTema(!document.body.classList.contains('pyq-claro'), true); return render(); }
     if (a && a.dataset.a === 'colsreset') { delete prefs.orden; delete prefs.ocultas; delete prefs.colores; savePrefs(); return render(); }
     const cc = e.target.closest('[data-colcolor]');
     if (cc) { prefs.colores = Object.assign({}, prefs.colores); if (cc.dataset.c) prefs.colores[cc.dataset.colcolor] = cc.dataset.c; else delete prefs.colores[cc.dataset.colcolor]; savePrefs(); return render(); }
@@ -64374,6 +65159,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (chip) { prefs.estado = chip.dataset.estado; savePrefs(); return render(); }
     if (th) { if (prefs.sort === th.dataset.sort) prefs.dir *= -1; else { prefs.sort = th.dataset.sort; prefs.dir = th.dataset.sort === 'PEDI_NUMERO_SOLO' || th.dataset.sort === 'AUDI_FECHA_ALTA' || th.dataset.sort === 'PEDI_TOTAL' ? -1 : 1; } savePrefs(); return render(); }
+    const tdv = e.target.closest('tbody td');
+    if (!td && tdv && !tdv.classList.contains('c-acc') && !e.target.closest('button,a,input,select,textarea')) {
+      const trv = tdv.closest('tr[data-id]');
+      if (trv) return prevId === trv.dataset.id ? cerrarPreview() : abrirPreview(trv.dataset.id);
+    }
     if (td && !td.querySelector('select,textarea,input')) abrirEditor(td);
   });
   document.addEventListener('change', e => {
@@ -65677,7 +66467,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return [
       frame('Tienda online · Origen Web','Pedidos Web',`<div class="ep-grid4">${card(`Pedidos de ${mesTit}`,fmtN(W.mesN),`promedio ${fmtN(W.promN)} por mes`)}${card(`Facturado ${mesTit}`,fmt$(W.mesS),d!=null?`${d>0?'+':''}${fmtP(d)} vs promedio mensual`:`promedio ${fmt$(W.promS)}/mes`,'red money')}${card('Ticket promedio',fmt$(W.ticket),`12 meses: ${fmt$(W.promT)}`,'money')}${card('Clientes del mes',fmtN(W.clientes),`${fmtN(W.nuevos)} nuevos`)}</div>
         <p class="ep-axis" style="margin:18px 0 0;font-weight:700">Facturado y pedidos por mes</p>${svg}
-        <p class="ep-note">${W.espera.length?`Sin concretar: ${W.espera.length} pedidos en espera de pago hace +7 días por ${fmt$(W.esperaS)}. `:''}${W.devN?`Devoluciones del mes: ${W.devN} (${fmt$(W.devS)}). `:''}Los cargan y siguen Juan y Federico; se muestran aparte de WhatsApp.</p>`),
+        <p class="ep-note">${W.devN?`Devoluciones del mes: ${W.devN} (${fmt$(W.devS)}). `:''}Los cargan y siguen Juan y Federico; se muestran aparte de WhatsApp.</p>`),
       frame('Tienda online · Origen Web',`Clientes Web de ${mesTit}`,`<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">${tb('Los que más gastaron',W.topS)}${tb('Los que más pedidos hicieron',W.topP)}</div>`)
     ];
   }
@@ -66058,9 +66848,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const card=(l,b,s,cls)=>`<div class="ep-card"><span class="l">${l}</span><span class="b ${cls||''}">${b}</span><span class="s">${s||''}</span></div>`;
     slides.push(`<div class="ep-slide cover"><img class="ep-cover-logo" src="${EST_LOGO}"><div class="ep-dia d1"></div><div class="ep-dia d2"></div><div class="ep-dia d3"></div><div class="ep-dia d4"></div><div class="ep-dia d5"></div><p class="ep-eye">Informe mensual</p><h1>Pedidos<br>Web</h1><div class="ep-rule"></div><p class="ep-per">${per}</p><p class="ep-cap">Tienda online · pedidos que cargan y siguen Juan y Federico</p></div>`);
     slides.push(...webSlides(y,m,frame,card));
-    if(W.espera.length){ const L_=' style="text-align:left"', cg='<colgroup><col style="width:6%"><col style="width:14%"><col style="width:50%"><col style="width:16%"><col style="width:14%"></colgroup>';
-      for(let i=0;i<W.espera.length;i+=14){ const ch=W.espera.slice(i,i+14);
-        slides.push(frame('Para hacer seguimiento',`Pedidos Web sin concretar${W.espera.length>14?` (${i+1}–${i+ch.length} de ${W.espera.length})`:''}`,`<table class="ep-tb ep-anx">${cg}<thead><tr><th>#</th><th>N° pedido</th><th${L_}>Cliente</th><th>Monto</th><th>Días de espera</th></tr></thead><tbody>${ch.map((p,j)=>`<tr><td>${i+j+1}</td><td>${esc(p.nro)}</td><td${L_}>${esc(p.cliente)}</td><td>${fmt$(p.monto)}</td><td>${p.dias}</td></tr>`).join('')}</tbody></table><p class="ep-note">"En espera de pago" hace más de 7 días (pedidos de este mes y del anterior). Total: ${fmt$(W.esperaS)}.</p>`)); } }
     return slides;
   }
   async function exportPdfWeb(){
@@ -66439,7 +67226,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Campos que se completan y los que el usuario tocó a mano ──
   const CAMPOS = ['ped-origen', 'ped-vendedor', 'ped-condventa', 'ped-lista', 'ped-puntoventa', 'ped-ubicorig',
-    'ped-cliefac-input', 'ped-dir-envio', 'ped-ciudad-envio', 'ped-cp-envio', 'ped-prov-envio', 'ped-pais-envio', 'ped-localidad-envio'];
+    'ped-cliefac-input', 'ped-dir-envio', 'ped-ciudad-envio', 'ped-cp-envio', 'ped-prov-envio', 'ped-pais-envio', 'ped-localidad-envio', 'ped-obs', 'ped-estado-envio', 'ped-estado-pago', 'ped-transporte-select', 'ped-tipo-envio-select'];
   const tocados = new Set();
   document.addEventListener('input', e => { if (e.isTrusted && CAMPOS.includes(e.target.id)) tocados.add(e.target.id); }, true);
   let _llenando = false;
@@ -66486,7 +67273,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const COLS = ['PEDI_NUMERO_SOLO', 'PEDI_FECHA', 'DESC_ESTADO', 'EXTE_ID_EXTE', 'VEHA_ID_VEHA', 'COVE_ID_COVE', 'LIDP_ID_LIDP', 'PUVE_ID_PUVE', 'CEDI_ID_ORIG',
-    'CLIE_ID_FACT', 'FACT_NOMBRE', 'PEDI_DIRECCION_DE_ENVIO', 'PEDI_CIUDAD_DE_ENVIO', 'PEDI_PROVINCIA_DE_ENVIO', 'PEDI_PAIS_DE_ENVIO', 'PEDI_LOCALIDAD_DE_ENVIO', 'PEDI_CODIGO_POSTAL_DE_ENV'];
+    'CLIE_ID_FACT', 'FACT_NOMBRE', 'PEDI_DIRECCION_DE_ENVIO', 'PEDI_CIUDAD_DE_ENVIO', 'PEDI_PROVINCIA_DE_ENVIO', 'PEDI_PAIS_DE_ENVIO', 'PEDI_LOCALIDAD_DE_ENVIO', 'PEDI_CODIGO_POSTAL_DE_ENV', 'PEDI_OBSERVACIONES', 'PEDI_ESTADO_DEL_ENVIO', 'PEDI_ESTADO_DE_PAGO'];
   let _seq = 0;
   async function autocompletar(nombre){
     const my = ++_seq;
@@ -66526,6 +67313,21 @@ document.addEventListener('DOMContentLoaded', () => {
       setTxt('ped-pais-envio', o.PEDI_PAIS_DE_ENVIO);
       setTxt('ped-localidad-envio', o.PEDI_LOCALIDAD_DE_ENVIO);
       setTxt('ped-cp-envio', o.PEDI_CODIGO_POSTAL_DE_ENV);
+      // Notas internas (Observaciones en Yiqi): solo si están vacías y no las escribiste a mano
+      const obsTa = $('ped-obs');
+      if (obsTa && !obsTa.value.trim()) setTxt('ped-obs', String(o.PEDI_OBSERVACIONES || '').trim());
+      // Estados (envío y pago): solo si están sin especificar y no los cambiaste a mano
+      const ee = String(o.PEDI_ESTADO_DEL_ENVIO || '').trim(), selEnv = $('ped-estado-envio');
+      if (ee && selEnv && !selEnv.value) {
+        const m = ee.split('\n')[0].trim().match(/^ENVIAR(?:\s*-\s*(.*?))?(?:\s*\(([^)]*)\))?\s*$/i);
+        if (/^RETIRA/i.test(ee)) setSel('ped-estado-envio', 'RETIRA');
+        else if (m && setSel('ped-estado-envio', 'ENVIAR')) {
+          const ponerOpc = (id, v) => { const sl = $(id); if (!sl || !v || tocados.has(id)) return; if (!Array.from(sl.options).some(x => x.value === v)) sl.add(new Option(v, v)); sl.value = v; };
+          ponerOpc('ped-transporte-select', (m[1] || '').trim()); ponerOpc('ped-tipo-envio-select', (m[2] || '').trim());
+        }
+      }
+      const selPago = $('ped-estado-pago');
+      if (o.PEDI_ESTADO_DE_PAGO && selPago && !selPago.value) setSel('ped-estado-pago', String(o.PEDI_ESTADO_DE_PAGO).trim());
       const f = o.PEDI_FECHA ? new Date(o.PEDI_FECHA).toLocaleDateString('es-AR') : '';
       marca(`✓ Datos completados de su último pedido N° ${o.PEDI_NUMERO_SOLO}${f ? ' (' + f + ')' : ''}`);
       if (typeof showToast === 'function') showToast('✓ Datos del último pedido N° ' + o.PEDI_NUMERO_SOLO + ' cargados', 'ok');
@@ -70336,6 +71138,9 @@ function _edMostrarUndo(id, estadoPrev, estadoNuevo) {
     if (idx2 < 0) return;
     _edEnvios[idx2].estado = estadoPrev;
     if (_edEnvios[idx2].estadoLog?.length) _edEnvios[idx2].estadoLog.pop();
+    if (estadoNuevo === 'facturado' || estadoNuevo === 'pago_acreditado') {
+      _edEnvios[idx2].autoBloqueo = Object.assign({}, _edEnvios[idx2].autoBloqueo, { [estadoNuevo]: true });
+    }
     if (estadoPrev !== 'en_camino') delete _edEnvios[idx2].enCaminoAt;
     if (estadoPrev !== 'entregado') delete _edEnvios[idx2].entregadoAt;
     _edEnvios[idx2].updatedAt = Date.now();
@@ -70484,6 +71289,10 @@ function edBorrarEstadoLog(id, ts, estado) {
   newLog.splice(entradaIdx, 1);
   _edEnvios[idx].estadoLog = newLog;
   _edEnvios[idx].updatedAt = Date.now();
+  // Si se borra a mano Facturado o Pago acreditado, el marcado automático (Yiqi) no lo vuelve a poner
+  if (estado === 'facturado' || estado === 'pago_acreditado') {
+    _edEnvios[idx].autoBloqueo = Object.assign({}, _edEnvios[idx].autoBloqueo, { [estado]: true });
+  }
   edSaveEnvioById(id);
   edRenderLista();
   showToast('Estado eliminado del historial', 'ok');
@@ -73426,6 +74235,79 @@ edCambiarEstado = function(id, nuevoEstado) {
   edLogEntry('estado', 'Estado: ' + cliente, { id, nuevoEstado, cliente, detalle: 'Estado: ' + estadoAnterior + ' → ' + nuevoEstado });
 };
 window.edCambiarEstado = edCambiarEstado;
+
+// ── Automático: pedidos de Juan Martin Gaffuri que en Yiqi pasan a "Staging Out" o "Entregado" ─────────
+// marcan en su envío "Facturado" y "Pago acreditado", si están disponibles con las mismas reglas del selector
+// (Pago acreditado no va con Efectivo / Dólares / Cuenta corriente; ninguno se repite). Si solo uno está
+// disponible, se marca ese. Lo hace solo un admin con la sesión de Yiqi abierta.
+(function edAutoFacturadoYiqi() {
+  const VENDEDOR_ID = 4;                     // Juan Martin Gaffuri en Yiqi
+  const ESTADOS_YIQI = ['staging out', 'entregado'];
+  const FINALES = ['en_camino','entregado','no_entregado','no_responde','cancelado','cobrado','guia_enviada'];
+  const DIAS = 45, CADA_MS = 4 * 60 * 1000;
+  let corriendo = false;
+  const tiene = (e, est) => (e.estadoLog || []).some(l => l.estado === est && !l.esReprogramado) || e.estado === est;
+  const bloqueado = (e, est) => !!(e.autoBloqueo && e.autoBloqueo[est]); // lo borraste o deshiciste a mano
+  const pagoDisponible = e => !['efectivo','dolares','cuenta_corriente'].includes(e.cobro) && !tiene(e, 'pago_acreditado') && !bloqueado(e, 'pago_acreditado');
+  const facturadoDisponible = e => !tiene(e, 'facturado') && !bloqueado(e, 'facturado');
+  function candidatos() {
+    const limite = Date.now() - DIAS * 864e5;
+    return (_edEnvios || []).filter(e => e && !e.esCombo && /^\d{4,}$/.test(String(e.nroPedido || '').trim())
+      && !FINALES.includes(e.estado) && (Number(e.creadoAt || e.id) || 0) >= limite
+      && (facturadoDisponible(e) || pagoDisponible(e)));
+  }
+  async function revisar(motivo) {
+    if (corriendo) return;
+    try { if (typeof edGetRol !== 'function' || edGetRol() !== 'admin') return; } catch (e) { return; }
+    const lista = candidatos(); if (!lista.length) return;
+    let tok = null; try { tok = await window._yiqiGetTokenGlobal(); } catch (e) {}
+    if (!tok) return;
+    corriendo = true;
+    try {
+      const nros = [...new Set(lista.map(e => Number(String(e.nroPedido).trim())))];
+      const enYiqi = new Map();
+      for (let i = 0; i < nros.length; i += 80) {
+        const r = await yiqiFetch('https://api.yiqi.com.ar/api/public/PEDIDO/query?schemaId=328', { method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ page: 1, pageSize: 200, columns: ['ID','PEDI_NUMERO_SOLO','DESC_ESTADO','VEHA_ID_VEHA'].map((f, k) => ({ field: f, title: f, order: k + 1 })),
+            filters: [{ columnName: 'PEDI_NUMERO_SOLO', operator: 'IN', value: nros.slice(i, i + 80) }] }) });
+        if (!r.ok) { console.warn('[ed-auto] Yiqi respondió', r.status); return; }
+        const j = await r.json();
+        (j.data || []).forEach(p => enYiqi.set(String(p.PEDI_NUMERO_SOLO), p));
+      }
+      const marcados = [];
+      const _toast = showToast; showToast = function() {};   // sin un aviso por cada estado; al final va un resumen
+      const _undo = _edMostrarUndo; _edMostrarUndo = function() {};
+      try {
+        for (const e of lista) {
+          const p = enYiqi.get(String(Number(String(e.nroPedido).trim()))); if (!p) continue;
+          const vend = p.VEHA_ID_VEHA && typeof p.VEHA_ID_VEHA === 'object' ? (p.VEHA_ID_VEHA.id ?? p.VEHA_ID_VEHA.ID) : p.VEHA_ID_VEHA;
+          if (Number(vend) !== VENDEDOR_ID) continue;
+          const est = String(p.DESC_ESTADO || '').toLowerCase().trim();
+          if (!ESTADOS_YIQI.includes(est)) continue;
+          const t0 = Date.now(), hechos = [];
+          if (facturadoDisponible(e)) { edCambiarEstado(e.id, 'facturado'); if (tiene(e, 'facturado')) hechos.push('Facturado'); }
+          const e2 = _edEnvios.find(x => x.id === e.id) || e;
+          if (pagoDisponible(e2)) { edCambiarEstado(e.id, 'pago_acreditado'); if (tiene(e2, 'pago_acreditado')) hechos.push('Pago acreditado'); }
+          if (hechos.length) {
+            (e2.estadoLog || []).forEach(l => { if (l.ts >= t0 && (l.estado === 'facturado' || l.estado === 'pago_acreditado')) { l.autor = 'Automático (Yiqi: ' + p.DESC_ESTADO + ')'; l.auto = true; } });
+            marcados.push(`#${e.nroPedido} ${String(e.cliente || '').replace(/\s+N[°º]\s*\d+.*$/i, '').trim()} → ${hechos.join(' + ')}`);
+          }
+        }
+      } finally { showToast = _toast; _edMostrarUndo = _undo; }
+      if (marcados.length) {
+        edSaveEnvios(); edRenderLista();
+        showToast(`🤖 ${marcados.length === 1 ? '1 envío de Juan Martin Gaffuri marcado' : marcados.length + ' envíos de Juan Martin Gaffuri marcados'} (Staging Out / Entregado en Yiqi): ${marcados.slice(0, 3).join(' · ')}${marcados.length > 3 ? ' …' : ''}`, 'ok');
+        console.info('[ed-auto]', motivo, marcados);
+      }
+    } catch (err) { console.warn('[ed-auto] no se pudo revisar Yiqi', err); }
+    finally { corriendo = false; }
+  }
+  window.edAutoFacturadoYiqi = revisar;
+  setTimeout(() => revisar('inicio'), 25000);
+  setInterval(() => { if (!document.hidden) revisar('cada 4 min'); }, CADA_MS);
+  document.addEventListener('click', ev => { if (ev.target.closest && ev.target.closest('#tab-envios-dentalab')) setTimeout(() => revisar('pestaña'), 800); });
+})();
 
 // ── Interceptar edEliminar para registrar en el log y borrar de GCal ────────
 const _edEliminarOrig = edEliminar;
