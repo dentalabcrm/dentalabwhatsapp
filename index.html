@@ -66604,9 +66604,35 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     Object.entries(H).forEach(([id,sm])=>{const g=segDet[grupoDe(sm.size)]; g.n++; g.s+=S12[id]||0; if(sm.has(kM)) g.mes++;});
     const totS12=Object.values(segDet).reduce((a,g)=>a+g.s,0);
     const d12=new Date(y,m-11,1), per12=`${MONTHS[d12.getMonth()]} ${d12.getFullYear()} a ${MONTHS[m]} ${y}`;
-    return {segDet,totS12,per12,clientes:lista.length,conCompra:conCompra.length,nuevos,recurrentes:lista.length-nuevos,totS,prom:conCompra.length?totS/conCompra.length:null,
+    // Quiénes son: un renglón por cliente (vendedor más habitual, meses con compra, último pedido, facturado en 12 meses)
+    const INF={}; R.filter(r=>k12.includes(mesDe(r))&&tom(r)).forEach(r=>{const id=r.CLIE_ID_CLIE, f=new Date(r.PEDI_FECHA).getTime();
+      const c=(INF[id]=INF[id]||{n:String(r.CLIE_NOMBRE||'').trim(),v:{},ult:0,ultN:''}); c.v[r.VEHA_ID_VEHA]=(c.v[r.VEHA_ID_VEHA]||0)+1; if(f>c.ult){c.ult=f;c.ultN=r.PEDI_NUMERO_SOLO||'';}});
+    const kM1=(()=>{const d=new Date(y,m-1,1);return ymKey(d.getFullYear(),d.getMonth());})();
+    const segCli={todos:[],frec:[],ocas:[],una:[]};
+    Object.entries(H).forEach(([id,sm])=>{const i=INF[id]; if(!i) return;
+      segCli[grupoDe(sm.size)].push({id,cliente:i.n,vend:vendDe(Object.entries(i.v).sort((a,b)=>b[1]-a[1])[0][0]),meses:sm.size,ult:i.ult,ultN:i.ultN,s:S12[id]||0,enMes:sm.has(kM),enMesAnt:sm.has(kM1)});});
+    Object.values(segCli).forEach(a=>a.sort((x,z)=>z.s-x.s||z.meses-x.meses));
+    // Para accionar: fijos/frecuentes que no compraron en el mes · ocasionales que no compraron ni este mes ni el anterior
+    const fijosAus=[...segCli.todos,...segCli.frec].filter(c=>!c.enMes).sort((x,z)=>z.s-x.s);
+    const ocasInact=segCli.ocas.filter(c=>!c.enMes&&!c.enMesAnt).sort((x,z)=>z.s-x.s);
+    const mesAnt=MONTHS[(m+11)%12];
+    return {segDet,totS12,per12,segCli,fijosAus,ocasInact,mesAnt,clientes:lista.length,conCompra:conCompra.length,nuevos,recurrentes:lista.length-nuevos,totS,prom:conCompra.length?totS/conCompra.length:null,
       pedXc:lista.length?lista.reduce((a,c)=>a+c.ped,0)/lista.length:null,topS,topP,conc:totS?top10S/totS:null,seg,act12:Object.keys(H).length};
   }
+  function cliTablaHTML(a,mesTit){
+    if(!a.length) return '<p class="est-small" style="margin:6px 0">No hay clientes en esta lista.</p>';
+    return `<div class="est-dt" style="max-height:360px;overflow:auto;margin-top:6px"><table class="est-cmp"><thead><tr><th>#</th><th style="text-align:left">Cliente</th><th style="text-align:left">Vendedor</th><th>Meses con compra<br><small style="font-weight:600">de 12</small></th><th>Último pedido</th><th>Facturado<br><small style="font-weight:600">en 12 meses</small></th></tr></thead><tbody>
+      ${a.map((c,i)=>`<tr><td>${i+1}</td><td style="text-align:left"><b>${esc(c.cliente)}</b>${c.enMes?'':` <small style="color:#ef4444;font-weight:700">· no compró en ${esc(mesTit)}</small>`}</td><td style="text-align:left">${esc(c.vend)}</td><td>${c.meses}</td><td>${c.ult?fFecha(c.ult):'—'}${c.ultN?` <small>N° ${esc(c.ultN)}</small>`:''}</td><td>${fmt$(c.s)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  window._estCliCopiar=(kind,btn)=>{
+    const K=cliModel(cur.y,cur.m); if(!K) return;
+    const seg=CLI_SEGS.find(x=>x.k===kind);
+    const a=seg?K.segCli[kind]:K[kind]; if(!a||!a.length) return;
+    const tit=seg?`${seg.t} (${seg.d})`:kind==='fijosAus'?`Fijos y frecuentes que no compraron en ${MONTHS[cur.m]}`:`Ocasionales que no compraron ni en ${K.mesAnt} ni en ${MONTHS[cur.m]}`;
+    const t=`${tit} · ${MONTHS[cur.m]} ${cur.y}\n`+a.map((c,i)=>`${i+1}. ${c.cliente} · ${c.vend} · compró en ${c.meses} de 12 meses · último pedido ${c.ult?fFecha(c.ult):'—'}${c.ultN?' (N° '+c.ultN+')':''} · ${fmt$(c.s)} en 12 meses`).join('\n');
+    const ok=()=>{ if(btn){const o=btn.textContent;btn.textContent='✓ Copiado';setTimeout(()=>btn.textContent=o,1500);} };
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok,()=>{prompt('Copiá la lista:',t);}); else prompt('Copiá la lista:',t);
+  };
   function cliHTML(y,m){
     const K=cliModel(y,m); if(!K||!K.clientes) return '';
     const mesTit=MONTHS[m];
@@ -66618,14 +66644,26 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
       return `<div class="est-card" style="margin-top:14px">
         <h4 style="margin:0 0 2px">Cómo compran los clientes <span>últimos 12 meses (${esc(K.per12)})</span></h4>
         <p class="est-small" style="margin:0 0 12px">${fmtN(K.act12)} clientes compraron por WhatsApp al menos una vez en esos 12 meses. Se agrupan según <b>en cuántos de esos meses</b> hicieron algún pedido.</p>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">${G.map(g=>`<div style="border:1px solid var(--border);border-top:4px solid ${g.c};border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:3px">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">${G.map(g=>`<div style="border:1px solid var(--border);border-top:4px solid ${g.c};border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px">
           <b style="font-size:13.5px">${esc(g.t)}</b><span class="est-small">${esc(g.d)}</span>
-          <span style="font-size:26px;font-weight:800;line-height:1.1;margin-top:4px">${fmtN(g.n)} <small style="font-size:13px;font-weight:600;color:var(--text2)">clientes · ${fmtP(K.act12?g.n/K.act12:0)}</small></span>
-          <span style="font-size:12.5px">Facturaron <b>${fmt$(g.s)}</b></span><span style="font-size:12.5px"><b>${fmtP(K.totS12?g.s/K.totS12:0)}</b> de lo facturado en los 12 meses</span>
-          <span style="font-size:12.5px">${fmtN(g.mes)} compraron en ${esc(mesTit)}</span></div>`).join('')}</div>
+          <span style="font-size:26px;font-weight:800;line-height:1.1;margin-top:4px">${fmtN(g.n)} <small style="font-size:13px;font-weight:600;color:var(--text2)">clientes</small></span>
+          <span style="font-size:12.5px">Son el <b>${fmtP(K.act12?g.n/K.act12:0)}</b> de los clientes y generaron el <b>${fmtP(K.totS12?g.s/K.totS12:0)}</b> de lo facturado (${fmt$(g.s)}).</span>
+          <span style="font-size:12.5px">${g.mes===g.n?'Todos':`${fmtN(g.mes)} de los ${fmtN(g.n)}`} compraron en ${esc(mesTit)}.</span></div>`).join('')}</div>
+        <p class="est-small" style="margin-top:8px">Cada cliente está en un solo grupo: ${G.map(g=>fmtN(g.n)).join(' + ')} = ${fmtN(K.act12)} clientes.</p>
         <div style="display:grid;grid-template-columns:130px 1fr;gap:6px 10px;align-items:center;margin-top:12px;font-size:12px">
           <span class="est-small">% de los clientes</span>${barra('n',K.act12)}<span class="est-small">% de lo facturado</span>${barra('s',K.totS12)}</div>
+        <h4 style="margin:16px 0 6px">Quiénes son <span>tocá un grupo para ver la lista, de los que más facturaron a los que menos</span></h4>
+        ${G.map(g=>{const a=K.segCli[g.k]||[]; return `<details style="border:1px solid var(--border);border-left:4px solid ${g.c};border-radius:8px;margin-top:6px;padding:6px 10px">
+          <summary style="cursor:pointer;font-weight:700;font-size:13px">${esc(g.t)} · ${fmtN(a.length)} clientes <button class="est-btn" style="margin-left:8px;padding:2px 8px;font-size:11px" onclick="event.preventDefault();_estCliCopiar('${g.k}',this)">📋 Copiar lista</button></summary>
+          ${cliTablaHTML(a,mesTit)}</details>`;}).join('')}
       </div>`;})():'';
+    const acc=(K.fijosAus.length||K.ocasInact.length)?`<div class="est-card" style="margin-top:14px">
+        <h4 style="margin:0 0 4px">🎯 Para escribirles <span>ordenados por cuánto facturaron en los 12 meses</span></h4>
+        ${K.fijosAus.length?`<h4 style="margin:10px 0 4px;font-size:13.5px">Fijos y frecuentes que no compraron en ${esc(mesTit)} (${fmtN(K.fijosAus.length)}) <button class="est-btn" style="padding:2px 8px;font-size:11px" onclick="_estCliCopiar('fijosAus',this)">📋 Copiar lista</button></h4>
+          <p class="est-small" style="margin:0 0 6px">Suelen comprar seguido y este mes no lo hicieron: conviene preguntarles si necesitan algo antes de que se vayan a otro lado.</p>${cliTablaHTML(K.fijosAus,mesTit)}`:''}
+        ${K.ocasInact.length?`<h4 style="margin:14px 0 4px;font-size:13.5px">Ocasionales que no compraron ni en ${esc(K.mesAnt)} ni en ${esc(mesTit)} (${fmtN(K.ocasInact.length)}) <button class="est-btn" style="padding:2px 8px;font-size:11px" onclick="_estCliCopiar('ocasInact',this)">📋 Copiar lista</button></h4>
+          <p class="est-small" style="margin:0 0 6px">Compraron en 2 a 5 de los últimos 12 meses y hace 2 meses o más que no piden: un mensaje con una oferta o una novedad puede hacer que vuelvan.</p>${cliTablaHTML(K.ocasInact,mesTit)}`:''}
+      </div>`:'';
     return `<section class="est-sec"><p class="est-eyebrow">Clientes · Origen WhatsApp (Yiqi)</p><h3>Clientes de ${mesTit}</h3>
       <div class="est-tiles">
         ${tile('Clientes que compraron',fmtN(K.clientes),`${fmtN(K.nuevos)} nuevos · ${fmtN(K.recurrentes)} que ya compraban`)}
@@ -66636,7 +66674,7 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
       <div class="est-two" style="margin-top:12px">
         <div class="est-dt"><table class="est-cmp"><thead><tr><th>#</th><th${L_}>Los que más gastaron</th><th${L_}>Vendedor</th><th>Pedidos</th><th>Facturado</th></tr></thead><tbody>${K.topS.map((c,i)=>`<tr><td>${i+1}</td><td${L_}><b>${esc(c.cliente)}</b></td><td${L_}>${esc(c.vend)}</td><td>${fmtN(c.ped)}</td><td>${fmt$(c.s)}</td></tr>`).join('')}</tbody></table></div>
         <div class="est-dt"><table class="est-cmp"><thead><tr><th>#</th><th${L_}>Los que más pedidos hicieron</th><th${L_}>Vendedor</th><th>Pedidos</th><th>Facturado</th></tr></thead><tbody>${K.topP.map((c,i)=>`<tr><td>${i+1}</td><td${L_}><b>${esc(c.cliente)}</b></td><td${L_}>${esc(c.vend)}</td><td>${fmtN(c.ped)}</td><td>${fmt$(c.s)}</td></tr>`).join('')}</tbody></table></div>
-      </div>${segT}
+      </div>${segT}${acc}
       <p class="est-small">Clientes de los pedidos de WhatsApp de Juan y Federico en Yiqi (sin "Consumidor final"). Pedidos = tomados (A reservar, Entregado, Quiebre 2, Staging Out); facturado = Entregado y Staging Out.</p></section>`;
   }
   function cliSlides(y,m,frame,card){
@@ -66647,13 +66685,21 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     const out=[];
     out.push(frame('Clientes · Origen WhatsApp',`Clientes de ${mesTit}`,`<div class="ep-grid4">${card('Clientes que compraron',fmtN(K.clientes),`${fmtN(K.nuevos)} nuevos · ${fmtN(K.recurrentes)} ya compraban`)}${card('Compra promedio',fmt$(K.prom),'por cliente en el mes','red money')}${card('Pedidos por cliente',fmtN(K.pedXc),'promedio en el mes')}${card('Peso del top 10',fmtP(K.conc),'de lo facturado en el mes')}</div>
       ${K.act12?(()=>{const G=CLI_SEGS.map(x=>({...x,...K.segDet[x.k]}));
-        return `<div style="margin-top:6px"><p class="ep-axis" style="margin:0 0 8px;font-size:15px;color:${PDFC.ink}"><b>Cómo compran los clientes</b> · ${fmtN(K.act12)} clientes compraron al menos una vez de ${esc(K.per12)}; se agrupan según en cuántos de esos 12 meses compraron.</p>
+        return `<div style="margin-top:6px"><p class="ep-axis" style="margin:0 0 8px;font-size:15px;color:${PDFC.ink}"><b>Cómo compran los clientes</b> · ${fmtN(K.act12)} clientes compraron al menos una vez de ${esc(K.per12)}. Cada uno está en un solo grupo, según en cuántos de esos 12 meses compró (${G.map(g=>fmtN(g.n)).join(' + ')} = ${fmtN(K.act12)}).</p>
         <div class="ep-grid4" style="gap:12px">${G.map(g=>`<div class="ep-card" style="padding:12px 16px;gap:3px;border-top:5px solid ${g.c}"><span style="font-size:15px;font-weight:700">${esc(g.t)}</span><span style="font-size:13px;color:${PDFC.muted};margin-top:-2px">${esc(g.d)}</span>
-          <span style="font-size:32px;font-weight:700;color:${PDFC.navy};line-height:1.1">${fmtN(g.n)} <span style="font-size:15px;font-weight:600;color:${PDFC.muted}">clientes · ${fmtP(g.n/K.act12)}</span></span>
-          <span style="font-size:13.5px">Facturaron ${fmt$(g.s)}</span><span style="font-size:13.5px"><b>${fmtP(K.totS12?g.s/K.totS12:0)}</b> de lo facturado en los 12 meses</span><span style="font-size:13.5px;color:${PDFC.muted}">${fmtN(g.mes)} compraron en ${esc(mesTit)}</span></div>`).join('')}</div></div>`;})():''}
+          <span style="font-size:32px;font-weight:700;color:${PDFC.navy};line-height:1.1">${fmtN(g.n)} <span style="font-size:15px;font-weight:600;color:${PDFC.muted}">clientes</span></span>
+          <span style="font-size:13.5px;line-height:1.35">Son el <b>${fmtP(g.n/K.act12)}</b> de los clientes y generaron el <b>${fmtP(K.totS12?g.s/K.totS12:0)}</b> de lo facturado (${fmt$(g.s)}).</span><span style="font-size:13.5px;color:${PDFC.muted}">${g.mes===g.n?'Todos':`${fmtN(g.mes)} de los ${fmtN(g.n)}`} compraron en ${esc(mesTit)}.</span></div>`).join('')}</div></div>`;})():''}
       <p class="ep-note">Pedidos de WhatsApp de Juan y Federico en Yiqi, sin "Consumidor final". Facturado = Entregado y Staging Out.</p>`));
     out.push(frame('Clientes · Origen WhatsApp','Los que más gastaron',tb('Cliente',K.topS)));
     out.push(frame('Clientes · Origen WhatsApp','Los que más pedidos hicieron',tb('Cliente',K.topP)));
+    // Para escribirles: fijos/frecuentes que no compraron en el mes y ocasionales que hace 2 meses o más que no piden
+    if(K.fijosAus.length||K.ocasInact.length){
+      const TOPA=12, cgA='<colgroup><col style="width:8%"><col style="width:52%"><col style="width:14%"><col style="width:26%"></colgroup>';
+      const tA=(ttl,arr)=>`<div><p class="ep-axis" style="margin:0 0 8px;font-size:15px;color:${PDFC.ink}"><b>${ttl}</b> · ${fmtN(arr.length)} cliente${arr.length===1?'':'s'}${arr.length>TOPA?` (los ${TOPA} que más facturaron)`:''}</p>
+        ${arr.length?`<table class="ep-tb ep-anx">${cgA}<thead><tr><th>#</th><th${L_}>Cliente</th><th>Meses (de 12)</th><th>Facturado 12 meses</th></tr></thead><tbody>${arr.slice(0,TOPA).map((c,i)=>`<tr><td>${i+1}</td><td${L_}>${esc(c.cliente)}</td><td>${c.meses}</td><td>${fmt$(c.s)}</td></tr>`).join('')}</tbody></table>`:'<p class="ep-note">Ninguno.</p>'}</div>`;
+      out.push(frame('Clientes · Origen WhatsApp','Para escribirles',`<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">${tA(`Fijos y frecuentes que no compraron en ${mesTit}`,K.fijosAus)}${tA(`Ocasionales sin compras en ${K.mesAnt} ni ${mesTit}`,K.ocasInact)}</div>
+        <p class="ep-note">Las listas completas, con vendedor y último pedido, están en la pestaña Estadística del CRM (botón "📋 Copiar lista").</p>`));
+    }
     return out;
   }
 
