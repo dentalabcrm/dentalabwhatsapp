@@ -6013,6 +6013,8 @@
   .est-row { display:flex; gap:6px; align-items:center; }
   .est-del { border:0; background:transparent; color:var(--est-bad); width:30px; height:30px; border-radius:6px; font-size:16px; flex:none; cursor:pointer; }
   .est-small { font-size:12px; color:var(--text3); margin:0; }
+  .est-explica { margin:-4px 0 12px; font-size:12.5px; line-height:1.45; color:var(--text2); background:rgba(59,130,246,.08); border-left:3px solid #3b82f6; border-radius:6px; padding:7px 11px; }
+  .est-sec.est-dark .est-explica { color:#fff !important; background:rgba(255,255,255,.1); border-left-color:#93c5fd; }
   .est-who { font-size:11px; color:var(--text3); }
   @media (max-width:900px){ .est-tiles { grid-template-columns:repeat(2,minmax(0,1fr)); } .est-wrap { padding:16px 14px 50px; } }
 
@@ -65865,8 +65867,8 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     h+=`<div class="est-views" role="tablist"><button class="${view==='planilla'?'on':''}" data-est="v-planilla" role="tab">📋 Planilla</button><button class="${view==='informe'?'on':''}" data-est="v-informe" role="tab">📈 Informe del mes</button><button class="${view==='anual'?'on':''}" data-est="v-anual" role="tab">📅 Comparativa anual</button></div>`;
     if(!loaded) h+=`<div class="est-notice">Cargando datos de Firebase…</div>`;
     if(showImport) h+=`<div class="est-notice"><span>Hay ${histCount} días del historial (planillas de Google Sheets de octubre 2023 a noviembre 2026) que todavía no están en el CRM. Al importar solo se agregan los días que faltan; no se pisa nada de lo ya cargado.</span><button class="est-btn primary" data-est="import">Importar historial</button></div>`;
-    if(view==='informe'){ root.innerHTML=h+informeHTML(y,m,st)+'</div>'+DRAWER_HTML; return; }
-    if(view==='anual'){ root.innerHTML=h.replace(/<div class="est-month">[\s\S]*?<\/div>/,'')+anualHTML()+'</div>'+DRAWER_HTML; return; }
+    if(view==='informe'){ root.innerHTML=h+_estConExplicaciones(informeHTML(y,m,st))+'</div>'+DRAWER_HTML; return; }
+    if(view==='anual'){ root.innerHTML=h.replace(/<div class="est-month">[\s\S]*?<\/div>/,'')+_estConExplicaciones(anualHTML())+'</div>'+DRAWER_HTML; return; }
     h+=`<div class="est-tiles">
         <div class="est-tile hero"><span class="l">${esc(metric('pedidos').label)} del mes</span><span class="b">${fmtN(P.sum)}</span><span class="s">${P.avg!=null?fmtN(P.avg)+' por día':'Sin datos todavía'} ${cmpPill(P.avg,ps.pedidos.avg,pl)}</span></div>
         <div class="est-tile"><span class="l">${esc(metric('chats').label)}</span><span class="b">${fmtN(C.sum)}</span><span class="s">${C.avg!=null?fmtN(C.avg)+' por día':'—'} ${cmpPill(C.avg,ps.chats.avg,pl)}${hecho}</span></div>
@@ -66809,7 +66811,7 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     const mes=MONTHS[m].charAt(0).toUpperCase()+MONTHS[m].slice(1), per=`${mes} ${y}`;
     const conv=Q.sum?P.sum/Q.sum:null, chQ=C.sum?Q.sum/C.sum:null, chP=C.sum?P.sum/C.sum:null;
     const slides=[]; let pg=1;
-    const frame=(eyebrow,title,body,opt={})=>{ pg++; return `<div class="ep-slide ${opt.dark?'dark':''}">${opt.dark?`<div class="ep-logo-badge"><img src="${EST_LOGO}"></div>`:`<img class="ep-logo" src="${EST_LOGO}">`}<p class="ep-eye">${eyebrow}</p><h2>${title}</h2>${body}<div class="ep-foot"><span>Estadística de WhatsApp · ${per}</span><span>${pg}</span></div></div>`; };
+    const frame=(eyebrow,title,body,opt={})=>{ pg++; return `<div class="ep-slide ${opt.dark?'dark':''}">${opt.dark?`<div class="ep-logo-badge"><img src="${EST_LOGO}"></div>`:`<img class="ep-logo" src="${EST_LOGO}">`}<p class="ep-eye">${eyebrow}</p><h2>${title}</h2>${_epExplicaHTML(eyebrow,title)}${body}<div class="ep-foot"><span>Estadística de WhatsApp · ${per}</span><span>${pg}</span></div></div>`; };
     const card=(l,b,s,cls)=>`<div class="ep-card"><span class="l">${l}</span><span class="b ${cls||''}">${b}</span><span class="s">${s||''}</span></div>`;
     // portada
     slides.push(`<div class="ep-slide cover"><img class="ep-cover-logo" src="${EST_LOGO}"><div class="ep-dia d1"></div><div class="ep-dia d2"></div><div class="ep-dia d3"></div><div class="ep-dia d4"></div><div class="ep-dia d5"></div><p class="ep-eye">Informe mensual</p><h1>Estadística<br>de WhatsApp</h1><div class="ep-rule"></div><p class="ep-per">${per}</p><p class="ep-cap">Chats, consultas y pedidos del mes</p></div>`);
@@ -66869,6 +66871,54 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     if(!pdfCompleto) orden=orden.filter(x=>x.r!==12); // "Días récord" solo en el PDF completo
     let n=1; return orden.map(x=>{ if(x.r===0) return x.h; n++; return x.h.replace(/(<div class="ep-foot"><span>[^<]*<\/span><span>)\d+(<\/span>)/,`$1${n}$2`); });
   }
+
+  /* ---------- Explicación de cada apartado (pantalla y PDF): qué se va a ver en cada uno ---------- */
+  const EST_EXPLICA={
+    'Resumen para presentar':'La hoja para mostrar el mes de un vistazo: cuánto se facturó por WhatsApp, cuántos pedidos se tomaron en Yiqi, el ticket promedio (lo que se gastó en promedio en cada pedido) y la plata de los pedidos que siguen en espera de pago. Abajo, en pocas frases, lo más importante del mes.',
+    'Para el mes que viene':'Las acciones concretas que conviene hacer el mes que viene, según lo que mostró este informe.',
+    'Ventas en Yiqi · Origen WhatsApp':'Lo que vendieron Juan y Federico con pedidos que entraron por WhatsApp, según Yiqi: cuánto se facturó, cuántos pedidos fueron, el ticket promedio y cómo vienen los últimos meses.',
+    'WhatsApp · cargados a otros vendedores':'Pedidos que llegaron por WhatsApp pero quedaron cargados en Yiqi a nombre de otro vendedor. Se muestran aparte para no mezclarlos con las ventas de Juan y Federico.',
+    'Tienda online · Origen Web':'Los pedidos que entraron por la tienda online (origen Web en Yiqi): cuántos fueron, cuánto se facturó y el ticket promedio.',
+    'Clientes · Origen WhatsApp':'Quiénes compraron por WhatsApp en el mes: cuántos clientes distintos, cuánto gastó en promedio cada uno, cuántos pedidos hizo cada uno y qué parte de las ventas se llevan los que más compraron.',
+    'Resumen del mes':'Los números de la atención por WhatsApp que se anotan en la Planilla: los chats que entraron, las consultas, los pedidos anotados y la conversión (qué porcentaje de las consultas terminó en pedido). Los promedios son por día hábil, de lunes a sábado y sin feriados.',
+    'Embudo del mes':'El camino del cliente: de todos los chats, cuántos fueron consultas y cuántas de esas consultas terminaron en pedido. Sirve para ver en qué paso se pierden más ventas.',
+    'Por día':'Cómo se movió cada día del mes, para ver los picos y los días flojos. Los sábados (y los feriados, si hubo) aparecen marcados.',
+    'Por día de la semana':'El promedio de chats, consultas y pedidos de cada día de la semana, para saber qué días se vende más y cuáles menos.',
+    'Entrega de pedidos':'Cuántos pedidos se mandaron por envío y cuántos los retiró el cliente, y qué porcentaje es cada uno.',
+    'Mercadería faltante':'Productos que pidió algún cliente y no había en stock (lo que se anota en la pestaña Mercadería Faltante). Sirve para saber qué conviene reponer y a quién avisarle cuando entra.',
+    'Repartos':'Cómo se dividieron los chats, consultas o pedidos según los tipos que se anotan en la Planilla, en cantidad y en porcentaje.',
+    'Contra otros períodos':'Compara este mes con el mes anterior y con el mismo mes del año pasado, usando el promedio por día hábil. Las flechas muestran si mejoró o empeoró.',
+    'Récords del mes':'Los días del mes con más pedidos, más chats y más consultas.',
+    'Diagnóstico del mes':'Una lectura del mes en tres columnas: lo que salió bien y conviene mantener, lo que hay que pulir y lo que hay que mejorar, cada cosa con una sugerencia concreta.',
+    'Diagnóstico anual':'Lo mismo que el diagnóstico del mes, pero para el año: qué salió bien, qué hay que pulir y qué hay que mejorar, comparando contra el año anterior.',
+    'Anexo · para hacer seguimiento':'Listas para trabajar: clientes que solían comprar y este mes no compraron, y pedidos que siguen sin concretar. La idea es escribirles uno por uno.',
+    'Año por año':'Un resumen de cada año: pedidos, chats, consultas y promedios por día hábil, uno al lado del otro. El año en curso se cuenta hasta hoy.',
+    'Años en números':'Cuántos pedidos se hicieron en promedio por día hábil en cada año, para comparar años completos con el actual.',
+    'Mismo período':'Compara cada año desde el 1 de enero hasta la misma fecha de hoy, así el año en curso se mide de igual a igual contra los anteriores.',
+    'Mes a mes':'Cómo vino cada mes en cada año, en gráficos: pedidos, chats y consultas. Sirve para ver la estacionalidad (qué meses suelen ser más fuertes o más flojos).',
+    'Pedidos':'La cantidad de pedidos de cada mes, año por año, en una tabla.'
+  };
+  function _estExplica(eye){
+    const k=String(eye||'').replace(/\s*\([^)]*\)\s*$/,'').trim();
+    return EST_EXPLICA[k]||'';
+  }
+  // Pantalla: agrega la explicación debajo del título de cada apartado
+  function _estConExplicaciones(html){
+    const vistos=new Set(); // si un apartado tiene varias partes (ej. "Por día"), se explica solo en la primera
+    return String(html).replace(/(<p class="est-eyebrow">([^<]*)<\/p>\s*<h3>[\s\S]*?<\/h3>)/g,(all,bloque,eye)=>{
+      const t=_estExplica(eye); if(!t||vistos.has(t)) return bloque; vistos.add(t);
+      return `${bloque}<p class="est-explica">ℹ️ ${esc(t)}</p>`;
+    });
+  }
+  // PDF: la explicación va debajo del título; si en alguna hoja no entra, se saca de esa hoja
+  function _epExplicaHTML(eye,tit){ if(/\(cont\.?\)/i.test(String(tit||''))) return ''; const t=_estExplica(eye); return t?`<p class="ep-explica">${esc(t)}</p>`:''; } // en las hojas de continuación no se repite
+  function _epQuitarExplicaSiNoEntra(wrap){
+    const vistos=new Set(); // un apartado con varias hojas se explica solo en la primera
+    wrap.querySelectorAll('.ep-slide').forEach(sl=>{ const ex=sl.querySelector('.ep-explica'); if(!ex) return;
+      if(vistos.has(ex.textContent)){ ex.remove(); return; }
+      vistos.add(ex.textContent);
+      if(sl.scrollHeight>sl.clientHeight+1) ex.remove(); });
+  }
   const EP_CSS=`
   .ep-wrap{position:fixed;left:-20000px;top:0;z-index:-1}
   .ep-slide{width:1280px;height:720px;box-sizing:border-box;background:${PDFC.bg};font-family:'DM Sans',Arial,sans-serif;color:${PDFC.ink};padding:56px 64px;position:relative;overflow:hidden;display:flex;flex-direction:column;gap:18px}
@@ -66887,6 +66937,8 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
   .ep-eye{margin:0;font-size:14px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:#1d5fae}
   .ep-slide h2{margin:-10px 0 6px;font-size:38px;font-weight:800;color:${PDFC.navy};letter-spacing:-.01em}
   .ep-sub{margin:-8px 0 0;font-size:16px;color:${PDFC.muted}}
+  .ep-explica{margin:-14px 0 0;font-size:14px;line-height:1.4;color:${PDFC.muted};max-width:1080px}
+  .ep-slide.dark .ep-explica{color:inherit;opacity:.85}
   .ep-note{margin:6px 0 0;font-size:15px;color:${PDFC.muted}}
   .ep-axis{margin:-6px 0 0;font-size:13px;color:${PDFC.muted}}
   .ep-foot{position:absolute;left:64px;right:64px;bottom:26px;display:flex;justify-content:space-between;font-size:12px;color:${PDFC.muted}}
@@ -66938,7 +66990,7 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     const W=webModel(y,m); if(!W) return [];
     const mes=MONTHS[m].charAt(0).toUpperCase()+MONTHS[m].slice(1), per=`${mes} ${y}`;
     const slides=[]; let pg=1;
-    const frame=(eyebrow,title,body)=>{ pg++; return `<div class="ep-slide"><img class="ep-logo" src="${EST_LOGO}"><p class="ep-eye">${eyebrow}</p><h2>${title}</h2>${body}<div class="ep-foot"><span>Pedidos Web · ${per}</span><span>${pg}</span></div></div>`; };
+    const frame=(eyebrow,title,body)=>{ pg++; return `<div class="ep-slide"><img class="ep-logo" src="${EST_LOGO}"><p class="ep-eye">${eyebrow}</p><h2>${title}</h2>${_epExplicaHTML(eyebrow,title)}${body}<div class="ep-foot"><span>Pedidos Web · ${per}</span><span>${pg}</span></div></div>`; };
     const card=(l,b,s,cls)=>`<div class="ep-card"><span class="l">${l}</span><span class="b ${cls||''}">${b}</span><span class="s">${s||''}</span></div>`;
     slides.push(`<div class="ep-slide cover"><img class="ep-cover-logo" src="${EST_LOGO}"><div class="ep-dia d1"></div><div class="ep-dia d2"></div><div class="ep-dia d3"></div><div class="ep-dia d4"></div><div class="ep-dia d5"></div><p class="ep-eye">Informe mensual</p><h1>Pedidos<br>Web</h1><div class="ep-rule"></div><p class="ep-per">${per}</p><p class="ep-cap">Tienda online · pedidos que cargan y siguen Juan y Federico</p></div>`);
     slides.push(...webSlides(y,m,frame,card));
@@ -66956,6 +67008,8 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
       wrap.innerHTML=`<style>${EP_CSS}</style>`+pdfSlidesWeb(y,m).join('');
       document.body.appendChild(wrap);
       try{ if(document.fonts&&document.fonts.ready) await document.fonts.ready; }catch(e){}
+      _epQuitarExplicaSiNoEntra(wrap);
+      try{ if(document.fonts&&document.fonts.ready) await document.fonts.ready; }catch(e){}
       await Promise.all([...wrap.querySelectorAll('img')].map(im=>im.complete?1:new Promise(r=>{im.onload=im.onerror=r})));
       const doc=new JsPDF({orientation:'landscape',unit:'pt',format:[960,540]});
       const els=[...wrap.querySelectorAll('.ep-slide')];
@@ -66969,7 +67023,7 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     anualHTML(); const A=lastAnual; if(!A) return [];
     const {years,full,ytd,mStats,good,polish,improve,cutM,fechaCorte,Y1}=A, col=y=>YCOL[(y-EST_ANIO_DESDE)%YCOL.length];
     const per=`${years[0]} – ${Y1}`; const slides=[]; let pg=1;
-    const frame=(eyebrow,title,body,opt={})=>{ pg++; return `<div class="ep-slide ${opt.dark?'dark':''}">${opt.dark?`<div class="ep-logo-badge"><img src="${EST_LOGO}"></div>`:`<img class="ep-logo" src="${EST_LOGO}">`}<p class="ep-eye">${eyebrow}</p><h2>${title}</h2>${body}<div class="ep-foot"><span>Comparativa anual de WhatsApp · ${per}</span><span>${pg}</span></div></div>`; };
+    const frame=(eyebrow,title,body,opt={})=>{ pg++; return `<div class="ep-slide ${opt.dark?'dark':''}">${opt.dark?`<div class="ep-logo-badge"><img src="${EST_LOGO}"></div>`:`<img class="ep-logo" src="${EST_LOGO}">`}<p class="ep-eye">${eyebrow}</p><h2>${title}</h2>${_epExplicaHTML(eyebrow,title)}${body}<div class="ep-foot"><span>Comparativa anual de WhatsApp · ${per}</span><span>${pg}</span></div></div>`; };
     const pill=(a,b)=>{const r=rateLabel(a,b);return r?`<span class="ep-pill ${r.cls}">${r.txt}${r.zero?'':' '+(r.r>0?'+':'')+fmtP(r.r)}</span>`:''};
     const leg=`<div class="ep-leg">${years.map(y=>`<span><i style="background:${col(y)}"></i>${y}</span>`).join('')}<span>○ ${MONTHS[cutM]} ${Y1}: mes en curso</span></div>`;
     slides.push(`<div class="ep-slide cover"><img class="ep-cover-logo" src="${EST_LOGO}"><div class="ep-dia d1"></div><div class="ep-dia d2"></div><div class="ep-dia d3"></div><div class="ep-dia d4"></div><div class="ep-dia d5"></div><p class="ep-eye">Informe anual</p><h1>Comparativa<br>anual de WhatsApp</h1><div class="ep-rule"></div><p class="ep-per">${per}</p><p class="ep-cap">Pedidos, chats y consultas año por año · Datos al ${fechaCorte} de ${Y1}</p></div>`);
@@ -67005,6 +67059,8 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
       const wrap=document.createElement('div'); wrap.className='ep-wrap';
       wrap.innerHTML=`<style>${EP_CSS}</style>`+(anual?pdfSlidesAnual():pdfSlides(y,m)).join('');
       document.body.appendChild(wrap);
+      try{ if(document.fonts&&document.fonts.ready) await document.fonts.ready; }catch(e){}
+      _epQuitarExplicaSiNoEntra(wrap);
       try{ if(document.fonts&&document.fonts.ready) await document.fonts.ready; }catch(e){}
       await Promise.all([...wrap.querySelectorAll('img')].map(im=>im.complete?1:new Promise(r=>{im.onload=im.onerror=r})));
       const doc=new JsPDF({orientation:'landscape',unit:'pt',format:[960,540]});
