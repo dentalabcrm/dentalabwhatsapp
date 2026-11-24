@@ -66569,6 +66569,13 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
   }
 
   /* ---------- CLIENTES DEL MES (pedidos WhatsApp de Juan y Federico en Yiqi) ---------- */
+  // Grupos de "Cómo compran": según en cuántos de los últimos 12 meses el cliente hizo algún pedido
+  const CLI_SEGS=[
+    {k:'todos',t:'Casi todos los meses',d:'compraron en 10 a 12 de los 12 meses',c:'#16a34a'},
+    {k:'frec',t:'Frecuentes',d:'compraron en 6 a 9 meses',c:'#2563eb'},
+    {k:'ocas',t:'Ocasionales',d:'compraron en 2 a 5 meses',c:'#f59e0b'},
+    {k:'una',t:'Una sola vez',d:'compraron en 1 solo mes',c:'#94a3b8'}
+  ];
   function cliModel(y,m){
     const D=waCache[ymKey(y,m)]; if(!D||D.err||!D.rows) return null;
     const esCF=n=>/consumidor\s*final/i.test(String(n||''));
@@ -66590,7 +66597,14 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     const k12=[]; for(let i=0;i<12;i++){const d=new Date(y,m-i,1);k12.push(ymKey(d.getFullYear(),d.getMonth()));}
     const H={}; R.filter(r=>k12.includes(mesDe(r))&&tom(r)).forEach(r=>{(H[r.CLIE_ID_CLIE]=H[r.CLIE_ID_CLIE]||new Set()).add(mesDe(r));});
     const seg={todos:0,frec:0,ocas:0,una:0}; Object.values(H).forEach(sm=>{const n=sm.size; if(n>=10)seg.todos++; else if(n>=6)seg.frec++; else if(n>=2)seg.ocas++; else seg.una++;});
-    return {clientes:lista.length,conCompra:conCompra.length,nuevos,recurrentes:lista.length-nuevos,totS,prom:conCompra.length?totS/conCompra.length:null,
+    // Detalle de cada grupo: cuánto facturaron en esos 12 meses y cuántos compraron en el mes del informe
+    const grupoDe=n=>n>=10?'todos':n>=6?'frec':n>=2?'ocas':'una';
+    const S12={}; R.filter(r=>k12.includes(mesDe(r))&&fact(r)).forEach(r=>{S12[r.CLIE_ID_CLIE]=(S12[r.CLIE_ID_CLIE]||0)+monto(r);});
+    const segDet={todos:{n:0,s:0,mes:0},frec:{n:0,s:0,mes:0},ocas:{n:0,s:0,mes:0},una:{n:0,s:0,mes:0}};
+    Object.entries(H).forEach(([id,sm])=>{const g=segDet[grupoDe(sm.size)]; g.n++; g.s+=S12[id]||0; if(sm.has(kM)) g.mes++;});
+    const totS12=Object.values(segDet).reduce((a,g)=>a+g.s,0);
+    const d12=new Date(y,m-11,1), per12=`${MONTHS[d12.getMonth()]} ${d12.getFullYear()} a ${MONTHS[m]} ${y}`;
+    return {segDet,totS12,per12,clientes:lista.length,conCompra:conCompra.length,nuevos,recurrentes:lista.length-nuevos,totS,prom:conCompra.length?totS/conCompra.length:null,
       pedXc:lista.length?lista.reduce((a,c)=>a+c.ped,0)/lista.length:null,topS,topP,conc:totS?top10S/totS:null,seg,act12:Object.keys(H).length};
   }
   function cliHTML(y,m){
@@ -66598,9 +66612,20 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     const mesTit=MONTHS[m];
     const tile=(l,b,s,cls)=>`<div class="est-tile"><span class="l">${l}</span><span class="b ${cls||''}">${b}</span><span class="s">${s||''}</span></div>`;
     const L_=' style="text-align:left"';
-    const segT=K.act12?`<div class="est-dt" style="margin-top:12px"><table class="est-cmp"><thead><tr><th${L_}>Cómo compran (últimos 12 meses)</th><th>Clientes</th><th>%</th></tr></thead><tbody>
-      ${[['Todos los meses (10 a 12 meses)',K.seg.todos],['Frecuentes (6 a 9 meses)',K.seg.frec],['Ocasionales (2 a 5 meses)',K.seg.ocas],['Una sola vez',K.seg.una]].map(([l,n])=>`<tr><td${L_}>${l}</td><td>${fmtN(n)}</td><td>${fmtP(n/K.act12)}</td></tr>`).join('')}
-      <tr><td${L_}><b>Clientes activos en el año</b></td><td><b>${fmtN(K.act12)}</b></td><td></td></tr></tbody></table></div>`:'';
+    const segT=K.act12?(()=>{
+      const G=CLI_SEGS.map(x=>({...x,...K.segDet[x.k]}));
+      const barra=(campo,tot)=>`<div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--surface2)">${G.map(g=>{const v=tot?g[campo]/tot:0;return v>0?`<span title="${esc(g.t)}: ${fmtP(v)}" style="width:${v*100}%;background:${g.c}"></span>`:''}).join('')}</div>`;
+      return `<div class="est-card" style="margin-top:14px">
+        <h4 style="margin:0 0 2px">Cómo compran los clientes <span>últimos 12 meses (${esc(K.per12)})</span></h4>
+        <p class="est-small" style="margin:0 0 12px">${fmtN(K.act12)} clientes compraron por WhatsApp al menos una vez en esos 12 meses. Se agrupan según <b>en cuántos de esos meses</b> hicieron algún pedido.</p>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">${G.map(g=>`<div style="border:1px solid var(--border);border-top:4px solid ${g.c};border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:3px">
+          <b style="font-size:13.5px">${esc(g.t)}</b><span class="est-small">${esc(g.d)}</span>
+          <span style="font-size:26px;font-weight:800;line-height:1.1;margin-top:4px">${fmtN(g.n)} <small style="font-size:13px;font-weight:600;color:var(--text2)">clientes · ${fmtP(K.act12?g.n/K.act12:0)}</small></span>
+          <span style="font-size:12.5px">Facturaron <b>${fmt$(g.s)}</b></span><span style="font-size:12.5px"><b>${fmtP(K.totS12?g.s/K.totS12:0)}</b> de lo facturado en los 12 meses</span>
+          <span style="font-size:12.5px">${fmtN(g.mes)} compraron en ${esc(mesTit)}</span></div>`).join('')}</div>
+        <div style="display:grid;grid-template-columns:130px 1fr;gap:6px 10px;align-items:center;margin-top:12px;font-size:12px">
+          <span class="est-small">% de los clientes</span>${barra('n',K.act12)}<span class="est-small">% de lo facturado</span>${barra('s',K.totS12)}</div>
+      </div>`;})():'';
     return `<section class="est-sec"><p class="est-eyebrow">Clientes · Origen WhatsApp (Yiqi)</p><h3>Clientes de ${mesTit}</h3>
       <div class="est-tiles">
         ${tile('Clientes que compraron',fmtN(K.clientes),`${fmtN(K.nuevos)} nuevos · ${fmtN(K.recurrentes)} que ya compraban`)}
@@ -66621,7 +66646,11 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     const tb=(ttl,arr)=>`<table class="ep-tb ep-anx">${cg}<thead><tr><th>#</th><th${L_}>${ttl}</th><th${L_}>Vendedor</th><th>Pedidos</th><th>Facturado</th></tr></thead><tbody>${arr.map((c,i)=>`<tr><td>${i+1}</td><td${L_}>${esc(c.cliente)}</td><td${L_}>${esc(c.vend)}</td><td>${fmtN(c.ped)}</td><td>${fmt$(c.s)}</td></tr>`).join('')}</tbody></table>`;
     const out=[];
     out.push(frame('Clientes · Origen WhatsApp',`Clientes de ${mesTit}`,`<div class="ep-grid4">${card('Clientes que compraron',fmtN(K.clientes),`${fmtN(K.nuevos)} nuevos · ${fmtN(K.recurrentes)} ya compraban`)}${card('Compra promedio',fmt$(K.prom),'por cliente en el mes','red money')}${card('Pedidos por cliente',fmtN(K.pedXc),'promedio en el mes')}${card('Peso del top 10',fmtP(K.conc),'de lo facturado en el mes')}</div>
-      ${K.act12?`<table class="ep-tb" style="margin-top:22px"><thead><tr><th>Cómo compran (últimos 12 meses)</th><th>Todos los meses</th><th>Frecuentes (6–9)</th><th>Ocasionales (2–5)</th><th>Una sola vez</th><th>Activos en el año</th></tr></thead><tbody><tr><td>Clientes</td><td>${fmtN(K.seg.todos)}</td><td>${fmtN(K.seg.frec)}</td><td>${fmtN(K.seg.ocas)}</td><td>${fmtN(K.seg.una)}</td><td><b>${fmtN(K.act12)}</b></td></tr><tr><td>%</td><td>${fmtP(K.seg.todos/K.act12)}</td><td>${fmtP(K.seg.frec/K.act12)}</td><td>${fmtP(K.seg.ocas/K.act12)}</td><td>${fmtP(K.seg.una/K.act12)}</td><td></td></tr></tbody></table>`:''}
+      ${K.act12?(()=>{const G=CLI_SEGS.map(x=>({...x,...K.segDet[x.k]}));
+        return `<div style="margin-top:6px"><p class="ep-axis" style="margin:0 0 8px;font-size:15px;color:${PDFC.ink}"><b>Cómo compran los clientes</b> · ${fmtN(K.act12)} clientes compraron al menos una vez de ${esc(K.per12)}; se agrupan según en cuántos de esos 12 meses compraron.</p>
+        <div class="ep-grid4" style="gap:12px">${G.map(g=>`<div class="ep-card" style="padding:12px 16px;gap:3px;border-top:5px solid ${g.c}"><span style="font-size:15px;font-weight:700">${esc(g.t)}</span><span style="font-size:13px;color:${PDFC.muted};margin-top:-2px">${esc(g.d)}</span>
+          <span style="font-size:32px;font-weight:700;color:${PDFC.navy};line-height:1.1">${fmtN(g.n)} <span style="font-size:15px;font-weight:600;color:${PDFC.muted}">clientes · ${fmtP(g.n/K.act12)}</span></span>
+          <span style="font-size:13.5px">Facturaron ${fmt$(g.s)}</span><span style="font-size:13.5px"><b>${fmtP(K.totS12?g.s/K.totS12:0)}</b> de lo facturado en los 12 meses</span><span style="font-size:13.5px;color:${PDFC.muted}">${fmtN(g.mes)} compraron en ${esc(mesTit)}</span></div>`).join('')}</div></div>`;})():''}
       <p class="ep-note">Pedidos de WhatsApp de Juan y Federico en Yiqi, sin "Consumidor final". Facturado = Entregado y Staging Out.</p>`));
     out.push(frame('Clientes · Origen WhatsApp','Los que más gastaron',tb('Cliente',K.topS)));
     out.push(frame('Clientes · Origen WhatsApp','Los que más pedidos hicieron',tb('Cliente',K.topP)));
