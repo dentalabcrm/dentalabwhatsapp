@@ -67421,7 +67421,17 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
         }
       }
       const selPago = $('ped-estado-pago');
-      if (o.PEDI_ESTADO_DE_PAGO && selPago && !selPago.value) setSel('ped-estado-pago', String(o.PEDI_ESTADO_DE_PAGO).trim());
+      if (o.PEDI_ESTADO_DE_PAGO && selPago && !selPago.value) {
+        // El estado guardado puede no ser igual a una opción de la lista (ej. "EFECTIVO (Pagado)"):
+        // se busca la opción que corresponde, sin lo que va entre paréntesis ni acentos/mayúsculas.
+        const ep = String(o.PEDI_ESTADO_DE_PAGO).trim();
+        const nzp = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+        const sinPar = x => nzp(x).replace(/\s*\([^)]*\)\s*$/, '').trim();
+        const opcs = Array.from(selPago.options).map(x => x.value).filter(Boolean);
+        const elegida = opcs.find(v => v === ep) || opcs.find(v => nzp(v) === nzp(ep)) || opcs.find(v => nzp(v) === sinPar(ep)) || opcs.find(v => sinPar(v) === sinPar(ep))
+          || (/MOSTRADOR/.test(nzp(ep)) ? opcs.find(v => /MOSTRADOR/.test(nzp(v))) : undefined); // ej. "EFECT, DEBI, TRANSF, (MOSTRADOR)"
+        setSel('ped-estado-pago', elegida || ep);
+      }
       const f = o.PEDI_FECHA ? new Date(o.PEDI_FECHA).toLocaleDateString('es-AR') : '';
       marca(`✓ Datos completados de su último pedido N° ${o.PEDI_NUMERO_SOLO}${f ? ' (' + f + ')' : ''}`);
       if (typeof showToast === 'function') showToast('✓ Datos del último pedido N° ' + o.PEDI_NUMERO_SOLO + ' cargados', 'ok');
