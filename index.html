@@ -65782,6 +65782,7 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
   }
 
   let config=clone(DEFAULT_CONFIG), days={}, loaded=false, started=false;
+  let pasosEst={}; // estado (Pendiente / Hecho) de los próximos pasos, por mes
   const now=new Date();
   let cur={y:now.getFullYear(),m:now.getMonth()};
   const todayKey=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
@@ -65838,6 +65839,8 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     if(typeof db==='undefined'){ loaded=true; render(); return; }
     db.ref(EST_FB+'/dias').on('value',snap=>{ days=snap.val()||{}; loaded=true; render(); },err=>{ console.error('[Estadística]',err); loaded=true; render(); toast('⚠ No se pudo leer la estadística de Firebase','warn'); });
     db.ref(EST_FB+'/config').on('value',snap=>{ const c=snap.val(); config=c?normConfig(c):clone(DEFAULT_CONFIG); if(c&&!(config.mig&&config.mig.comollego)) migrateComoLlego(); render(); },()=>{});
+    // Estado de los próximos pasos (Pendiente / Hecho), compartido para todo el equipo
+    db.ref(EST_FB+'/pasos').on('value',snap=>{ pasosEst=snap.val()||{}; if(loaded&&view==='informe') render(); },()=>{});
   }
   async function fbSet(path,data){
     if(typeof db==='undefined'){ toast('⚠ Sin conexión a Firebase','warn'); return false; }
@@ -66088,13 +66091,33 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
       <tbody>${L.perdidos.map((c,i)=>`<tr><td>${i+1}</td><td style="text-align:left"><b>${esc(c.cliente)}</b></td><td style="text-align:left">${esc(c.vend)}</td><td>${fFecha(c.ult)}${c.ultN?` <small>N° ${esc(c.ultN)}</small>`:''}</td><td>${fmt$(c.prom)}</td><td>${c.meses}</td></tr>`).join('')}</tbody></table></div></section>`;
     if(L.espera.length) h+=`<section class="est-sec"><p class="est-eyebrow">Anexo · para hacer seguimiento</p><h3>Pedidos sin concretar <button class="est-btn" style="margin-left:10px;vertical-align:middle" onclick="_estWaCopiar('espera',this)">📋 Copiar lista</button></h3>
       <p class="est-sub">"En espera de pago" hace más de 7 días (pedidos de este mes y del anterior), del más grande al más chico. Total: ${fmt$(L.espera.reduce((a,p)=>a+p.monto,0))}.</p>
+      ${(()=>{ const A=esperaAntig(y,m); if(!A) return '';
+        return `<div class="est-card" style="margin:0 0 12px"><h4 style="margin:0 0 8px">Por antigüedad <span>cuanto más viejo, menos probable que se concrete</span></h4>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">${A.B.map(x=>`<div style="border:1px solid var(--border);border-top:4px solid ${x.c};border-radius:8px;padding:9px 12px;display:flex;flex-direction:column;gap:3px">
+            <b style="font-size:13px">${x.t}</b><span style="font-size:22px;font-weight:800">${fmtN(x.n)} <small style="font-size:12px;font-weight:600;color:var(--text2)">pedidos</small></span>
+            <span style="font-size:12.5px">${fmt$(x.s)} · ${fmtP(A.tot?x.s/A.tot:0)} del pendiente</span></div>`).join('')}</div>
+          ${A.pctFact!=null?`<p class="est-small" style="margin:8px 0 0">Lo pendiente (${fmt$(A.tot)}) equivale al <b>${fmtP(A.pctFact)}</b> de lo facturado por WhatsApp en ${esc(MONTHS[m])} (${fmt$(A.fact)}).</p>`:''}</div>`; })()}
       <div class="est-dt"><table class="est-cmp"><thead><tr><th>#</th><th>N° pedido</th><th style="text-align:left">Cliente</th><th style="text-align:left">Vendedor</th><th>Monto</th><th>Días de espera</th></tr></thead>
       <tbody>${L.espera.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.nro)}</td><td style="text-align:left"><b>${esc(p.cliente)}</b></td><td style="text-align:left">${esc(p.vend)}</td><td>${fmt$(p.monto)}</td><td>${p.dias}</td></tr>`).join('')}</tbody></table></div></section>`;
     return h;
   }
+  // Pedidos sin concretar agrupados por antigüedad (todos tienen más de 7 días en "En espera de pago")
+  function esperaAntig(y,m){
+    const L=waListas[ymKey(y,m)]; if(!L||!L.espera.length) return null;
+    const B=[{t:'8 a 15 días',a:8,b:15,c:'#f59e0b'},{t:'16 a 30 días',a:16,b:30,c:'#ea580c'},{t:'31 a 45 días',a:31,b:45,c:'#dc2626'},{t:'Más de 45 días',a:46,b:1e9,c:'#7f1d1d'}].map(x=>({...x,n:0,s:0}));
+    L.espera.forEach(p=>{ const x=B.find(z=>p.dias>=z.a&&p.dias<=z.b)||B[0]; x.n++; x.s+=p.monto; });
+    const tot=L.espera.reduce((a,p)=>a+p.monto,0);
+    let M=null; try{ M=waModel(y,m); }catch(e){}
+    const fact=M&&!M.err&&M.tot?M.tot.mesS:0;
+    return {B,tot,n:L.espera.length,fact,pctFact:fact?tot/fact:null};
+  }
   function waAnexosSlides(y,m,frame){
     const L=waListas[ymKey(y,m)]; if(!L) return [];
     const out=[], CAP=14, L_=' style="text-align:left"';
+    { const A=esperaAntig(y,m);
+      if(A) out.push(frame('Anexo · para hacer seguimiento','Pedidos sin concretar por antigüedad',`<div class="ep-grid4">${A.B.map(x=>`<div class="ep-card" style="border-top:6px solid ${x.c}"><span class="l">${x.t}</span><span class="b">${fmtN(x.n)}</span><span class="s">pedidos · ${fmt$(x.s)}</span><span class="s"><b>${fmtP(A.tot?x.s/A.tot:0)}</b> del total pendiente</span></div>`).join('')}</div>
+        <p style="margin:10px 0 0;font-size:19px;color:${PDFC.ink}">En total hay <b>${fmtN(A.n)} pedidos</b> en "En espera de pago" hace más de 7 días, por <b>${fmt$(A.tot)}</b>${A.pctFact!=null?`: el <b>${fmtP(A.pctFact)}</b> de lo facturado por WhatsApp en ${MONTHS[m]} (${fmt$(A.fact)})`:''}.</p>
+        <p class="ep-note">Cuanto más viejo es un pedido, menos probable es que se concrete: conviene empezar por los de 8 a 30 días. La lista completa, pedido por pedido, sigue en las próximas hojas.</p>`)); }
     if(!pdfCompleto){ const TOP=10; const nota=(n,t)=>n>TOP?` (${TOP} principales de ${n})`:'';
       const cg1='<colgroup><col style="width:5%"><col style="width:41%"><col style="width:11%"><col style="width:20%"><col style="width:13%"><col style="width:10%"></colgroup>';
       const cg2='<colgroup><col style="width:5%"><col style="width:12%"><col style="width:46%"><col style="width:11%"><col style="width:14%"><col style="width:12%"></colgroup>';
@@ -66412,6 +66435,28 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     const sv=(w,h,body,lbl)=>`<svg ${forPdf?`xmlns="http://www.w3.org/2000/svg" width="${w+60}" height="${h}" font-family="DM Sans, Arial, sans-serif"`:`role="img" aria-label="${lbl}"`} viewBox="0 0 ${w+60} ${h}">${body}</svg>`;
     return { ventas: sv(W,H,s1,'Ventas por mes de Juan y Federico'), pedidos: sv(W,H2,s2,'Pedidos por mes de Juan y Federico') };
   }
+  // Ticket promedio por mes (lo facturado ÷ pedidos facturados): total y por vendedor, con el promedio de 12 meses
+  function waTicketSVG(M,C,forPdf){
+    const W=forPdf?1090:960,H=forPdf?215:240,L=forPdf?92:86,R=W-16,T=24,B=H-34;
+    const n=M.serie.length, step=(R-L)/n, X=i=>L+step*(i+.5);
+    const tk=b=>b&&b.nf?b.s/b.nf:null;
+    const tot=M.serie.map(r=>{const s=r.v.reduce((a,b)=>a+b.s,0), nf=r.v.reduce((a,b)=>a+(b.nf||0),0); return nf?s/nf:null;});
+    const per=[0,1].map(k=>M.serie.map(r=>tk(r.v[k])));
+    const vals=[...tot,...per[0],...per[1],M.tot.promT].filter(v=>v!=null&&v>0);
+    const ax=v=>v>=1e6?'$ '+fmtN(Math.round(v/1e5)/10)+' M':'$ '+fmtN(Math.round(v/1000))+' mil';
+    const smax=niceMax(Math.max(1,...vals)), Y=v=>B-(v/smax)*(B-T);
+    const txt=(x,y,t,a,st)=>`<text x="${x}" y="${y}" text-anchor="${a||'middle'}" ${forPdf?`font-size="13" fill="${st||C.muted}"`:`class="${st||'ax'}"`}>${t}</text>`;
+    let s=[0,.25,.5,.75,1].map(f=>`<line x1="${L}" x2="${R}" y1="${Y(smax*f)}" y2="${Y(smax*f)}" ${forPdf?`stroke="${C.line}"`:'class="g"'}/>`+txt(L-8,Y(smax*f)+4,ax(smax*f),'end')).join('');
+    const linea=(arr,col,w,dash)=>{ let d='',mv=true; arr.forEach((v,i)=>{ if(v==null){mv=true;return;} d+=(mv?'M':'L')+X(i).toFixed(1)+','+Y(v).toFixed(1); mv=false; });
+      return d?`<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" ${dash?'stroke-dasharray="4 4"':''} stroke-linejoin="round" opacity="${w<2.5?.75:1}"/>`:''; };
+    s+=linea(per[0],C.j,1.6,true)+linea(per[1],C.f,1.6,true);
+    if(M.tot.promT>0){ const ya=Y(M.tot.promT); s+=`<line x1="${L}" x2="${R}" y1="${ya}" y2="${ya}" ${forPdf?`stroke="${C.ink}" stroke-width="1.2" stroke-dasharray="6 5"`:'class="wa-avg"'}/>`+txt(R+56,ya+4,ax(M.tot.promT),'end',forPdf?C.ink:'wa-avgl'); }
+    s+=linea(tot,C.t,3,false);
+    s+=tot.map((v,i)=>v==null?'':`<circle cx="${X(i)}" cy="${Y(v)}" r="4.5" fill="${C.t}" stroke="${C.surf}" stroke-width="2"><title>${esc(M.serie[i].lbl)}: ticket ${fmt$(v)}${per[0][i]!=null?` · Juan ${fmt$(per[0][i])}`:''}${per[1][i]!=null?` · Federico ${fmt$(per[1][i])}`:''}</title></circle>`
+      +txt(X(i),Y(v)-10,ax(v),'middle',forPdf?C.ink:'lbl')).join('');
+    s+=M.serie.map((r,i)=>txt(X(i),B+20,esc(r.lbl))).join('');
+    return `<svg ${forPdf?`xmlns="http://www.w3.org/2000/svg" width="${W+60}" height="${H}" font-family="DM Sans, Arial, sans-serif"`:`role="img" aria-label="Ticket promedio por mes"`} viewBox="0 0 ${W+60} ${H}">${s}</svg>`;
+  }
   function waSecHTML(y,m){
     const k=ymKey(y,m), D=waCache[k];
     const head=`<section class="est-sec"><p class="est-eyebrow">Ventas en Yiqi · Origen WhatsApp</p><h3>Juan y Federico</h3>`;
@@ -66434,7 +66479,10 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
         <div class="est-chart">${G.ventas}</div></div>
         <div class="est-card" style="margin-top:12px"><h4>Pedidos tomados por mes</h4>
         <div class="est-leg"><span><i class="ln wa-j"></i>Juan Martin Gaffuri</span><span><i class="ln wa-f"></i>Federico Silva</span></div>
-        <div class="est-chart">${G.pedidos}</div></div>`; })()}
+        <div class="est-chart">${G.pedidos}</div></div>
+        <div class="est-card" style="margin-top:12px"><h4>Ticket promedio por mes <span>lo facturado ÷ pedidos facturados · sirve para ver si se venden más pedidos pero más chicos, o menos pero más grandes</span></h4>
+        <div class="est-leg"><span><i class="ln" style="height:0;background:none;border-top:3px solid #16a34a"></i>Juan + Federico</span><span><i class="ln" style="height:0;background:none;border-top:2px dashed var(--c-juan)"></i>Juan</span><span><i class="ln" style="height:0;background:none;border-top:2px dashed var(--c-fede)"></i>Federico</span><span><i class="ln wa-dash"></i>Promedio 12 meses</span></div>
+        <div class="est-chart">${waTicketSVG(M,{j:'var(--c-juan)',f:'var(--c-fede)',t:'#16a34a',surf:'var(--surface)'},false)}</div></div>`; })()}
     <div class="est-dt" style="margin-top:12px"><table class="est-cmp"><thead><tr><th>Mes</th>${WA_VEND.map(v=>`<th>${v.c} · pedidos</th><th>${v.c} · ventas</th>`).join('')}<th>Total ventas</th></tr></thead>
       <tbody>${M.serie.map(r=>`<tr><td>${esc(r.lbl)}</td>${r.v.map(b=>`<td>${fmtN(b.n)}</td><td>${fmt$(b.s)}</td>`).join('')}<td><b>${fmt$(r.v.reduce((a,b)=>a+b.s,0))}</b></td></tr>`).join('')}</tbody></table></div>
     <p class="est-small"><b>¿Por qué no coincide con los pedidos de la planilla?</b> La planilla cuenta los pedidos que se anotan a mano cada día; acá se cuentan los pedidos cargados en Yiqi con origen WhatsApp por Juan o Federico. Puede haber diferencias por pedidos cargados otro día, por otro vendedor, unificados, o que después se anularon.</p>
@@ -66449,7 +66497,15 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
       <p class="ep-note">Pedidos tomados: A reservar, Entregado, Quiebre 2 y Staging Out. Ventas y ticket: solo Entregado y Staging Out. Monto con IVA. Promedio de los últimos 12 meses completos.</p>`),      (()=>{ const C={j:'#1d5fae',f:'#c2410c',surf:'#ffffff',line:PDFC.line,muted:PDFC.muted,ink:PDFC.ink}; const G=waChartsSVG(M,C,true);
         const lg=(c,t,dash)=>`<span style="display:inline-flex;align-items:center;gap:8px"><i style="display:inline-block;width:22px;${dash?`border-top:2px dashed ${c};height:0`:`height:12px;background:${c};border-radius:2px`}"></i>${t}</span>`;
         return frame('Ventas en Yiqi · Origen WhatsApp','Evolución de los últimos 12 meses',`<div class="ep-leg" style="margin:0 0 4px">${lg(C.j,'Juan Martin Gaffuri')}${lg(C.f,'Federico Silva')}${lg(PDFC.ink,'Promedio mensual (Juan + Federico)',true)}</div>
-          <p class="ep-axis" style="margin:2px 0 0;font-weight:700">Ventas por mes</p><div>${G.ventas}</div><p class="ep-axis" style="margin:0;font-weight:700">Pedidos tomados por mes</p><div>${G.pedidos}</div>`); })()
+          <p class="ep-axis" style="margin:2px 0 0;font-weight:700">Ventas por mes</p><div>${G.ventas}</div><p class="ep-axis" style="margin:0;font-weight:700">Pedidos tomados por mes</p><div>${G.pedidos}</div>`); })(),
+      (()=>{ const C={j:'#1d5fae',f:'#c2410c',t:PDFC.green,surf:'#ffffff',line:PDFC.line,muted:PDFC.muted,ink:PDFC.ink};
+        const lg=(c,t,dash,w)=>`<span style="display:inline-flex;align-items:center;gap:8px"><i style="display:inline-block;width:22px;border-top:${w||2}px ${dash?'dashed':'solid'} ${c};height:0"></i>${t}</span>`;
+        const tkM=M.tot.mesNF?M.tot.mesS/M.tot.mesNF:null, d=tkM&&M.tot.promT?tkM/M.tot.promT-1:null;
+        const tks=M.serie.map(r=>{const s=r.v.reduce((a,b)=>a+b.s,0),nf=r.v.reduce((a,b)=>a+(b.nf||0),0);return nf?{l:r.lbl,v:s/nf}:null;}).filter(Boolean);
+        const mx=tks.length?tks.reduce((a,b)=>b.v>a.v?b:a):null, mn=tks.length?tks.reduce((a,b)=>b.v<a.v?b:a):null;
+        return frame('Ventas en Yiqi · Origen WhatsApp','Ticket promedio por mes',`<div class="ep-grid4">${card(`Ticket de ${mesTit}`,fmt$(tkM),d!=null?`${d>0?'+':''}${fmtP(d)} vs promedio 12 meses`:'por pedido facturado','money')}${card('Promedio 12 meses',fmt$(M.tot.promT),'por pedido facturado','money')}${card('Mes más alto',mx?fmt$(mx.v):'—',mx?mx.l:'','money')}${card('Mes más bajo',mn?fmt$(mn.v):'—',mn?mn.l:'','money')}</div>
+          <div class="ep-leg" style="margin:0">${lg(C.t,'Juan + Federico',false,3)}${lg(C.j,'Juan',true)}${lg(C.f,'Federico',true)}${lg(PDFC.ink,'Promedio 12 meses',true)}</div><div>${waTicketSVG(M,C,true)}</div>
+          <p class="ep-note" style="margin-top:0">Ticket = lo facturado (Entregado y Staging Out) ÷ cantidad de pedidos facturados. Si sube la facturación pero baja el ticket, se vendieron más pedidos pero más chicos.</p>`); })()
 ];
   }
 
@@ -66631,7 +66687,11 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     const fijosAus=[...segCli.todos,...segCli.frec].filter(c=>!c.enMes).sort((x,z)=>z.s-x.s);
     const ocasInact=segCli.ocas.filter(c=>!c.enMes&&!c.enMesAnt).sort((x,z)=>z.s-x.s);
     const mesAnt=MONTHS[(m+11)%12];
-    return {segDet,totS12,per12,segCli,fijosAus,ocasInact,mesAnt,clientes:lista.length,conCompra:conCompra.length,nuevos,recurrentes:lista.length-nuevos,totS,prom:conCompra.length?totS/conCompra.length:null,
+    // Nuevos vs. los que ya compraban: cuántos son, cuánto facturaron en el mes y la compra promedio de cada grupo
+    const nyr=(()=>{ const g={nue:{n:0,nc:0,s:0,ped:0},rec:{n:0,nc:0,s:0,ped:0}};
+      lista.forEach(c=>{ const x=antes.has(String(c.id))?g.rec:g.nue; x.n++; x.s+=c.s; x.ped+=c.ped; if(c.s>0) x.nc++; });
+      Object.values(g).forEach(x=>{ x.prom=x.nc?x.s/x.nc:null; x.pct=totS?x.s/totS:0; }); return g; })();
+    return {nyr,segDet,totS12,per12,segCli,fijosAus,ocasInact,mesAnt,clientes:lista.length,conCompra:conCompra.length,nuevos,recurrentes:lista.length-nuevos,totS,prom:conCompra.length?totS/conCompra.length:null,
       pedXc:lista.length?lista.reduce((a,c)=>a+c.ped,0)/lista.length:null,topS,topP,conc:totS?top10S/totS:null,seg,act12:Object.keys(H).length};
   }
   function cliTablaHTML(a,mesTit){
@@ -66686,6 +66746,16 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
         ${tile('Pedidos por cliente',fmtN(K.pedXc),'promedio en el mes')}
         ${tile('Peso de los 10 que más gastaron',fmtP(K.conc),'de lo facturado en el mes')}
       </div>
+      ${(()=>{ const N=K.nyr.nue, Rr=K.nyr.rec; if(!(N.n+Rr.n)) return '';
+        const col=(t,sub,x,c)=>`<div style="border:1px solid var(--border);border-top:4px solid ${c};border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px">
+          <b style="font-size:13.5px">${t}</b><span class="est-small">${sub}</span>
+          <span style="font-size:24px;font-weight:800;line-height:1.1;margin-top:2px">${fmt$(x.s)}</span>
+          <span style="font-size:12.5px"><b>${fmtP(x.pct)}</b> de lo facturado en ${esc(mesTit)} · ${fmtN(x.n)} cliente${x.n===1?'':'s'} · ${fmtN(x.ped)} pedidos</span>
+          <span style="font-size:12.5px">Compra promedio: <b>${fmt$(x.prom)}</b> por cliente</span></div>`;
+        return `<div class="est-card" style="margin-top:12px"><h4 style="margin:0 0 8px">Clientes nuevos y los que ya compraban <span>¿se consiguen clientes nuevos y vuelven los de siempre?</span></h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${col('🆕 Clientes nuevos','su primer pedido fue este mes',N,'#16a34a')}${col('🔁 Ya compraban','habían comprado antes de este mes',Rr,'#2563eb')}</div>
+          <div style="display:flex;height:12px;border-radius:6px;overflow:hidden;margin-top:10px;background:var(--surface2)"><span style="width:${N.pct*100}%;background:#16a34a" title="Nuevos ${fmtP(N.pct)}"></span><span style="width:${Rr.pct*100}%;background:#2563eb" title="Ya compraban ${fmtP(Rr.pct)}"></span></div>
+          <p class="est-small" style="margin:4px 0 0">Reparto de lo facturado en el mes entre los dos grupos.</p></div>`; })()}
       <div class="est-two" style="margin-top:12px">
         <div class="est-dt"><table class="est-cmp"><thead><tr><th>#</th><th${L_}>Los que más gastaron</th><th${L_}>Vendedor</th><th>Pedidos</th><th>Facturado</th></tr></thead><tbody>${K.topS.map((c,i)=>`<tr><td>${i+1}</td><td${L_}><b>${esc(c.cliente)}</b></td><td${L_}>${esc(c.vend)}</td><td>${fmtN(c.ped)}</td><td>${fmt$(c.s)}</td></tr>`).join('')}</tbody></table></div>
         <div class="est-dt"><table class="est-cmp"><thead><tr><th>#</th><th${L_}>Los que más pedidos hicieron</th><th${L_}>Vendedor</th><th>Pedidos</th><th>Facturado</th></tr></thead><tbody>${K.topP.map((c,i)=>`<tr><td>${i+1}</td><td${L_}><b>${esc(c.cliente)}</b></td><td${L_}>${esc(c.vend)}</td><td>${fmtN(c.ped)}</td><td>${fmt$(c.s)}</td></tr>`).join('')}</tbody></table></div>
@@ -66705,15 +66775,27 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
           <span style="font-size:32px;font-weight:700;color:${PDFC.navy};line-height:1.1">${fmtN(g.n)} <span style="font-size:15px;font-weight:600;color:${PDFC.muted}">clientes</span></span>
           <span style="font-size:13.5px;line-height:1.35">Son el <b>${fmtP(g.n/K.act12)}</b> de los clientes y generaron el <b>${fmtP(K.totS12?g.s/K.totS12:0)}</b> de lo facturado (${fmt$(g.s)}).</span><span style="font-size:13.5px;color:${PDFC.muted}">${g.mes===g.n?'Todos':`${fmtN(g.mes)} de los ${fmtN(g.n)}`} compraron en ${esc(mesTit)}.</span></div>`).join('')}</div></div>`;})():''}
       <p class="ep-note">Pedidos de WhatsApp de Juan y Federico en Yiqi, sin "Consumidor final". Facturado = Entregado y Staging Out.</p>`));
+    // Nuevos vs. los que ya compraban
+    if(K.nyr&&(K.nyr.nue.n+K.nyr.rec.n)){ const N=K.nyr.nue, Rr=K.nyr.rec;
+      const col=(t,sub,x,c)=>`<div class="ep-card" style="border-top:6px solid ${c};gap:6px"><span style="font-size:20px;font-weight:700">${t}</span><span style="font-size:15px;color:${PDFC.muted}">${sub}</span>
+        <span style="font-size:46px;font-weight:700;color:${PDFC.navy};line-height:1.1;margin-top:6px">${fmt$(x.s)}</span>
+        <span style="font-size:17px"><b>${fmtP(x.pct)}</b> de lo facturado en ${esc(mesTit)}</span>
+        <span style="font-size:17px">${fmtN(x.n)} cliente${x.n===1?'':'s'} · ${fmtN(x.ped)} pedidos · compra promedio <b>${fmt$(x.prom)}</b></span></div>`;
+      out.push(frame('Clientes · Origen WhatsApp','Nuevos y los que ya compraban',`<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">${col('Clientes nuevos','su primer pedido fue este mes',N,PDFC.green)}${col('Ya compraban','habían comprado antes de este mes',Rr,PDFC.blue)}</div>
+        <div style="display:flex;height:18px;border-radius:9px;overflow:hidden;margin-top:6px"><span style="width:${N.pct*100}%;background:${PDFC.green}"></span><span style="width:${Rr.pct*100}%;background:${PDFC.blue}"></span></div>
+        <p class="ep-note" style="margin-top:0">La barra muestra cómo se repartió lo facturado en el mes. Conseguir clientes nuevos y lograr que vuelvan los de siempre son dos cosas distintas: conviene mirar las dos.</p>`)); }
     out.push(frame('Clientes · Origen WhatsApp','Los que más gastaron',tb('Cliente',K.topS)));
     out.push(frame('Clientes · Origen WhatsApp','Los que más pedidos hicieron',tb('Cliente',K.topP)));
     // Para escribirles: fijos/frecuentes que no compraron en el mes y ocasionales que hace 2 meses o más que no piden
     if(K.fijosAus.length||K.ocasInact.length){
-      const TOPA=12, cgA='<colgroup><col style="width:8%"><col style="width:52%"><col style="width:14%"><col style="width:26%"></colgroup>';
-      const tA=(ttl,arr)=>`<div><p class="ep-axis" style="margin:0 0 8px;font-size:15px;color:${PDFC.ink}"><b>${ttl}</b> · ${fmtN(arr.length)} cliente${arr.length===1?'':'s'}${arr.length>TOPA?` (los ${TOPA} que más facturaron)`:''}</p>
-        ${arr.length?`<table class="ep-tb ep-anx">${cgA}<thead><tr><th>#</th><th${L_}>Cliente</th><th>Meses (de 12)</th><th>Facturado 12 meses</th></tr></thead><tbody>${arr.slice(0,TOPA).map((c,i)=>`<tr><td>${i+1}</td><td${L_}>${esc(c.cliente)}</td><td>${c.meses}</td><td>${fmt$(c.s)}</td></tr>`).join('')}</tbody></table>`:'<p class="ep-note">Ninguno.</p>'}</div>`;
-      out.push(frame('Clientes · Origen WhatsApp','Para escribirles',`<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">${tA(`Fijos y frecuentes que no compraron en ${mesTit}`,K.fijosAus)}${tA(`Ocasionales sin compras en ${K.mesAnt} ni ${mesTit}`,K.ocasInact)}</div>
-        <p class="ep-note">Las listas completas, con vendedor y último pedido, están en la pestaña Estadística del CRM (botón "📋 Copiar lista").</p>`));
+      // Tabla compacta: 10 renglones por lista, nombres largos cortados con "…", para que entre en la hoja sin tapar el pie
+      const TOPA=10, cgA='<colgroup><col style="width:7%"><col style="width:55%"><col style="width:13%"><col style="width:25%"></colgroup>';
+      const tdS='padding:6px 10px;font-size:14px', thS='padding:8px 10px;font-size:13px';
+      const tA=(ttl,sub,arr)=>`<div style="min-width:0"><p style="margin:0;font-size:17px;font-weight:700;color:${PDFC.ink}">${ttl}</p>
+        <p style="margin:2px 0 10px;font-size:13px;color:${PDFC.muted}">${sub} · ${fmtN(arr.length)} cliente${arr.length===1?'':'s'}${arr.length>TOPA?` · se muestran los ${TOPA} que más facturaron`:''}</p>
+        ${arr.length?`<table class="ep-tb" style="table-layout:fixed">${cgA}<thead><tr><th style="${thS}">#</th><th style="${thS};text-align:left">Cliente</th><th style="${thS}">Meses</th><th style="${thS}">Facturado</th></tr></thead><tbody>${arr.slice(0,TOPA).map((c,i)=>`<tr><td style="${tdS}">${i+1}</td><td style="${tdS};text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.cliente)}</td><td style="${tdS}">${c.meses}</td><td style="${tdS}">${fmt$(c.s)}</td></tr>`).join('')}</tbody></table>`:`<p class="ep-note">Ninguno.</p>`}</div>`;
+      out.push(frame('Clientes · Origen WhatsApp','Para escribirles',`<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px">${tA(`Fijos y frecuentes sin compras en ${mesTit}`,'Compran seguido y este mes no pidieron',K.fijosAus)}${tA(`Ocasionales sin compras desde hace 2 meses`,`No pidieron ni en ${K.mesAnt} ni en ${mesTit}`,K.ocasInact)}</div>
+        <p class="ep-note" style="margin-top:0">Meses = en cuántos de los últimos 12 meses compró. Facturado = total de esos 12 meses. Las listas completas están en la pestaña Estadística del CRM.</p>`));
     }
     return out;
   }
@@ -66747,15 +66829,23 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     const L=waListas[ymKey(y,m)], out=[];
     if(L){
       WA_VEND.forEach(v=>{
-        const es=L.espera.filter(p=>p.vend===v.c); if(es.length) out.push({q:v.c,t:`Cerrar o anular sus ${es.length} pedido${es.length>1?'s':''} en espera de pago (${fmt$(es.reduce((a,p)=>a+p.monto,0))}), empezando por el N° ${es[0].nro} de ${es[0].cliente} (${fmt$(es[0].monto)}).`});
-        const pe=L.perdidos.filter(c=>c.vend===v.c); if(pe.length) out.push({q:v.c,t:`Recontactar a sus ${pe.length} cliente${pe.length>1?'s':''} habitual${pe.length>1?'es':''} que no compraron; primero ${pe.slice(0,3).map(c=>c.cliente).join(', ')}.`});
+        const es=L.espera.filter(p=>p.vend===v.c); if(es.length) out.push({id:'espera-'+v.id,plazo:'48 hs',q:v.c,t:`Cerrar o anular sus ${es.length} pedido${es.length>1?'s':''} en espera de pago (${fmt$(es.reduce((a,p)=>a+p.monto,0))}), empezando por el N° ${es[0].nro} de ${es[0].cliente} (${fmt$(es[0].monto)}).`});
+        const pe=L.perdidos.filter(c=>c.vend===v.c); if(pe.length) out.push({id:'recontactar-'+v.id,plazo:'7 días',q:v.c,t:`Recontactar a sus ${pe.length} cliente${pe.length>1?'s':''} habitual${pe.length>1?'es':''} que no compraron; primero ${pe.slice(0,3).map(c=>c.cliente).join(', ')}.`});
       });
-      if(L.quiebre&&L.quiebre.length) out.push({q:'Compras',t:`Confirmar la fecha de llegada de los ${L.quiebre.length} pedido${L.quiebre.length>1?'s':''} en Quiebre 2 (${fmt$(L.quiebre.reduce((a,p)=>a+p.monto,0))}) y avisarle a cada cliente.`});
+      if(L.quiebre&&L.quiebre.length) out.push({id:'quiebre',plazo:'72 hs',q:'Compras',t:`Confirmar la fecha de llegada de los ${L.quiebre.length} pedido${L.quiebre.length>1?'s':''} en Quiebre 2 (${fmt$(L.quiebre.reduce((a,p)=>a+p.monto,0))}) y avisarle a cada cliente.`});
     }
     const yq=/pedidos sin concretar|habitual|frenado|ticket de|devoluci/i;
-    (recs?recs.improve.concat(recs.polish):[]).filter(x=>x.a&&!yq.test(x.t)&&!/^Faltan cargar/i.test(x.t)).slice(0,2).forEach(x=>out.push({q:'Equipo',t:gram(x.a)}));
-    return out.slice(0,6);
+    (recs?recs.improve.concat(recs.polish):[]).filter(x=>x.a&&!yq.test(x.t)&&!/^Faltan cargar/i.test(x.t)).slice(0,2).forEach((x,i)=>out.push({id:'equipo-'+i,plazo:'Este mes',q:'Equipo',t:gram(x.a)}));
+    const est=(pasosEst&&pasosEst[ymKey(y,m)])||{};
+    return out.slice(0,6).map(a=>({...a,hecho:est[a.id]||null}));
   }
+  window._estPasoToggle=async(y,m,id)=>{
+    if(typeof db==='undefined') return;
+    const k=ymKey(y,m), cur=pasosEst[k]&&pasosEst[k][id];
+    const quien=(typeof authCurrentUser!=='undefined'&&authCurrentUser&&authCurrentUser.name)||'';
+    try{ await db.ref(EST_FB+'/pasos/'+k+'/'+id).set(cur?null:{por:quien,ts:Date.now()}); }catch(e){ toast('⚠ No se pudo guardar el estado','warn'); }
+  };
+  const pasoEstadoTxt=a=>a.hecho?`✓ Hecho${a.hecho.ts?' el '+new Date(a.hecho.ts).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}):''}${a.hecho.por?' · '+a.hecho.por:''}`:'Pendiente';
   function ejecHTML(y,m,st,recs){
     const E=ejecModel(y,m,st,recs), mesTit=MONTHS[m].charAt(0).toUpperCase()+MONTHS[m].slice(1);
     return `<section class="est-sec est-dark"><p class="est-eyebrow">Resumen para presentar</p><h3>${mesTit} ${y} en una hoja</h3>
@@ -66765,7 +66855,12 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
   function pasosHTML(y,m,recs){
     const A=pasosModel(y,m,recs); if(!A.length) return '';
     return `<section class="est-sec"><p class="est-eyebrow">Para el mes que viene</p><h3>Próximos pasos</h3>
-      <ol class="est-pasos">${A.map(a=>`<li><b>${esc(a.q)}</b><span>${esc(a.t)}</span></li>`).join('')}</ol></section>`;
+      <p class="est-sub">Cada acción tiene responsable y plazo. Tildá "Hecho" cuando se haga: queda guardado para todo el equipo y sale en el PDF.</p>
+      <ol class="est-pasos">${A.map(a=>`<li style="${a.hecho?'opacity:.7':''}"><b>${esc(a.q)}</b><span>${esc(a.t)}
+        <span style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;font-size:12px">
+          <span style="background:rgba(59,130,246,.12);color:#3b82f6;border-radius:5px;padding:2px 8px;font-weight:700">⏱ Plazo: ${esc(a.plazo||'—')}</span>
+          <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-weight:700;color:${a.hecho?'#16a34a':'var(--text2)'}"><input type="checkbox" ${a.hecho?'checked':''} onchange="_estPasoToggle(${y},${m},'${a.id}')" style="margin:0">${esc(pasoEstadoTxt(a))}</label>
+        </span></span></li>`).join('')}</ol></section>`;
   }
 
   function informeHTML(y,m,st){
@@ -66787,7 +66882,7 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
         <div class="est-tile"><span class="l">Pedidos anotados (planilla)</span><span class="b est-red">${fmtN(P.sum)}</span><span class="s">${P.avg!=null?fmtN(P.avg)+' por día hábil':'—'}</span></div>
         <div class="est-tile"><span class="l">Conversión</span><span class="b">${fmtP(conv)}</span><span class="s">de las consultas terminan en pedido</span></div>
       </div>
-      <p class="est-small">Se contaron ${conDatos.length} días hábiles con datos, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p></section>%%EST_RECS%%`;
+      <p class="est-small">Se contaron ${conDatos.length} días hábiles con datos, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p>${(()=>{const t=_notaPedidosFuentes(y,m,P.sum);return t?`<p class="est-small" style="margin-top:4px">${esc(t)}</p>`:'';})()}</section>%%EST_RECS%%`;
     h+=waSecHTML(y,m);
     h+=otrosHTML(y,m);
     h+=cliHTML(y,m);
@@ -66840,14 +66935,15 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     // 8. Comparación
     const pm=m===0?{y:y-1,m:11}:{y,m:m-1}, ps=monthStats(pm.y,pm.m), py=monthStats(y-1,m);
     const ind=[['pedidos','Pedidos'],['chats','Chats'],['consultas','Consultas'],['envios','Envíos'],['retiros','Retiros']];
-    const cell=(a,b)=>{const r=rateLabel(a,b);return r?`<td class="cmp ${r.cls}">${r.txt}${r.zero?'':` <small>${r.r>0?'+':''}${fmtP(r.r)}</small>`}</td>`:`<td class="cmp na">Sin datos</td>`};
+    const vAbs=x=>x&&x.sum!=null&&x.avg!=null?`${fmtN(x.sum)} en total · ${fmtN(x.avg)} por día`:'';
+    const cell=(a,b,o)=>{const r=rateLabel(a,b);return r?`<td class="cmp ${r.cls}">${r.txt}${r.zero?'':` <small>${r.r>0?'+':''}${fmtP(r.r)}</small>`}${vAbs(o)?`<br><small style="opacity:.8;font-weight:500">${vAbs(o)}</small>`:''}</td>`:`<td class="cmp na">Sin datos</td>`};
     const res=ind.map(([k,l])=>({k,l,a:rateLabel(st[k].avg,ps[k].avg),b:rateLabel(st[k].avg,py[k].avg)}));
     const goodBoth=res.filter(x=>x.a&&x.b&&x.a.cls==='good'&&x.b.cls==='good').map(x=>x.l), badBoth=res.filter(x=>x.a&&x.b&&x.a.cls==='bad'&&x.b.cls==='bad').map(x=>x.l);
     const goodA=res.filter(x=>x.a&&x.a.cls==='good').map(x=>x.l), badA=res.filter(x=>x.a&&x.a.cls==='bad').map(x=>x.l);
     h+=`<section class="est-sec"><p class="est-eyebrow">Contra otros períodos</p><h3>Comparación del mes</h3><div class="est-two">
-      <div class="est-dt"><table class="est-cmp"><thead><tr><th>Indicador</th><th>vs ${MONTHS[pm.m]} ${pm.y}</th><th>vs ${MONTHS[m]} ${y-1}</th></tr></thead><tbody>${ind.map(([k,l])=>`<tr><td>${l}</td>${cell(st[k].avg,ps[k].avg)}${cell(st[k].avg,py[k].avg)}</tr>`).join('')}</tbody></table></div>
+      <div class="est-dt"><table class="est-cmp"><thead><tr><th>Indicador</th><th>${MONTHS[m]} ${y}</th><th>vs ${MONTHS[pm.m]} ${pm.y}</th><th>vs ${MONTHS[m]} ${y-1}</th></tr></thead><tbody>${ind.map(([k,l])=>`<tr><td>${l}</td><td><b>${fmtN(st[k].sum)}</b><br><small>${st[k].avg!=null?fmtN(st[k].avg)+' por día':''}</small></td>${cell(st[k].avg,ps[k].avg,ps[k])}${cell(st[k].avg,py[k].avg,py[k])}</tr>`).join('')}</tbody></table></div>
       <div class="est-card est-notes">${goodBoth.length?`<p><b class="est-blue">${goodBoth.join(', ')}</b><br>Mejor que en los dos períodos.</p>`:(goodA.length?`<p><b class="est-blue">${goodA.join(', ')}</b><br>Mejor que el mes pasado.</p>`:'')}${badBoth.length?`<p><b class="est-red">${badBoth.join(', ')}</b><br>Peor que en los dos períodos.</p>`:(badA.length?`<p><b class="est-red">${badA.join(', ')}</b><br>Peor que el mes pasado.</p>`:'')}${!goodA.length&&!badA.length?'<p class="est-small">Todavía no hay datos para comparar.</p>':''}</div></div>
-      <p class="est-small">▲ Mejoró (suba de 2 % o más) · ↗ Leve suba / ↘ Leve baja (menos de 2 %) · = Sin cambios (0 %) · ▼ Empeoró (baja de 2 % o más). Se compara el promedio por día hábil, así un mes en curso o con feriados no queda en desventaja.</p></section>`;
+      <p class="est-small">▲ Mejoró (suba de 2 % o más) · ↗ Leve suba / ↘ Leve baja (menos de 2 %) · = Sin cambios (0 %) · ▼ Empeoró (baja de 2 % o más). Se compara el promedio por día hábil, así un mes en curso o con feriados no queda en desventaja. Debajo de cada flecha está el valor del otro período: total del mes y promedio por día hábil.</p></section>`;
     // 9. Récords
     const rec=(lbl,s)=>{const r=s.max!=null?s.maxDays.map(d=>dayLabel(y,m,d)).join(', '):'—';return `<div class="est-tile"><span class="l">${lbl}</span><span class="b">${s.max!=null?fmtN(s.max):'—'}</span><span class="s">${esc(r)}</span></div>`};
     const mins=[['pedidos',P],['chats',C],['consultas',Q]].filter(([,s])=>s.min!=null).map(([l,s])=>`${fmtN(s.min)} ${l} (${s.min!=null?rows.filter(r=>total(days[r.k],l)===s.min).map(r=>dayLabel(y,m,r.d)).slice(0,2).join(', '):''})`);
@@ -66909,7 +67005,7 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     { const E=ejecModel(y,m,st,recs);
       slides.push(frame('Resumen para presentar',`${mes} ${y} en una hoja`,`<div class="ep-grid4">${E.k.map(t=>card(t.l,t.b,t.s,t.cls)).join('')}</div><ul class="ep-ejec">${E.frases.map(f=>`<li>${esc(f)}</li>`).join('')}</ul>`)); }
     // números
-    slides.push(frame('Resumen del mes',`${mes} en números`,`<div class="ep-grid4">${card('Chats totales',fmtN(C.sum),C.avg!=null?fmtN(C.avg)+' por día hábil':'')}${card('Consultas',fmtN(Q.sum),Q.avg!=null?fmtN(Q.avg)+' por día hábil':'')}${card('Pedidos anotados (planilla)',fmtN(P.sum),P.avg!=null?fmtN(P.avg)+' por día hábil':'','red')}${card('Conversión',fmtP(conv),'de las consultas terminan en pedido')}</div><p class="ep-note">Se contaron ${conDatos.length} días hábiles, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p>`));
+    slides.push(frame('Resumen del mes',`${mes} en números`,`<div class="ep-grid4">${card('Chats totales',fmtN(C.sum),C.avg!=null?fmtN(C.avg)+' por día hábil':'')}${card('Consultas',fmtN(Q.sum),Q.avg!=null?fmtN(Q.avg)+' por día hábil':'')}${card('Pedidos anotados (planilla)',fmtN(P.sum),P.avg!=null?fmtN(P.avg)+' por día hábil':'','red')}${card('Conversión',fmtP(conv),'de las consultas terminan en pedido')}</div><p class="ep-note">Se contaron ${conDatos.length} días hábiles, de lunes a sábado.${fer.length?` ${fer.length===1?'Fue feriado el':'Fueron feriados:'} ${fer.join(', ')}, que no ${fer.length===1?'entra':'entran'} en los promedios.`:''}</p>${(()=>{const t=_notaPedidosFuentes(y,m,P.sum);return t?`<p class="ep-note" style="margin-top:0">${esc(t)}</p>`:'';})()}`));
     { const ws=waSlide(y,m,frame,card); if(ws) slides.push(...ws); }
     { const os=otrosSlide(y,m,frame,card); if(os) slides.push(os); }
     slides.push(...cliSlides(y,m,frame,card));
@@ -66946,13 +67042,14 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     // comparación
     const pm=m===0?{y:y-1,m:11}:{y,m:m-1},ps=monthStats(pm.y,pm.m),py=monthStats(y-1,m);
     const ind=[['pedidos','Pedidos'],['chats','Chats'],['consultas','Consultas'],['envios','Envíos'],['retiros','Retiros']];
-    const cc=(a,b)=>{const r=rateLabel(a,b);if(!r)return `<td class="na">Sin datos</td>`;return `<td class="${r.cls}">${r.txt}${r.zero?'':` ${r.r>0?'+':''}${fmtP(r.r)}`}</td>`};
-    slides.push(frame('Contra otros períodos','Comparación del mes',`<table class="ep-tb ep-cmp"><thead><tr><th>Indicador</th><th>vs ${MONTHS[pm.m]} ${pm.y}</th><th>vs ${MONTHS[m]} ${y-1}</th></tr></thead><tbody>${ind.map(([k,l])=>`<tr><td>${l}</td>${cc(st[k].avg,ps[k].avg)}${cc(st[k].avg,py[k].avg)}</tr>`).join('')}</tbody></table><p class="ep-note">▲ Mejoró (suba de 2 % o más) · ↗ Leve suba / ↘ Leve baja (menos de 2 %) · = Sin cambios (0 %) · ▼ Empeoró (baja de 2 % o más). Se compara el promedio por día hábil.</p>`));
+    const vAbsP=x=>x&&x.sum!=null&&x.avg!=null?`${fmtN(x.sum)} · ${fmtN(x.avg)}/día`:'';
+    const cc=(a,b,o)=>{const r=rateLabel(a,b);if(!r)return `<td class="na">Sin datos</td>`;return `<td class="${r.cls}">${r.txt}${r.zero?'':` ${r.r>0?'+':''}${fmtP(r.r)}`}${vAbsP(o)?`<br><span style="font-size:13px;font-weight:500;color:${PDFC.muted}">${vAbsP(o)}</span>`:''}</td>`};
+    slides.push(frame('Contra otros períodos','Comparación del mes',`<table class="ep-tb ep-cmp"><thead><tr><th>Indicador</th><th>${MONTHS[m]} ${y}</th><th>vs ${MONTHS[pm.m]} ${pm.y}</th><th>vs ${MONTHS[m]} ${y-1}</th></tr></thead><tbody>${ind.map(([k,l])=>`<tr><td>${l}</td><td><b>${fmtN(st[k].sum)}</b>${st[k].avg!=null?`<br><span style="font-size:13px;font-weight:500;color:${PDFC.muted}">${fmtN(st[k].avg)}/día</span>`:''}</td>${cc(st[k].avg,ps[k].avg,ps[k])}${cc(st[k].avg,py[k].avg,py[k])}</tr>`).join('')}</tbody></table><p class="ep-note">▲ Mejoró (suba de 2 % o más) · ↗ Leve suba / ↘ Leve baja (menos de 2 %) · = Sin cambios (0 %) · ▼ Empeoró (baja de 2 % o más). Se compara el promedio por día hábil; debajo de cada flecha, el total y el promedio por día del otro período.</p>`));
     // récords
     const rc=(l,s)=>`<div class="ep-card"><span class="l">${l}</span><span class="b">${s.max!=null?fmtN(s.max):'—'}</span><span class="s">${esc(s.max!=null?s.maxDays.map(d=>dayLabel(y,m,d)).join(', '):'')}</span></div>`;
     const mins=[['pedidos',P],['chats',C],['consultas',Q]].filter(([,s])=>s.min!=null).map(([l,s])=>`${fmtN(s.min)} ${l}`);
     slides.push(frame('Récords del mes','Días récord',`<div class="ep-grid3 ep-rec">${rc('Más pedidos',P)}${rc('Más chats',C)}${rc('Más consultas',Q)}</div>${mins.length?`<p class="ep-note">Los mínimos del mes fueron ${mins.join(', ')}.</p>`:''}`,{dark:true}));
-    { const A=pasosModel(y,m,recs); if(A.length) slides.push(frame('Para el mes que viene','Próximos pasos',`<ol class="ep-pasos">${A.map(a=>`<li><b>${esc(a.q)}</b><span>${esc(a.t)}</span></li>`).join('')}</ol>`)); }
+    { const A=pasosModel(y,m,recs); if(A.length) slides.push(frame('Para el mes que viene','Próximos pasos',`<ol class="ep-pasos" style="gap:7px">${A.map(a=>`<li style="padding-top:9px;padding-bottom:9px;font-size:16px;line-height:1.35"><b>${esc(a.q)}</b><span>${esc(a.t)}<br><span style="font-size:13px;color:${PDFC.muted}">Plazo: <b style="color:${PDFC.ink}">${esc(a.plazo||'—')}</b> · Estado: <b style="color:${a.hecho?PDFC.green:PDFC.red}">${esc(pasoEstadoTxt(a))}</b></span></span></li>`).join('')}</ol>`)); }
     slides.push(...waAnexosSlides(y,m,frame));
     // Orden de presentación: resumen → ventas → clientes → atención por WhatsApp → diagnóstico y próximos pasos → anexos
     const RANK=[['Resumen para presentar',1],['Ventas en Yiqi',2],['WhatsApp · cargados',2.5],['Clientes · Origen',3],['Tienda online',3.5],['Resumen del mes',4],['Embudo del mes',5],['Contra otros períodos',6],['Por día de la semana',8],['Por día',7],['Entrega de pedidos',9],['Repartos',10],['Mercadería faltante',11],['Récords del mes',12],['Diagnóstico del mes',13],['Para el mes que viene',14],['Anexo',15]];
@@ -66962,10 +67059,17 @@ body.light-mode #pyq-prev .pf-v .pyq-badge,body.pyq-claro #pyq-prev .pf-v .pyq-b
     let n=1; return orden.map(x=>{ if(x.r===0) return x.h; n++; return x.h.replace(/(<div class="ep-foot"><span>[^<]*<\/span><span>)\d+(<\/span>)/,`$1${n}$2`); });
   }
 
+  // Nota: pedidos anotados en la Planilla vs. pedidos tomados en Yiqi (son dos registros distintos)
+  function _notaPedidosFuentes(y,m,nPlanilla){
+    let M=null; try{ M=waModel(y,m); }catch(e){}
+    if(!M||M.err||!M.tot||M.tot.mesN==null) return '';
+    const nY=M.tot.mesN;
+    return `Los ${fmtN(nPlanilla)} pedidos de esta hoja son los anotados a mano en la Planilla. En Yiqi, Juan y Federico tomaron ${fmtN(nY)} pedidos de WhatsApp en el mes: son dos registros distintos (uno lo carga el sistema y el otro se anota a mano), por eso ${nY===nPlanilla?'pueden no coincidir, aunque este mes dan igual':'no coinciden exactamente'}.`;
+  }
   /* ---------- Explicación de cada apartado (pantalla y PDF): qué se va a ver en cada uno ---------- */
   const EST_EXPLICA={
     'Resumen para presentar':'La hoja para mostrar el mes de un vistazo: cuánto se facturó por WhatsApp, cuántos pedidos se tomaron en Yiqi, el ticket promedio (lo que se gastó en promedio en cada pedido) y la plata de los pedidos que siguen en espera de pago. Abajo, en pocas frases, lo más importante del mes.',
-    'Para el mes que viene':'Las acciones concretas que conviene hacer el mes que viene, según lo que mostró este informe.',
+    'Para el mes que viene':'Las acciones concretas que conviene hacer el mes que viene, según lo que mostró este informe, con quién se encarga, en qué plazo y si ya se hizo.',
     'Ventas en Yiqi · Origen WhatsApp':'Lo que vendieron Juan y Federico con pedidos que entraron por WhatsApp, según Yiqi: cuánto se facturó, cuántos pedidos fueron, el ticket promedio y cómo vienen los últimos meses.',
     'WhatsApp · cargados a otros vendedores':'Pedidos que llegaron por WhatsApp pero quedaron cargados en Yiqi a nombre de otro vendedor. Se muestran aparte para no mezclarlos con las ventas de Juan y Federico.',
     'Tienda online · Origen Web':'Los pedidos que entraron por la tienda online (origen Web en Yiqi): cuántos fueron, cuánto se facturó y el ticket promedio.',
@@ -74516,14 +74620,21 @@ window.edCambiarEstado = edCambiarEstado;
     try {
       const nros = [...new Set(lista.map(e => Number(String(e.nroPedido).trim())))];
       const enYiqi = new Map();
-      for (let i = 0; i < nros.length; i += 80) {
+      // Se piden los pedidos por rango de número (desde el menor hasta el mayor de los envíos pendientes),
+      // con filtros "=", ">=" y "<=" que la API de Yiqi sí respeta, y se cruzan acá por N°.
+      const buscados = new Set(nros.map(String));
+      const nMin = Math.min(...nros), nMax = Math.max(...nros);
+      for (let page = 1; page <= 25; page++) {
+        const filtros = nMin === nMax ? [{ columnName: 'PEDI_NUMERO_SOLO', operator: '=', value: nMin }]
+          : [{ columnName: 'PEDI_NUMERO_SOLO', operator: '>=', value: nMin }, { columnName: 'PEDI_NUMERO_SOLO', operator: '<=', value: nMax }];
         const r = await yiqiFetch('https://api.yiqi.com.ar/api/public/PEDIDO/query?schemaId=328', { method: 'POST',
           headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ page: 1, pageSize: 200, columns: ['ID','PEDI_NUMERO_SOLO','DESC_ESTADO','VEHA_ID_VEHA'].map((f, k) => ({ field: f, title: f, order: k + 1 })),
-            filters: [{ columnName: 'PEDI_NUMERO_SOLO', operator: 'IN', value: nros.slice(i, i + 80) }] }) });
+          body: JSON.stringify({ page, pageSize: 200, columns: ['ID','PEDI_NUMERO_SOLO','DESC_ESTADO','VEHA_ID_VEHA'].map((f, k) => ({ field: f, title: f, order: k + 1 })),
+            filters: filtros }) });
         if (!r.ok) { console.warn('[ed-auto] Yiqi respondió', r.status); return; }
-        const j = await r.json();
-        (j.data || []).forEach(p => enYiqi.set(String(p.PEDI_NUMERO_SOLO), p));
+        const j = await r.json(), d = j.data || [];
+        d.forEach(p => { const k = String(p.PEDI_NUMERO_SOLO); if (buscados.has(k)) enYiqi.set(k, p); });
+        if (d.length < 200 || enYiqi.size >= buscados.size) break;
       }
       const marcados = [];
       const _toast = showToast; showToast = function() {};   // sin un aviso por cada estado; al final va un resumen
@@ -74556,6 +74667,9 @@ window.edCambiarEstado = edCambiarEstado;
   window.edAutoFacturadoYiqi = revisar;
   setTimeout(() => revisar('inicio'), 25000);
   setInterval(() => { if (!document.hidden) revisar('cada 4 min'); }, CADA_MS);
+  // Al volver a la pestaña del CRM (si estaba en otra pestaña del navegador, el chequeo de cada 4 min no corre)
+  let _ultVisible = 0;
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - _ultVisible > 60000) { _ultVisible = Date.now(); setTimeout(() => revisar('volvió a la pestaña'), 1500); } });
   document.addEventListener('click', ev => { if (ev.target.closest && ev.target.closest('#tab-envios-dentalab')) setTimeout(() => revisar('pestaña'), 800); });
 })();
 
